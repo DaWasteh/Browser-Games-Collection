@@ -1,41 +1,38 @@
-name: CI - Tetris
+name: CI - Tetris HTML
 
 on:
   push:
     branches: [ "main", "master" ]
+    paths:
+      - "tetris.html"
+      - ".github/workflows/**"
   pull_request:
     branches: [ "main", "master" ]
+    paths:
+      - "tetris.html"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-test:
+  validate-html:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12", "3.13"]
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-        cache: 'pip'
-        
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y xvfb libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install flake8 pytest
+      - name: Verify tetris.html exists
+        run: test -f tetris.html
 
-    - name: Lint with flake8
-      run: |
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        
-    - name: Test with pytest
-      run: xvfb-run python -m pytest || echo "No tests configured yet"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install HTMLHint
+        run: npm install --no-save htmlhint
+
+      - name: Validate HTML
+        run: npx htmlhint tetris.html
