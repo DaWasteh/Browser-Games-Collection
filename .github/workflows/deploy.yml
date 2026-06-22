@@ -10,54 +10,57 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 env:
   GAME_VERSION: '1.0'
-  BUILD_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
 
 jobs:
   lint:
-    name: HTML Lint
+    name: Validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
-          cache: null
 
-      - name: Install htmlhint
-        run: npm install -g htmlhint
+      - name: Run smoke test
+        run: node smoke-test.cjs
 
       - name: Run HTMLHint
-        run: htmlhint --compact tetris.html || true
+        run: npx --yes htmlhint@1.9.2 index.html tetris.html
 
   build:
-    name: Build & Validate
+    name: Build
     runs-on: ubuntu-latest
+    needs: [lint]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: null
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Create build artifact
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+          VERSION: ${{ env.GAME_VERSION }}
         run: |
+          set -eu
           mkdir -p build
-          cp tetris.html build/index.html
-          echo "Build completed at $(date -u)" > build/BUILD_INFO.txt
-          echo "Commit: ${{ github.sha }}" >> build/BUILD_INFO.txt
-          echo "Branch: ${{ github.ref_name }}" >> build/BUILD_INFO.txt
-          echo "Version: ${{ env.GAME_VERSION }}" >> build/BUILD_INFO.txt
+          cp index.html tetris.html tetris-logic.js build/
+          {
+            printf 'Build completed at %s\n' "$(date -u)"
+            printf 'Commit: %s\n' "$COMMIT_SHA"
+            printf 'Branch: %s\n' "$REF_NAME"
+            printf 'Version: %s\n' "$VERSION"
+          } > build/BUILD_INFO.txt
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tetris
           path: build/
@@ -67,32 +70,37 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [lint, build]
+    needs: [build]
     if: github.event_name == 'release'
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: tetris
           path: release-artifacts/
 
       - name: Create release archive
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
+          set -eu
+          archive_name="tetris-${RELEASE_TAG//[^A-Za-z0-9._-]/_}.zip"
           cd release-artifacts
-          zip -r ../tetris-${{ github.event.release.tag_name }}.zip .
+          zip -r "../$archive_name" .
+          printf 'ARCHIVE_NAME=%s\n' "$archive_name" >> "$GITHUB_ENV"
 
       - name: Upload release asset
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./tetris-${{ github.event.release.tag_name }}.zip
-          asset_name: tetris-${{ github.event.release.tag_name }}.zip
-          asset_content_type: application/zip
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -eu
+          gh release upload "$RELEASE_TAG" "./$ARCHIVE_NAME" --clobber
 
   pages:
     name: Deploy to GitHub Pages
@@ -107,23 +115,20 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@1f0c5cde4bc74cd7e1254d0cb4de8d49e9068c7d # v4
 
       - name: Download build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: tetris
-          path: .
+          path: site
 
-      - name: Upload and deploy to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: .
+          path: site
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

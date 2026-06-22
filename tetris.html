@@ -183,6 +183,7 @@
         .btn-hard { background: linear-gradient(145deg, #e94560, #c73650); box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4); }
         .btn-hard:hover { background: linear-gradient(145deg, #ff6b81, #e94560); box-shadow: 0 6px 20px rgba(233, 69, 96, 0.6); }
         .difficulty-label {
+            display: block;
             font-size: 12px;
             color: #888;
             margin-top: 5px;
@@ -240,6 +241,34 @@
             50% { transform: translate(-50%, -50%) scale(1.2); }
             100% { transform: translate(-50%, -50%) scale(1); }
         }
+
+        @media (max-width: 700px), (max-height: 760px) {
+            body {
+                align-items: flex-start;
+                overflow: auto;
+                padding: 12px;
+            }
+            #game-wrapper {
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+                width: 100%;
+            }
+            #game-board {
+                width: min(90vw, 300px);
+                height: auto;
+            }
+            #sidebar {
+                width: min(90vw, 300px);
+                min-width: 0;
+            }
+            .panel {
+                padding: 12px;
+            }
+            #menu-overlay h1 {
+                font-size: clamp(42px, 14vw, 64px);
+            }
+        }
     </style>
 </head>
 <body>
@@ -248,23 +277,23 @@
         <h1>TETRIS</h1>
         <div class="subtitle">Wähle deine Schwierigkeit</div>
         <div class="difficulty-buttons">
-            <button class="btn-easy" onclick="startGame('easy')">
+            <button class="btn-easy" data-difficulty="easy">
                 Einfach
-                <div class="difficulty-label">Langsam & entspannt</div>
+                <span class="difficulty-label">Langsam & entspannt</span>
             </button>
-            <button class="btn-medium" onclick="startGame('medium')">
+            <button class="btn-medium" data-difficulty="medium">
                 Mittel
-                <div class="difficulty-label">Klassisches Tempo</div>
+                <span class="difficulty-label">Klassisches Tempo</span>
             </button>
-            <button class="btn-hard" onclick="startGame('hard')">
+            <button class="btn-hard" data-difficulty="hard">
                 Schwer
-                <div class="difficulty-label">Schnell & fordernd</div>
+                <span class="difficulty-label">Schnell & fordernd</span>
             </button>
         </div>
     </div>
 
     <!-- Sound-Toggle -->
-    <button id="sound-toggle" onclick="toggleSound()">🔊</button>
+    <button id="sound-toggle">🔊</button>
 
     <!-- Combo-Anzeige -->
     <div id="combo-display"></div>
@@ -295,7 +324,7 @@
                 <h2>Schwierigkeit</h2>
                 <div class="value" id="difficulty-display" style="font-size:18px; color:#e94560;">—</div>
             </div>
-            <button onclick="showMenu()">Menü</button>
+            <button id="menu-button">Menü</button>
             <div class="panel controls">
                 <kbd>←</kbd> <kbd>→</kbd> Bewegen<br>
                 <kbd>↓</kbd> Schneller fallen<br>
@@ -306,11 +335,24 @@
         </div>
     </div>
 
+    <script src="tetris-logic.js"></script>
     <script>
         // === Konfiguration ===
-        const COLS = 10;
-        const ROWS = 20;
-        const CELL_SIZE = 30;
+        const {
+            COLS,
+            ROWS,
+            CELL_SIZE,
+            DIFFICULTY,
+            PIECE_BY_ID,
+            createBoard: createEmptyBoard,
+            randomPiece,
+            rotate,
+            collides: collidesWithBoard,
+            clearCompletedRows,
+            lineScore,
+            dropSpeedForLevel
+        } = TetrisLogic;
+
         const canvas = document.getElementById('game-board');
         const ctx = canvas.getContext('2d');
         canvas.width = COLS * CELL_SIZE;
@@ -324,31 +366,14 @@
         // Partikel-Canvas
         const particleCanvas = document.getElementById('particle-canvas');
         const pCtx = particleCanvas.getContext('2d');
-        particleCanvas.width = window.innerWidth;
-        particleCanvas.height = window.innerHeight;
-        window.addEventListener('resize', () => {
+        function resizeParticleCanvas() {
             particleCanvas.width = window.innerWidth;
             particleCanvas.height = window.innerHeight;
-        });
+        }
+        resizeParticleCanvas();
+        window.addEventListener('resize', resizeParticleCanvas);
 
-        // === Schwierigkeits-Einstellungen ===
-        const DIFFICULTY = {
-            easy:   { baseSpeed: 1200, speedStep: 50,  label: 'Einfach' },
-            medium: { baseSpeed: 800,  speedStep: 80,  label: 'Mittel' },
-            hard:   { baseSpeed: 400,  speedStep: 120, label: 'Schwer' }
-        };
         let currentDifficulty = 'medium';
-
-        // === Tetromino-Definitionen ===
-        const PIECES = [
-            { shape: [[1,1,1,1]], color: '#00f0f0', glow: '#00ffff' },            // I - Cyan
-            { shape: [[2,2],[2,2]], color: '#f0f000', glow: '#ffff00' },          // O - Yellow
-            { shape: [[0,3,3],[3,3,0]], color: '#a000c0', glow: '#c040ff' },      // S - Purple
-            { shape: [[4,4,0],[0,4,4]], color: '#e00000', glow: '#ff4040' },      // Z - Red
-            { shape: [[5,0,0],[5,5,5]], color: '#f0a000', glow: '#ff8000' },      // J - Orange
-            { shape: [[6,6,6],[0,6,0]], color: '#00a000', glow: '#00ff00' },      // T - Green
-            { shape: [[0,0,7],[7,7,7]], color: '#0000f0', glow: '#4040ff' }       // L - Blue
-        ];
 
         // === Spielzustand ===
         let board = [];
@@ -364,6 +389,7 @@
         let lines = 0;
         let dropSpeed = 800;
         let comboCount = 0;
+        let comboTimeoutId = null;
         let soundEnabled = true;
 
         // === Audio-System (Web Audio API) ===
@@ -385,6 +411,10 @@
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
+            osc.onended = () => {
+                osc.disconnect();
+                gain.disconnect();
+            };
             osc.start();
             osc.stop(audioCtx.currentTime + duration);
         }
@@ -428,13 +458,16 @@
 
         // === Partikel-System ===
         let particles = [];
+        let particleAnimationId = null;
 
         function spawnParticles(x, y, color, count = 15) {
             const rect = canvas.getBoundingClientRect();
+            const cellWidth = rect.width / COLS;
+            const cellHeight = rect.height / ROWS;
             for (let i = 0; i < count; i++) {
                 particles.push({
-                    x: rect.left + x * CELL_SIZE + CELL_SIZE / 2,
-                    y: rect.top + y * CELL_SIZE + CELL_SIZE / 2,
+                    x: rect.left + x * cellWidth + cellWidth / 2,
+                    y: rect.top + y * cellHeight + cellHeight / 2,
                     vx: (Math.random() - 0.5) * 8,
                     vy: (Math.random() - 0.5) * 8 - 3,
                     life: 1,
@@ -443,11 +476,20 @@
                     color: color
                 });
             }
+            if (!particleAnimationId) {
+                particleAnimationId = requestAnimationFrame(updateParticles);
+            }
         }
 
         function updateParticles() {
+            particleAnimationId = null;
             pCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
             particles = particles.filter(p => p.life > 0);
+            if (particles.length === 0) {
+                pCtx.globalAlpha = 1;
+                pCtx.shadowBlur = 0;
+                return;
+            }
             particles.forEach(p => {
                 p.x += p.vx;
                 p.y += p.vy;
@@ -461,45 +503,16 @@
             });
             pCtx.globalAlpha = 1;
             pCtx.shadowBlur = 0;
-            requestAnimationFrame(updateParticles);
+            particleAnimationId = requestAnimationFrame(updateParticles);
         }
-        updateParticles();
 
         // === Hilfsfunktionen ===
         function createBoard() {
-            board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-        }
-
-        function randomPiece() {
-            const idx = Math.floor(Math.random() * PIECES.length);
-            return { ...PIECES[idx], shape: PIECES[idx].shape.map(row => [...row]), rotation: 0 };
-        }
-
-        function rotate(matrix) {
-            const N = matrix.length;
-            const M = matrix[0].length;
-            const result = Array.from({ length: M }, () => Array(N).fill(0));
-            for (let y = 0; y < N; y++) {
-                for (let x = 0; x < M; x++) {
-                    result[x][N - 1 - y] = matrix[y][x];
-                }
-            }
-            return result;
+            board = createEmptyBoard();
         }
 
         function collides(piece, px, py, shape) {
-            const s = shape || piece.shape;
-            for (let y = 0; y < s.length; y++) {
-                for (let x = 0; x < s[y].length; x++) {
-                    if (s[y][x]) {
-                        const bx = px + x;
-                        const by = py + y;
-                        if (bx < 0 || bx >= COLS || by >= ROWS) return true;
-                        if (by >= 0 && board[by][bx]) return true;
-                    }
-                }
-            }
-            return false;
+            return collidesWithBoard(board, piece, px, py, shape);
         }
 
         // === Zeichnen ===
@@ -556,9 +569,10 @@
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
                     if (board[y][x]) {
-                        // Finde die Farbe und Glow
-                        const pieceData = PIECES.find(p => p.color === board[y][x]);
-                        drawCell(ctx, x, y, board[y][x], pieceData?.glow || board[y][x]);
+                        const pieceData = PIECE_BY_ID[board[y][x]];
+                        if (pieceData) {
+                            drawCell(ctx, x, y, pieceData.color, pieceData.glow);
+                        }
                     }
                 }
             }
@@ -654,9 +668,15 @@
         // === Combo-Anzeige ===
         function showCombo(count) {
             const el = document.getElementById('combo-display');
+            if (comboTimeoutId) {
+                clearTimeout(comboTimeoutId);
+            }
             el.textContent = count >= 3 ? `${count}x COMBO!` : '';
             el.classList.add('show');
-            setTimeout(() => el.classList.remove('show'), 800);
+            comboTimeoutId = setTimeout(() => {
+                el.classList.remove('show');
+                comboTimeoutId = null;
+            }, 800);
         }
 
         // === Spielmechanik ===
@@ -669,8 +689,16 @@
             if (collides(currentPiece, currentX, currentY)) {
                 isGameOver = true;
                 clearInterval(gameInterval);
+                gameInterval = null;
                 playGameOverSound();
             }
+        }
+
+        function resetGameInterval() {
+            if (gameInterval) {
+                clearInterval(gameInterval);
+            }
+            gameInterval = isGameOver ? null : setInterval(gameLoop, dropSpeed);
         }
 
         function lockPiece() {
@@ -680,7 +708,7 @@
                         const boardY = currentY + y;
                         const boardX = currentX + x;
                         if (boardY >= 0 && boardY < ROWS && boardX >= 0 && boardX < COLS) {
-                            board[boardY][boardX] = currentPiece.color;
+                            board[boardY][boardX] = currentPiece.id;
                         }
                     }
                 });
@@ -689,22 +717,21 @@
         }
 
         function clearLines() {
-            let cleared = 0;
-            for (let y = ROWS - 1; y >= 0; y--) {
-                if (board[y].every(cell => cell !== 0)) {
-                    // Partikel für jede Zelle in der Reihe
-                    for (let x = 0; x < COLS; x++) {
-                        spawnParticles(x, y, board[y][x], 5);
+            const result = clearCompletedRows(board);
+            const cleared = result.cleared;
+
+            result.clearedRows.forEach(({ y, cells }) => {
+                cells.forEach((pieceId, x) => {
+                    const pieceData = PIECE_BY_ID[pieceId];
+                    if (pieceData) {
+                        spawnParticles(x, y, pieceData.color, 5);
                     }
-                    board.splice(y, 1);
-                    board.unshift(Array(COLS).fill(0));
-                    cleared++;
-                    y++; // Erneut prüfen
-                }
-            }
+                });
+            });
+            board = result.board;
+
             if (cleared > 0) {
-                const points = [0, 100, 300, 500, 800];
-                score += (points[cleared] || 800) * level;
+                score += lineScore(cleared, level);
                 lines += cleared;
                 level = Math.floor(lines / 10) + 1;
 
@@ -715,7 +742,7 @@
                     showCombo(comboCount);
                 }
 
-                dropSpeed = Math.max(50, DIFFICULTY[currentDifficulty].baseSpeed - (level - 1) * DIFFICULTY[currentDifficulty].speedStep);
+                dropSpeed = dropSpeedForLevel(currentDifficulty, level);
 
                 document.getElementById('score').textContent = score;
                 document.getElementById('level').textContent = level;
@@ -729,15 +756,14 @@
                 }
 
                 // Geschwindigkeit erhöhen
-                clearInterval(gameInterval);
-                gameInterval = setInterval(gameLoop, dropSpeed);
+                resetGameInterval();
             } else {
                 comboCount = 0;
             }
         }
 
         function gameLoop() {
-            if (isGameOver || isPaused) return;
+            if (!currentPiece || isGameOver || isPaused) return;
 
             if (!collides(currentPiece, currentX, currentY + 1)) {
                 currentY++;
@@ -750,14 +776,19 @@
         }
 
         function showMenu() {
-            if (gameInterval) clearInterval(gameInterval);
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+            currentPiece = null;
+            nextPiece = null;
             document.getElementById('menu-overlay').style.display = 'flex';
         }
 
         function startGame(difficulty = 'medium') {
             initAudio();
-            currentDifficulty = difficulty;
-            const diff = DIFFICULTY[difficulty];
+            currentDifficulty = DIFFICULTY[difficulty] ? difficulty : 'medium';
+            const diff = DIFFICULTY[currentDifficulty];
 
             createBoard();
             score = 0;
@@ -774,18 +805,27 @@
             document.getElementById('difficulty-display').textContent = diff.label;
             document.getElementById('menu-overlay').style.display = 'none';
 
-            if (gameInterval) clearInterval(gameInterval);
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
 
             nextPiece = randomPiece();
             spawnPiece();
             draw();
 
-            gameInterval = setInterval(gameLoop, dropSpeed);
+            resetGameInterval();
         }
+
+        document.querySelectorAll('[data-difficulty]').forEach(button => {
+            button.addEventListener('click', () => startGame(button.dataset.difficulty));
+        });
+        document.getElementById('sound-toggle').addEventListener('click', toggleSound);
+        document.getElementById('menu-button').addEventListener('click', showMenu);
 
         // === Steuerung ===
         document.addEventListener('keydown', (e) => {
-            if (isGameOver) return;
+            if (!currentPiece || isGameOver) return;
 
             if (e.key === 'p' || e.key === 'P') {
                 isPaused = !isPaused;
@@ -832,6 +872,7 @@
                     lockPiece();
                     clearLines();
                     spawnPiece();
+                    resetGameInterval();
                     document.getElementById('score').textContent = score;
                     break;
             }
@@ -853,7 +894,7 @@
 
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
-            if (isGameOver || isPaused) return;
+            if (!currentPiece || isGameOver || isPaused) return;
 
             const dx = e.changedTouches[0].clientX - touchStartX;
             const dy = e.changedTouches[0].clientY - touchStartY;
@@ -888,6 +929,7 @@
                 lockPiece();
                 clearLines();
                 spawnPiece();
+                resetGameInterval();
             }
             draw();
         });

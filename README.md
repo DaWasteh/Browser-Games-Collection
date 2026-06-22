@@ -1,10 +1,10 @@
 # Tetris Game
 
-Ein klassisches Tetris-Spiel, komplett in einer einzigen HTML-Datei implementiert. Kein Server, keine Abhängigkeiten, kein Build-Prozess – einfach im Browser öffnen und spielen.
+Ein klassisches Tetris-Spiel ohne Server, Frameworks oder Build-Prozess. Im Browser öffnen und spielen.
 
 ## Spiel starten
 
-Einfach `tetris.html` im Browser öffnen. Fertig.
+`index.html` öffnen. `tetris.html` funktioniert ebenfalls.
 
 ## Features
 
@@ -35,11 +35,21 @@ Einfach `tetris.html` im Browser öffnen. Fertig.
 
 ## Technische Details
 
-- **Single-File**: Alle Logik, Rendering und UI in einer HTML-Datei
-- **Vanilla JavaScript**: Keine Frameworks, keine Abhängigkeiten
+- **Vanilla JavaScript**: Keine Frameworks, keine Runtime-Abhängigkeiten
 - **HTML5 Canvas**: Direktes 2D-Rendering
-- **Responsive**: Funktioniert auf Desktop und Mobile
+- **Responsive**: Desktop und Mobile
+- **Pure Game Logic**: Spielregeln in `tetris-logic.js`, UI/Canvas in `tetris.html`
 
-## Datei
+## Dateien
 
-- [`tetris.html`](tetris.html) – Das komplette Spiel (~500 Zeilen)
+- `index.html` – Einstieg/Redirect
+- `tetris.html` – UI, Rendering, Eingabe, Audio
+- `tetris-logic.js` – Spiellogik ohne DOM
+- `smoke-test.cjs` – kleiner Node-Selbstcheck
+
+## Check
+
+```bash
+node smoke-test.cjs
+npx --yes htmlhint index.html tetris.html
+```
