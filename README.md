@@ -1,10 +1,14 @@
 # Tetris Game
 
+🎮 **Live spielen:** <https://dawasteh.github.io/Tetris/>
+
 Ein klassisches Tetris-Spiel ohne Server, Frameworks oder Build-Prozess. Im Browser öffnen und spielen.
 
 ## Spiel starten
 
-`index.html` öffnen. `tetris.html` funktioniert ebenfalls.
+Online spielen: **<https://dawasteh.github.io/Tetris/>**
+
+Oder lokal: `index.html` öffnen. `tetris.html` funktioniert ebenfalls.
 
 ## Features
 
