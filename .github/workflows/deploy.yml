@@ -96,7 +96,7 @@ jobs:
           archive_name="tetris-${RELEASE_TAG//[^A-Za-z0-9._-]/_}.zip"
           cd release-artifacts
           zip -r "../$archive_name" .
-          printf 'ARCHIVE=%s\n' "../$archive_name" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$archive_name" >> "$GITHUB_ENV"
 
       - name: Create GitHub Release
         env:
