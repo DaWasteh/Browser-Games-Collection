@@ -1,1 +1,17 @@
+# Python (Tooling/Build-Skripte)
 .venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Build-Artefakte
+_site/
+dist/
