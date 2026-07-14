@@ -1,0 +1,3020 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <title>SNAKE ULTIMATE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@400;700&family=Press+Start+2P&family=Varela+Round&display=swap" rel="stylesheet">
+    <style>
+        /* ===== CSS VARIABLES & THEMES ===== */
+        :root {
+            --bg-color: #0b0c10;
+            --ui-accent: #45a29e;
+            --text-color: #fff;
+            --font-family: 'Orbitron', sans-serif;
+            --menu-bg: rgba(0, 0, 0, 0.85);
+            --border-style: 4px solid var(--ui-accent);
+            --canvas-shadow: 0 0 20px var(--ui-accent);
+            --maiden-color: #45a29e;
+        }
+        body[data-theme="cyberpunk"] {
+            --bg-color: #07080a;
+            --ui-accent: #00f3ff;
+            --text-color: #e0ffff;
+            --font-family: 'Orbitron', sans-serif;
+            --canvas-shadow: 0 0 30px #00f3ff, inset 0 0 20px rgba(0, 243, 255, 0.2);
+            --maiden-color: #ff0055;
+        }
+        body[data-theme="retro"] {
+            --bg-color: #4a5c39;
+            --ui-accent: #112211;
+            --text-color: #112211;
+            --font-family: 'Press Start 2P', monospace;
+            --menu-bg: rgba(139, 172, 15, 0.95);
+            --border-style: 10px solid #222;
+            --canvas-shadow: 10px 10px 0px rgba(0,0,0,0.5);
+            --maiden-color: #112211;
+        }
+        body[data-theme="ocean"] {
+            --bg-color: #001a33;
+            --ui-accent: #00ffcc;
+            --text-color: #e6ffff;
+            --font-family: 'Varela Round', sans-serif;
+            --menu-bg: rgba(0, 26, 51, 0.85);
+            --border-style: 8px solid #0059b3;
+            --canvas-shadow: 0 0 40px rgba(0, 255, 204, 0.3);
+            --maiden-color: #000033;
+        }
+        body[data-theme="inferno"] {
+            --bg-color: #1a0000;
+            --ui-accent: #ff3300;
+            --text-color: #ffb3b3;
+            --font-family: 'Creepster', cursive;
+            --menu-bg: rgba(26, 0, 0, 0.9);
+            --border-style: 4px dashed #ff3300;
+            --canvas-shadow: 0 0 50px rgba(255, 0, 0, 0.6);
+            --maiden-color: #4d0000;
+        }
+        body[data-theme="pvz"] {
+            --bg-color: #2d5a27;
+            --ui-accent: #76c843;
+            --text-color: #ffcc00;
+            --font-family: 'Varela Round', sans-serif;
+            --menu-bg: rgba(45, 90, 39, 0.9);
+            --border-style: 6px solid #76c843;
+            --canvas-shadow: 0 0 30px rgba(118, 200, 67, 0.4);
+            --maiden-color: #8b4513;
+        }
+        body[data-theme="matrix"] {
+            --bg-color: #000500;
+            --ui-accent: #00ff41;
+            --text-color: #00cc33;
+            --font-family: 'Orbitron', monospace;
+            --menu-bg: rgba(0, 8, 0, 0.95);
+            --border-style: 1px solid #00ff41;
+            --canvas-shadow: 0 0 12px #00ff41, 0 0 28px rgba(0, 255, 65, 0.25);
+            --maiden-color: #001a00;
+        }
+        body[data-theme="vaporwave"] {
+            --bg-color: #1b0040;
+            --ui-accent: #ff71ce;
+            --text-color: #b967ff;
+            --font-family: 'Orbitron', sans-serif;
+            --menu-bg: rgba(27, 0, 64, 0.92);
+            --border-style: 3px solid #ff71ce;
+            --canvas-shadow: 0 0 20px #ff71ce, 0 0 50px rgba(185, 103, 255, 0.35);
+            --maiden-color: #3d0070;
+        }
+        body[data-theme="darkforest"] {
+            --bg-color: #0a130a;
+            --ui-accent: #6aaa40;
+            --text-color: #b8d4a0;
+            --font-family: 'Varela Round', sans-serif;
+            --menu-bg: rgba(10, 19, 10, 0.93);
+            --border-style: 3px solid #4a8030;
+            --canvas-shadow: 0 0 18px rgba(106, 170, 64, 0.45);
+            --maiden-color: #1a2d0f;
+        }
+
+        /* ===== BASE ===== */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100dvh;
+            margin: 0;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            color: var(--text-color);
+            overflow: hidden;
+            transition: background-color 0.5s, color 0.5s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* ===== TOP BAR ===== */
+        .top-bar {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 2px solid var(--ui-accent);
+            flex-shrink: 0;
+            transition: all 0.3s;
+        }
+        body[data-theme="retro"] .top-bar {
+            background: #8bac0f;
+            border-bottom: 4px solid #112211;
+        }
+        .top-bar h1 {
+            margin: 0;
+            font-size: clamp(14px, 3vw, 24px);
+            color: var(--ui-accent);
+            white-space: nowrap;
+        }
+        .controls-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .topbar-hs {
+            font-size: clamp(10px, 1.4vw, 14px);
+            color: var(--ui-accent);
+            opacity: 0.75;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .topbar-hs span { opacity: 1; font-weight: bold; }
+        select {
+            background-color: var(--menu-bg);
+            color: var(--ui-accent);
+            border: 2px solid var(--ui-accent);
+            padding: 6px 10px;
+            font-size: clamp(11px, 1.5vw, 14px);
+            font-family: var(--font-family);
+            border-radius: 5px;
+            outline: none;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        /* ===== GAME WRAPPER ===== */
+        .game-wrapper {
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            padding: 8px 20px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        /* ===== SCORE BOARD ===== */
+        .score-board {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: clamp(20px, 8vw, 80px);
+            margin-bottom: 8px;
+            text-shadow: 1px 1px 2px #000;
+            flex-shrink: 0;
+            align-items: flex-start;
+        }
+        .player-hud {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .score-text { font-size: clamp(16px, 3vw, 36px); }
+        .hunger-track {
+            width: 80px;
+            height: 6px;
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid var(--ui-accent);
+            border-radius: 3px;
+            overflow: hidden;
+            display: none;
+        }
+        .hunger-fill {
+            height: 100%;
+            width: 100%;
+            background: #ff0000;
+            transition: width 0.1s linear;
+        }
+        #hud1 .score-text { color: var(--ui-accent); }
+        #hud2 .score-text { color: #ff00ff; }
+        #hud2 { display: none; }
+        body[data-theme="retro"] .score-text { color: #112211 !important; text-shadow: none; }
+        body[data-theme="retro"] .hunger-track { border-color: #112211; border-radius: 0; }
+
+        /* ===== GAME CONTAINER ===== */
+        .game-container {
+            position: relative;
+            width: min(calc(100vw - 40px), calc((100dvh - 90px - 50px) * 4 / 3));
+            aspect-ratio: 4 / 3;
+            flex-shrink: 0;
+        }
+
+        canvas {
+            border: var(--border-style);
+            box-shadow: var(--canvas-shadow);
+            border-radius: 8px;
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        body[data-theme="retro"] canvas { border-radius: 0; }
+
+        /* ===== OVERLAY ===== */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background-color: var(--menu-bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            gap: 0;
+        }
+        body[data-theme="retro"] .overlay { backdrop-filter: none; border-radius: 0; }
+        #gameOver  { display: none; }
+        #pauseOverlay { display: none; }
+        .overlay h2 {
+            font-size: clamp(20px, 4vw, 54px);
+            margin: 0 0 12px;
+            text-align: center;
+        }
+
+        /* ===== PAUSE OVERLAY ===== */
+        #pauseOverlay {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(6px);
+        }
+        #pauseOverlay h2 {
+            font-size: clamp(22px, 4.5vw, 56px);
+            color: var(--ui-accent);
+        }
+
+        /* ===== MODE TOGGLE ===== */
+        .mode-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .mode-btn {
+            background: transparent;
+            border: 2px solid #555;
+            color: #888;
+            padding: clamp(5px, 1vw, 10px) clamp(10px, 2vw, 20px);
+            font-size: clamp(11px, 1.5vw, 16px);
+            font-family: var(--font-family);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            touch-action: manipulation;
+        }
+        body[data-theme="retro"] .mode-btn { border-radius: 0; }
+        .mode-btn.active {
+            border-color: var(--ui-accent);
+            color: var(--ui-accent);
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* ===== MENU GRIDS ===== */
+        .menu-grids {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            margin-bottom: 8px;
+            width: min(90%, 560px);
+            justify-content: center;
+        }
+        .diff-buttons, .addon-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            flex: 1;
+        }
+        .menu-col-title {
+            text-align: center;
+            font-size: clamp(10px, 1.2vw, 13px);
+            color: var(--ui-accent);
+            opacity: 0.8;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+
+        /* ===== ACTION BUTTONS ===== */
+        button.action-btn {
+            background-color: transparent;
+            border: 2px solid var(--ui-accent);
+            color: var(--ui-accent);
+            padding: clamp(7px, 1vw, 11px) clamp(8px, 1.2vw, 14px);
+            font-size: clamp(11px, 1.3vw, 16px);
+            font-family: var(--font-family);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.15s;
+            opacity: 0.55;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body[data-theme="retro"] button.action-btn { border-radius: 0; }
+        button.action-btn:hover, button.action-btn.selected {
+            background-color: var(--ui-accent);
+            color: var(--bg-color);
+            opacity: 1;
+        }
+        button.action-btn:active { transform: scale(0.97); }
+
+        button.addon-btn { border-style: dashed; }
+        button.addon-btn.active-addon {
+            background-color: rgba(69, 162, 158, 0.2);
+            border-style: solid;
+            opacity: 1;
+            box-shadow: 0 0 8px var(--ui-accent);
+        }
+        
+        /* Sound Toggle Buttons */
+        #btn-sfx-toggle {
+            font-weight: bold;
+        }
+        #btn-sfx-toggle.active {
+            background-color: rgba(255, 165, 0, 0.3) !important;
+            border-style: solid !important;
+            opacity: 1 !important;
+            box-shadow: 0 0 8px orange !important;
+        }
+        #btn-music-toggle {
+            font-weight: bold;
+        }
+        #btn-music-toggle.active {
+            background-color: rgba(255, 215, 0, 0.3) !important;
+            border-style: solid !important;
+            opacity: 1 !important;
+            box-shadow: 0 0 8px gold !important;
+        }
+        button.addon-btn.locked-addon {
+            border-color: #ff0000 !important;
+            color: #ff0000 !important;
+            background-color: rgba(255, 0, 0, 0.2);
+            box-shadow: 0 0 8px #ff0000;
+            opacity: 1;
+            border-style: solid;
+            pointer-events: none;
+        }
+        button.btn-nightmare {
+            border-color: #ff0000 !important;
+            color: #ff0000 !important;
+            animation: pulse 1.5s infinite;
+        }
+        button.btn-nightmare:hover, button.btn-nightmare.selected {
+            background-color: #ff0000 !important;
+            color: #fff !important;
+        }
+        @keyframes pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
+            70%  { box-shadow: 0 0 0 8px rgba(255, 0, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
+
+        #startGameBtn {
+            margin-top: 8px;
+            opacity: 1 !important;
+            background-color: var(--ui-accent) !important;
+            color: var(--bg-color) !important;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+        }
+        .legend {
+            margin-top: 8px;
+            font-size: clamp(9px, 1.1vw, 13px);
+            text-align: center;
+            opacity: 0.7;
+            line-height: 1.6;
+        }
+
+        /* ===== HIGHSCORE BANNER (Game Over) ===== */
+        .hs-banner {
+            font-size: clamp(12px, 1.6vw, 18px);
+            color: #ffd700;
+            margin: 4px 0 10px;
+            text-align: center;
+            opacity: 0.9;
+        }
+        .hs-banner.new-record {
+            animation: hs-flash 0.5s ease-in-out 3;
+            color: #fff700;
+        }
+        @keyframes hs-flash {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+
+        /* ===== D-PAD (Mobile Controls) ===== */
+        #dpad-wrapper {
+            display: none;
+            gap: 12px;
+            margin-top: 8px;
+            user-select: none;
+            -webkit-user-select: none;
+            flex-shrink: 0;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        #dpad-wrapper.visible { display: flex; }
+        #dpad-wrapper.multiplayer {
+            justify-content: space-around;
+            width: 100%;
+            padding: 0 8px;
+        }
+        .dpad-zone {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        .dpad-player-label {
+            font-size: clamp(9px, 1.2vw, 12px);
+            color: var(--ui-accent);
+            opacity: 0.7;
+            font-family: var(--font-family);
+            letter-spacing: 0.05em;
+        }
+        #dpad-p2-zone .dpad-player-label { color: #ff00ff; }
+        .dpad-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        .dpad-row {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+        }
+        .dpad-btn {
+            width: 56px;
+            height: 56px;
+            background: rgba(255, 255, 255, 0.07);
+            border: 2px solid var(--ui-accent);
+            color: var(--ui-accent);
+            font-size: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.08s, transform 0.08s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .dpad-btn:active {
+            background: var(--ui-accent);
+            color: var(--bg-color);
+            transform: scale(0.93);
+        }
+        #dpad-p2-zone .dpad-btn {
+            border-color: #ff00ff;
+            color: #ff00ff;
+        }
+        #dpad-p2-zone .dpad-btn:active {
+            background: #ff00ff;
+            color: #000;
+        }
+        .dpad-center { width: 56px; height: 56px; }
+        body[data-theme="retro"] .dpad-btn { border-radius: 0; }
+
+        /* ===== RESPONSIVE: PORTRAIT PHONE (≤600px) ===== */
+        @media (max-width: 600px) and (orientation: portrait) {
+            .top-bar { padding: 7px 12px; }
+            .top-bar h1 { font-size: 13px; }
+            .topbar-hs { font-size: 10px; }
+
+            .game-wrapper { padding: 5px 8px 6px; }
+
+            .score-board { margin-bottom: 5px; gap: 20px; }
+            .score-text { font-size: 15px !important; }
+            .hunger-track { width: 55px; height: 4px; }
+
+            .game-container {
+                width: min(calc(100vw - 16px), calc((100dvh - 290px) * 4 / 3));
+            }
+
+            .overlay {
+                position: fixed;
+                inset: 0;
+                border-radius: 0;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                justify-content: flex-start;
+                padding: 14px 12px 20px;
+                gap: 3px;
+            }
+            .overlay h2 { font-size: 20px !important; margin-bottom: 10px; }
+
+            .mode-toggle { margin-bottom: 10px; gap: 8px; }
+            .mode-btn { font-size: 12px; padding: 8px 14px; }
+
+            .menu-grids { gap: 8px; width: 100%; margin-bottom: 6px; }
+            .menu-col-title { font-size: 10px; }
+            button.action-btn { padding: 9px 6px; font-size: 11px; }
+
+            #startGameBtn {
+                width: 100%;
+                padding: 13px;
+                font-size: 15px;
+                margin-top: 8px;
+            }
+            .legend { font-size: 9px; margin-top: 6px; }
+            #keyboardLegend { display: none; }
+            #pauseLegend    { display: none; }
+
+            #dpad-wrapper.visible { display: flex; }
+            .dpad-btn { width: 60px; height: 60px; font-size: 22px; }
+            .dpad-center { width: 60px; height: 60px; }
+            #dpad-wrapper.multiplayer { gap: 4px; }
+            #dpad-wrapper.multiplayer .dpad-btn { width: 50px; height: 50px; font-size: 18px; }
+            #dpad-wrapper.multiplayer .dpad-center { width: 50px; height: 50px; }
+        }
+
+        /* ===== RESPONSIVE: LANDSCAPE PHONE (height ≤500px) ===== */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .top-bar { padding: 4px 12px; }
+            .top-bar h1 { font-size: 11px; }
+            select { padding: 4px 8px; font-size: 10px; }
+            .topbar-hs { font-size: 10px; }
+
+            .game-wrapper { padding: 3px 8px 4px; }
+
+            .score-board { margin-bottom: 3px; gap: 15px; }
+            .score-text { font-size: 13px !important; }
+            .hunger-track { height: 4px; width: 45px; }
+
+            .game-container {
+                width: min(calc(100vw - 16px), calc((100dvh - 46px - 32px) * 4 / 3));
+            }
+
+            .overlay {
+                position: fixed;
+                inset: 0;
+                border-radius: 0;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                justify-content: flex-start;
+                padding: 8px 12px 10px;
+                gap: 3px;
+            }
+            .overlay h2 { font-size: 15px !important; margin-bottom: 6px; }
+
+            .mode-toggle { flex-direction: row; gap: 8px; margin-bottom: 6px; }
+            .mode-btn { font-size: 10px; padding: 4px 10px; }
+
+            .menu-grids { flex-direction: row; gap: 10px; width: min(90%, 480px); margin-bottom: 5px; }
+            .menu-col-title { font-size: 9px; }
+            button.action-btn { padding: 5px 6px; font-size: 10px; }
+
+            #startGameBtn { padding: 7px 20px; font-size: 12px; margin-top: 5px; }
+            .legend { font-size: 8px; margin-top: 4px; }
+            #keyboardLegend { display: none; }
+            #pauseLegend    { display: none; }
+
+            #dpad-wrapper.visible {
+                display: flex;
+                position: fixed;
+                right: 10px;
+                bottom: 10px;
+                z-index: 50;
+                background: rgba(0,0,0,0.3);
+                border-radius: 12px;
+                padding: 4px;
+            }
+            #dpad-wrapper.multiplayer {
+                right: auto;
+                bottom: 8px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: auto;
+                gap: 20px;
+            }
+            .dpad-btn { width: 44px; height: 44px; font-size: 16px; }
+            .dpad-center { width: 44px; height: 44px; }
+        }
+
+        /* ===== RESPONSIVE: TABLET (601–1024px) ===== */
+        @media (min-width: 601px) and (max-width: 1024px) {
+            .game-container {
+                width: min(calc(100vw - 40px), calc((100dvh - 85px - 55px) * 4 / 3));
+            }
+            @media (pointer: coarse) {
+                #dpad-wrapper.visible { display: flex; }
+            }
+        }
+
+        /* ===== MOBILE OVERLAY SETTINGS (Style + Volume im Menü) ===== */
+        .overlay-mobile-settings {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            width: min(90%, 400px);
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 6px;
+        }
+        .overlay-style-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: clamp(10px, 2vw, 13px);
+        }
+        .overlay-style-row select {
+            font-size: clamp(10px, 2vw, 13px);
+            padding: 4px 8px;
+        }
+        .overlay-vol-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            justify-content: center;
+            font-size: 12px;
+            flex-wrap: wrap;
+        }
+        .overlay-vol-row input[type=range] {
+            width: 75px;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255,255,255,0.25);
+            border-radius: 3px;
+            outline: none;
+        }
+        .overlay-vol-row input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            background: #00ff88; border-radius: 50%; cursor: pointer;
+            box-shadow: 0 0 6px rgba(0,255,136,0.6);
+        }
+        .overlay-vol-row input[type=range]::-moz-range-thumb {
+            width: 14px; height: 14px;
+            background: #00ff88; border-radius: 50%;
+            border: none; cursor: pointer;
+        }
+        .overlay-vol-label { opacity: 0.8; white-space: nowrap; }
+
+        @media (max-width: 600px) and (orientation: portrait) {
+            .overlay-mobile-settings { display: flex; }
+            /* Volume-Regler in Top-Bar auf Portrait-Mobile ausblenden – sind im Overlay */
+            .volume-controls { display: none !important; }
+        }
+        @media (max-height: 500px) and (orientation: landscape) {
+            .overlay-mobile-settings { display: flex; }
+            .volume-controls { display: none !important; }
+        }
+
+        /* ===== LANDSCAPE MULTIPLAYER D-PAD (Links/Rechts) ===== */
+        @media (max-height: 500px) and (orientation: landscape) {
+            body.landscape-mp #dpad-p1-zone {
+                position: fixed;
+                left: 4px;
+                top: 50%;
+                transform: translateY(-50%);
+                z-index: 60;
+                background: rgba(0,0,0,0.35);
+                border-radius: 12px;
+                padding: 4px;
+            }
+            body.landscape-mp #dpad-p2-zone {
+                position: fixed;
+                right: 4px;
+                top: 50%;
+                transform: translateY(-50%);
+                z-index: 60;
+                background: rgba(0,0,0,0.35);
+                border-radius: 12px;
+                padding: 4px;
+                display: flex !important;
+            }
+            body.landscape-mp #dpad-wrapper {
+                /* Wrapper aus dem Flow nehmen – Zonen sind jetzt fixed */
+                position: static;
+                background: none;
+                padding: 0;
+                gap: 0;
+                height: 0;
+                overflow: visible;
+            }
+            body.landscape-mp .game-container {
+                /* Canvas verschmälern damit D-Pads nicht überlappen */
+                width: min(calc(100vw - 320px), calc((100dvh - 46px - 32px) * 4 / 3));
+            }
+        }
+        .volume-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+        }
+
+        .volume-controls label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .volume-controls input[type="range"] {
+            width: 100px;
+            height: 6px;
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .volume-controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #00ff88;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+        }
+
+        .volume-controls input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: #00ff88;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .volume-controls input[type="range"]:hover::-webkit-slider-thumb {
+            background: #33ff99;
+            box-shadow: 0 0 12px rgba(0, 255, 136, 0.8);
+        }
+
+        .volume-controls span {
+            font-size: 12px;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            width: 35px;
+            display: inline-block;
+        }
+
+        /* Responsive für mobile Geräte */
+        @media (max-width: 600px) {
+            .volume-controls {
+                flex-wrap: wrap;
+                gap: 12px;
+                padding: 6px 8px;
+            }
+
+            .volume-controls input[type="range"] {
+                width: 80px;
+            }
+        }
+    </style>
+</head>
+<body data-theme="cyberpunk">
+
+    <div class="top-bar">
+        <h1>SNAKE ULTIMATE</h1>
+        <div class="topbar-hs" id="topbarHs">🏆 BEST: <span id="hsBestVal">0</span></div>
+        <div class="controls-wrapper">
+            <label for="themeSelect">STYLE:</label>
+            <select id="themeSelect" onchange="changeTheme(this.value)">
+                <option value="cyberpunk">Neon Cyberpunk</option>
+                <option value="retro">Classic 3310</option>
+                <option value="ocean">Deep Sea</option>
+                <option value="inferno">Inferno Blood</option>
+                <option value="pvz">Plants vs Zombies</option>
+                <option value="matrix">Matrix Code</option>
+                <option value="vaporwave">Vaporwave</option>
+                <option value="darkforest">Dark Forest</option>
+            </select>
+        </div>
+        <!-- Lautstärkeregler -->
+        <div class="volume-controls" style="display:flex; gap:15px; align-items:center;">
+            <label style="font-size:12px; font-weight:bold;">🔊 SFX:</label>
+            <input type="range" id="sfxVolume" min="0" max="100" value="80" oninput="setSFXVolume(this.value)">
+            <span id="sfxVolumeVal" style="font-size:12px; width:35px;">80%</span>
+            
+            <label style="font-size:12px; font-weight:bold;">🎵 MUSIK:</label>
+            <input type="range" id="musicVolume" min="0" max="100" value="70" oninput="setMusicVolume(this.value)">
+            <span id="musicVolumeVal" style="font-size:12px; width:35px;">70%</span>
+        </div>
+    </div>
+
+    <div class="game-wrapper">
+        <div class="score-board">
+            <div class="player-hud" id="hud1">
+                <div class="score-text" id="score1">P1: 0</div>
+                <div class="hunger-track" id="ht1"><div class="hunger-fill" id="hf1"></div></div>
+            </div>
+            <div class="player-hud" id="hud2">
+                <div class="score-text" id="score2">P2: 0</div>
+                <div class="hunger-track" id="ht2"><div class="hunger-fill" id="hf2"></div></div>
+            </div>
+        </div>
+
+        <div class="game-container">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+            <!-- Main Menu -->
+            <div class="overlay" id="mainMenu">
+                <h2>SNAKE ULTIMATE</h2>
+
+                <div class="mode-toggle">
+                    <button class="mode-btn active" id="btnSingle" onclick="setMode('single')">1 SPIELER</button>
+                    <button class="mode-btn" id="btnMulti" onclick="setMode('multi')">2 SPIELER</button>
+                </div>
+
+                <!-- Mobile-only: Style & Lautstärke im Overlay (Top-Bar nicht erreichbar) -->
+                <div class="overlay-mobile-settings">
+                    <div class="overlay-style-row">
+                        <span class="overlay-vol-label">STYLE:</span>
+                        <select id="themeSelectOverlay" onchange="changeTheme(this.value)">
+                            <option value="cyberpunk">Neon Cyberpunk</option>
+                            <option value="retro">Classic 3310</option>
+                            <option value="ocean">Deep Sea</option>
+                            <option value="inferno">Inferno Blood</option>
+                            <option value="pvz">Plants vs Zombies</option>
+                            <option value="matrix">Matrix Code</option>
+                            <option value="vaporwave">Vaporwave</option>
+                            <option value="darkforest">Dark Forest</option>
+                        </select>
+                    </div>
+                    <div class="overlay-vol-row">
+                        <span class="overlay-vol-label">🔊</span>
+                        <input type="range" id="sfxVolumeOverlay" min="0" max="100" value="80" oninput="setSFXVolume(this.value)">
+                        <span id="sfxVolOverlayVal" class="overlay-vol-label">80%</span>
+                        <span class="overlay-vol-label" style="margin-left:6px;">🎵</span>
+                        <input type="range" id="musicVolumeOverlay" min="0" max="100" value="70" oninput="setMusicVolume(this.value)">
+                        <span id="musVolOverlayVal" class="overlay-vol-label">70%</span>
+                    </div>
+                </div>
+
+                <!-- Sound Toggle Buttons -->
+                <div style="display:flex; gap:8px; justify-content:center; margin-bottom:10px;">
+                    <button class="action-btn addon-btn" id="btn-sfx-toggle" onclick="toggleSFX()" style="opacity:1;">🔊 SFX</button>
+                    <button class="action-btn addon-btn" id="btn-music-toggle" onclick="toggleMusic()" style="opacity:1;">🎵 MUSIK</button>
+                </div>
+
+                <div class="menu-grids">
+                    <div class="diff-buttons">
+                        <div class="menu-col-title">GESCHWINDIGKEIT</div>
+                        <button class="action-btn" id="btn-easy"      onclick="setDifficulty('easy')">LEICHT (175ms)</button>
+                        <button class="action-btn" id="btn-slow"     onclick="setDifficulty('slow')">LANGSAM (125ms)</button>
+                        <button class="action-btn" id="btn-medium"    onclick="setDifficulty('medium')">MITTEL (100ms)</button>
+                        <button class="action-btn" id="btn-quick"    onclick="setDifficulty('quick')">SCHNELL (70ms)</button>
+                        <button class="action-btn" id="btn-ultra"     onclick="setDifficulty('ultra')">ULTRA (45ms)</button>
+                        <button class="action-btn btn-nightmare" id="btn-nightmare" onclick="setDifficulty('nightmare')">ALBTRAUM (35ms)</button>
+                    </div>
+                    <div class="addon-buttons">
+                        <div class="menu-col-title">ADDONS (Toggles)</div>
+                        <button class="action-btn addon-btn" id="btn-addon-obstacles" onclick="toggleAddon('obstacles')">[1] HINDERNISSE</button>
+                        <button class="action-btn addon-btn" id="btn-addon-hunger"    onclick="toggleAddon('hunger')">[2] HUNGER</button>
+                        <button class="action-btn addon-btn" id="btn-addon-maiden"    onclick="toggleAddon('maiden')">[3] EIS. JUNGFRAU</button>
+                        <button class="action-btn addon-btn" id="btn-addon-poison"    onclick="toggleAddon('poison')">[4] GIFT-ÄPFEL</button>
+                    </div>
+                </div>
+
+                <button class="action-btn" id="startGameBtn" onclick="startGame()">▶ SPIEL STARTEN</button>
+
+                <p class="legend" id="keyboardLegend">
+                    [↑/↓] Tempo | [1,2,3,4] Addons | [ALT GR] 1/2 Spieler | [+/-] Style<br>
+                    [LEERTASTE] = Spiel Starten | [M] Mute | [S] SFX | [U] Musik<br>
+                </p>
+            </div>
+
+            <!-- Game Over -->
+            <div class="overlay" id="gameOver">
+                <h2 id="winnerText" style="color: #ff3333;">GAME OVER</h2>
+                <h3 id="finalScore" style="margin-bottom: 6px;">Score: 0</h3>
+                <div class="hs-banner" id="hsBanner">🏆 BEST: 0</div>
+                <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:4px;">
+                    <button class="action-btn" style="opacity:1;" onclick="startGame()">↺ NOCHMAL</button>
+                    <button class="action-btn" style="opacity:1;" onclick="showMenu()">☰ HAUPTMENÜ</button>
+                </div>
+                <p class="legend" id="keyboardLegendGO" style="margin-top:12px;">
+                    [LEERTASTE] = Retry | [STRG] = Hauptmenü
+                </p>
+            </div>
+
+            <!-- Pause Overlay -->
+            <div class="overlay" id="pauseOverlay">
+                <h2>⏸ PAUSE</h2>
+                <button class="action-btn" style="opacity:1; margin-top:10px;" onclick="resumeGame()">▶ WEITER</button>
+                <p class="legend" id="pauseLegend" style="margin-top:10px;">
+                    [P] / [ESC] / [LEERTASTE] = Weiter
+                </p>
+            </div>
+        </div>
+
+        <!-- D-Pad Wrapper (Single + Multiplayer) -->
+        <div id="dpad-wrapper">
+            <!-- P1 D-pad -->
+            <div class="dpad-zone" id="dpad-p1-zone">
+                <div class="dpad-player-label" id="dpad-label-p1">P1</div>
+                <div class="dpad-inner">
+                    <div class="dpad-row">
+                        <button class="dpad-btn" id="dpad1-up">▲</button>
+                    </div>
+                    <div class="dpad-row">
+                        <button class="dpad-btn" id="dpad1-left">◀</button>
+                        <div class="dpad-center"></div>
+                        <button class="dpad-btn" id="dpad1-right">▶</button>
+                    </div>
+                    <div class="dpad-row">
+                        <button class="dpad-btn" id="dpad1-down">▼</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- P2 D-pad (only shown in multiplayer) -->
+            <div class="dpad-zone" id="dpad-p2-zone" style="display:none;">
+                <div class="dpad-player-label" id="dpad-label-p2">P2</div>
+                <div class="dpad-inner">
+                    <div class="dpad-row">
+                        <button class="dpad-btn" id="dpad2-up">▲</button>
+                    </div>
+                    <div class="dpad-row">
+                        <button class="dpad-btn" id="dpad2-left">◀</button>
+                        <div class="dpad-center"></div>
+                        <button class="dpad-btn" id="dpad2-right">▶</button>
+                    </div>
+                    <div class="dpad-row">
+                        <button class="dpad-btn" id="dpad2-down">▼</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ═══════════════════════════════════════════════════════════════
+           SOUND ENGINE (8-Bit Synth via Web Audio API)
+           ────────────────────────────────────────────────────────────── */
+        
+        // Sound State
+        let audioCtx = null;
+        let isMuted = false;
+        let musicEnabled = true;
+        let sfxEnabled = true;
+        let musicVolume = 0.7;   // 0-1 (default 70%)
+        let sfxVolume = 0.8;     // 0-1 (default 80%)
+        let musicOscillators = [];
+        let musicInterval = null;
+        let currentMode = 'normal'; // 'normal' oder 'nightmare'
+
+        // Lautstärkeregler Funktionen
+        function setSFXVolume(val) {
+            sfxVolume = val / 100;
+            const pct = Math.round(val) + '%';
+            const mainVal = document.getElementById('sfxVolumeVal');
+            const ovSlider = document.getElementById('sfxVolumeOverlay');
+            const ovVal    = document.getElementById('sfxVolOverlayVal');
+            const mainSlider = document.getElementById('sfxVolume');
+            if (mainVal)   mainVal.textContent  = pct;
+            if (ovVal)     ovVal.textContent     = pct;
+            if (ovSlider)  ovSlider.value        = Math.round(val);
+            if (mainSlider) mainSlider.value     = Math.round(val);
+        }
+
+        function setMusicVolume(val) {
+            musicVolume = val / 100;
+            const pct = Math.round(val) + '%';
+            const mainVal = document.getElementById('musicVolumeVal');
+            const ovSlider = document.getElementById('musicVolumeOverlay');
+            const ovVal    = document.getElementById('musVolOverlayVal');
+            const mainSlider = document.getElementById('musicVolume');
+            if (mainVal)   mainVal.textContent  = pct;
+            if (ovVal)     ovVal.textContent     = pct;
+            if (ovSlider)  ovSlider.value        = Math.round(val);
+            if (mainSlider) mainSlider.value     = Math.round(val);
+        }
+
+        function loadSavedVolumes() {
+            const savedSfx   = localStorage.getItem('snake_sfx_volume');
+            const savedMusic = localStorage.getItem('snake_music_volume');
+            if (savedSfx !== null) {
+                sfxVolume = parseFloat(savedSfx);
+                setSFXVolume(Math.round(sfxVolume * 100));
+            }
+            if (savedMusic !== null) {
+                musicVolume = parseFloat(savedMusic);
+                setMusicVolume(Math.round(musicVolume * 100));
+            }
+        }
+
+        function saveVolumes() {
+            localStorage.setItem('snake_sfx_volume', sfxVolume.toFixed(2));
+            localStorage.setItem('snake_music_volume', musicVolume.toFixed(2));
+        }
+        
+        // 8-Bit Synth Helper Functions
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            // Gibt Promise zurück – resolved wenn Context wirklich läuft
+            return audioCtx.resume();
+        }
+
+        // 8-Bit Square Wave (NES-style) - Normal Mode
+        function playSquare(freq, duration, volume = 0.1, slide = 0) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            if (slide !== 0) {
+                osc.frequency.exponentialRampToValueAtTime(
+                    freq + slide,
+                    audioCtx.currentTime + duration
+                );
+            }
+            
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        // 8-Bit Square Wave - Nightmare Mode (darker, lower)
+        function playSquareNightmare(freq, duration, volume = 0.15, slide = 0) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            if (slide !== 0) {
+                osc.frequency.exponentialRampToValueAtTime(
+                    freq + slide,
+                    audioCtx.currentTime + duration
+                );
+            }
+            
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        // 8-Bit Sawtooth Wave (more aggressive) - Normal Mode
+        function playSaw(freq, duration, volume = 0.15) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        // 8-Bit Sawtooth Wave - Nightmare Mode (deeper)
+        function playSawNightmare(freq, duration, volume = 0.2) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        // 8-Bit Noise (for explosions/crashes) - Normal Mode
+        function playNoise(duration = 0.1, volume = 0.2) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            const noise = audioCtx.createBufferSource();
+            const gain = audioCtx.createGain();
+            
+            noise.buffer = buffer;
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            noise.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            noise.start();
+        }
+        
+        // 8-Bit Noise - Nightmare Mode (heavier)
+        function playNoiseNightmare(duration = 0.2, volume = 0.35) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            const noise = audioCtx.createBufferSource();
+            const gain = audioCtx.createGain();
+            
+            noise.buffer = buffer;
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            noise.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            noise.start();
+        }
+        
+        // 8-Bit Triangle Wave (softer sounds) - Normal Mode
+        function playTriangle(freq, duration, volume = 0.1) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        // 8-Bit Triangle Wave - Nightmare Mode (darker)
+        function playTriangleNightmare(freq, duration, volume = 0.12) {
+            if (!sfxEnabled || isMuted || !audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            // Apply SFX volume slider
+            const finalVolume = Math.min(volume * sfxVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + duration
+            );
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        // 8-Bit Music: Simple arpeggio pattern (C major scale) - Normal Mode
+        const musicNotes = [
+            { freq: 261.63, dur: 0.15 },   // C4
+            { freq: 311.13, dur: 0.15 },   // D4
+            { freq: 392.00, dur: 0.15 },   // E4
+            { freq: 523.25, dur: 0.15 },   // C5
+            { freq: 392.00, dur: 0.15 },   // E4
+            { freq: 349.23, dur: 0.15 },   // D4
+            { freq: 311.13, dur: 0.15 },   // D4
+            { freq: 261.63, dur: 0.30 }    // C4 (longer)
+        ];
+        
+        function playMusicNote(freq, duration = 0.15, volume = 0.03) {
+            if (!musicEnabled || isMuted || !audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            // Detune for richer sound
+            osc.type = 'square';
+            osc.frequency.value = freq;
+            osc.detune.value = (Math.random() - 0.5) * 10;
+            
+            // Apply music volume slider
+            const finalVolume = Math.min(volume * musicVolume, 1);
+            gain.gain.setValueAtTime(finalVolume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.001,
+                audioCtx.currentTime + duration
+            );
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        // Music Sequencer - Nightmare Mode (darker, slower)
+        const nightmareMusicNotes = [
+            { freq: 196.00, dur: 0.25 },   // A3 (darker)
+            { freq: 246.94, dur: 0.25 },   // Bb3
+            { freq: 311.13, dur: 0.25 },   // D4
+            { freq: 415.30, dur: 0.25 },   // F#4
+            { freq: 311.13, dur: 0.25 },   // D4
+            { freq: 261.63, dur: 0.30 }    // C4 (longer)
+        ];
+        
+        function startMusic() {
+            if (!musicEnabled || isMuted || !audioCtx) return;
+            
+            // Stop existing music before starting new sequence
+            if (musicInterval) { clearInterval(musicInterval); musicInterval = null; }
+            musicOscillators = [];
+            
+            // Sicherstellen dass Context wirklich läuft bevor Notes erstellt werden
+            audioCtx.resume().then(() => {
+                if (!musicEnabled || isMuted) return;
+                let noteIndex = 0;
+                const tempo = currentMode === 'nightmare' ? 100 : 120;
+                musicInterval = setInterval(() => {
+                    if (!musicEnabled || isMuted) return;
+                    const note = (currentMode === 'nightmare') ? nightmareMusicNotes[noteIndex] : musicNotes[noteIndex];
+                    playMusicNote(note.freq, note.dur);
+                    noteIndex = (noteIndex + 1) % ((currentMode === 'nightmare') ? nightmareMusicNotes.length : musicNotes.length);
+                }, (60000 / tempo) * 2);
+            });
+        }
+        
+        function stopMusic() {
+            if (musicInterval) { clearInterval(musicInterval); musicInterval = null; }
+            musicOscillators = [];
+        }
+        
+        // Sound Effects Functions - Normal Mode
+        function playSoundStart() {
+            initAudio();
+            // Rising arpeggio for start
+            [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
+                setTimeout(() => playSquare(freq, 0.1, 0.08, 100), i * 80);
+            });
+        }
+        
+        function playSoundEat() {
+            if (!sfxEnabled || isMuted) return;
+            // Quick ascending beep - Normal Mode
+            [440, 523, 659].forEach((freq, i) => {
+                setTimeout(() => playSquare(freq, 0.08, 0.05), i * 40);
+            });
+        }
+        
+        function playSoundPoison() {
+            if (!sfxEnabled || isMuted) return;
+            // Descending dissonant sound - Normal Mode
+            [659, 523, 392].forEach((freq, i) => {
+                setTimeout(() => playSquare(freq, 0.1, 0.08, -100), i * 60);
+            });
+        }
+        
+        function playSoundCrash() {
+            if (!sfxEnabled || isMuted) return;
+            // Noise burst + low frequency thud - Normal Mode
+            playNoise(0.3, 0.4);
+            setTimeout(() => playSaw(100, 0.2, 0.2), 50);
+        }
+        
+        function playSoundGameOver() {
+            if (!sfxEnabled || isMuted) return;
+            // Sad descending melody - Normal Mode
+            [523.25, 493.88, 440, 392, 349.23, 261.63].forEach((freq, i) => {
+                setTimeout(() => playSquare(freq, 0.15, 0.06), i * 150);
+            });
+        }
+        
+        function playSoundPause() {
+            if (!sfxEnabled || isMuted) return;
+            // Simple chime - Normal Mode
+            playTriangle(440, 0.3, 0.08);
+            setTimeout(() => playTriangle(523.25, 0.3, 0.08), 150);
+        }
+        
+        function playSoundResume() {
+            if (!sfxEnabled || isMuted) return;
+            // Ascending chime - Normal Mode
+            [440, 523.25].forEach((freq, i) => {
+                setTimeout(() => playTriangle(freq, 0.2, 0.06), i * 100);
+            });
+        }
+        
+        // Sound Effects Functions - Nightmare Mode (darker, more intense)
+        function playSoundEatNightmare() {
+            if (!sfxEnabled || isMuted) return;
+            // Quick ascending beep - Nightmare Mode (lower pitch)
+            [293.66, 349.23, 415.30].forEach((freq, i) => {
+                setTimeout(() => playSquareNightmare(freq, 0.08, 0.08), i * 40);
+            });
+        }
+        
+        function playSoundCrashNightmare() {
+            if (!sfxEnabled || isMuted) return;
+            // Heavier noise burst - Nightmare Mode
+            playNoiseNightmare(0.3, 0.5);
+            setTimeout(() => playSawNightmare(80, 0.4, 0.3), 30);
+        }
+        
+        function playSoundGameOverNightmare() {
+            if (!sfxEnabled || isMuted) return;
+            // More intense descending melody - Nightmare Mode
+            [523.25, 493.88, 440, 392, 349.23, 261.63, 233.08].forEach((freq, i) => {
+                setTimeout(() => playSquareNightmare(freq, 0.15, 0.08), i * 120);
+            });
+        }
+        
+        function playSoundHunger() {
+            if (!sfxEnabled || isMuted) return;
+            // Low warning sound when hunger runs out - Normal Mode
+            playTriangle(150, 0.15, 0.08);
+        }
+        
+        function playSoundHungerNightmare() {
+            if (!sfxEnabled || isMuted) return;
+            // Deeper warning sound when hunger runs out - Nightmare Mode
+            playTriangleNightmare(120, 0.15, 0.1);
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            updateSoundButtons();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Toggle SFX on/off
+        function toggleSFX() {
+            sfxEnabled = !sfxEnabled;
+            updateSoundButtons();
+            
+            // Feedback sound when toggling (uses current volume)
+            if (sfxEnabled && !isMuted) {
+                playSquare(440, 0.1, 0.05 * sfxVolume);
+                setTimeout(() => playSquare(523.25, 0.1, 0.05 * sfxVolume), 60);
+            } else if (!sfxEnabled && !isMuted) {
+                playNoise(0.1, 0.1 * sfxVolume);
+            }
+        }
+
+        // Toggle Music on/off
+        function toggleMusic() {
+            musicEnabled = !musicEnabled;
+            updateSoundButtons();
+            
+            if (musicEnabled && !isMuted) {
+                startMusic();
+                // Start sound feedback
+                playTriangle(523.25, 0.1, 0.08 * sfxVolume);
+            } else {
+                stopMusic();
+                // Stop sound feedback
+                playNoise(0.1, 0.1 * sfxVolume);
+            }
+        }
+
+        // Update button states based on audio settings
+        function updateSoundButtons() {
+            const sfxBtn = document.getElementById('btn-sfx-toggle');
+            const musicBtn = document.getElementById('btn-music-toggle');
+            
+            if (sfxBtn) {
+                sfxBtn.classList.toggle('active', !isMuted && sfxEnabled);
+                sfxBtn.textContent = isMuted ? '🔇 SFX' : (sfxEnabled ? '🔊 SFX' : '⏸ SFX');
+            }
+            
+            if (musicBtn) {
+                musicBtn.classList.toggle('active', !isMuted && musicEnabled);
+                musicBtn.textContent = isMuted ? '🔇 MUSIK' : (musicEnabled ? '🎵 MUSIK' : '⏸ MUSIK');
+            }
+        }
+
+        // Lade gespeicherte Audio-Einstellungen beim Start
+        function loadAudioSettings() {
+            const savedMusic = localStorage.getItem('snake_music_enabled');
+            const savedSfx = localStorage.getItem('snake_sfx_enabled');
+            const savedMuted = localStorage.getItem('snake_is_muted');
+            
+            if (savedMusic !== null) musicEnabled = savedMusic === 'true';
+            if (savedSfx !== null) sfxEnabled = savedSfx === 'true';
+            if (savedMuted !== null) isMuted = savedMuted === 'true';
+            
+            updateSoundButtons();
+        }
+
+        // Speichere Audio-Einstellungen beim Verlassen des Menüs
+        function saveAudioSettings() {
+            localStorage.setItem('snake_music_enabled', musicEnabled);
+            localStorage.setItem('snake_sfx_enabled', sfxEnabled);
+            localStorage.setItem('snake_is_muted', isMuted);
+            saveVolumes();
+        }
+
+        // Toggle Mute/SFX/Music via keyboard
+        document.addEventListener('keydown', (event) => {
+            const key = event.key.toLowerCase();
+
+            // [M] toggles mute
+            if (key === 'm' && gameState !== 'PLAYING') {
+                toggleMute();
+            }
+            // [S] toggles SFX
+            else if (key === 's' && gameState !== 'PLAYING') {
+                toggleSFX();
+            }
+            // [U] toggles Music
+            else if (key === 'u' && gameState !== 'PLAYING') {
+                toggleMusic();
+            }
+        });
+
+        // Menu Sound Effects
+        function playMenuSound() {
+            if (!sfxEnabled || isMuted) return;
+            playSquare(440, 0.1, 0.05);
+            setTimeout(() => playSquare(523.25, 0.1, 0.05), 60);
+        }
+
+        function playMenuSoundSelect() {
+            if (!sfxEnabled || isMuted) return;
+            playTriangle(493.88, 0.15, 0.08);
+        }
+
+        function playMenuSoundNightmare() {
+            if (!sfxEnabled || isMuted) return;
+            playSquareNightmare(261.63, 0.15, 0.1);
+            setTimeout(() => playSquareNightmare(349.23, 0.15, 0.1), 80);
+        }
+
+        function playMenuSoundSelectNightmare() {
+            if (!sfxEnabled || isMuted) return;
+            playTriangleNightmare(293.66, 0.15, 0.1);
+        }
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx    = canvas.getContext('2d');
+        const TILE_SIZE = 20;
+        const COLS = canvas.width  / TILE_SIZE;  // 40
+        const ROWS = canvas.height / TILE_SIZE;  // 30
+
+        let gameState = 'MENU';
+        // ── RAF LOOP (v0.4: replaced setInterval for jitter-free timing) ──
+        let rafId         = null;
+        let gameSpeed     = 100;   // ms per tick
+        let lastFrameTime = 0;
+
+        function runLoop(timestamp) {
+            if (gameState !== 'PLAYING') return;
+            if (timestamp - lastFrameTime >= gameSpeed) {
+                lastFrameTime = timestamp;
+                update();
+            }
+            if (gameState === 'PLAYING') rafId = requestAnimationFrame(runLoop);
+        }
+
+        function stopLoop() {
+            if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        }
+
+        let isMultiplayer = false;
+
+        let currentDifficulty = 'medium';
+        const difficultiesList = ['easy', 'slow', 'medium', 'quick', 'ultra', 'nightmare'];
+        let currentTheme = 'cyberpunk';
+        const themesList = ['cyberpunk', 'retro', 'ocean', 'inferno', 'pvz', 'matrix', 'vaporwave', 'darkforest'];
+
+        let userAddons   = { obstacles: false, hunger: false, maiden: false, poison: false };
+        let activeAddons = { obstacles: false, hunger: false, maiden: false, poison: false };
+
+        let p1, p2, food, obstacles, hunter;
+        let frameCount = 0;
+        let graceTicks  = 0;
+
+        // ── HIGHSCORE ─────────────────────────────────────────────────────
+        let highscore = parseInt(localStorage.getItem('snakeUltimate_hs') || '0');
+        let isNewRecord = false;
+        function updateHighscoreDisplay() {
+            document.getElementById('hsBestVal').textContent = highscore;
+        }
+        function checkAndSaveHighscore(score) {
+            if (score > highscore) {
+                highscore = score;
+                localStorage.setItem('snakeUltimate_hs', highscore);
+                updateHighscoreDisplay();
+                return true;
+            }
+            return false;
+        }
+
+        // ── POISON FOOD ───────────────────────────────────────────────────
+        let poisonFood    = null;  // { x, y, ticksLeft }
+        const POISON_LIFETIME  = 80;   // ticks visible
+        const POISON_SPAWN_DIV = 35;   // average ticks between spawns
+
+        function spawnPoisonFood() {
+            let valid = false, attempts = 0, newX, newY;
+            while (!valid && attempts < 100) {
+                newX = Math.floor(Math.random() * COLS);
+                newY = Math.floor(Math.random() * ROWS);
+                const notNearFood = !food || Math.abs(newX - food.x) > 2 || Math.abs(newY - food.y) > 2;
+                valid = !isOccupied(newX, newY, false) && notNearFood;
+                attempts++;
+            }
+            if (valid) poisonFood = { x: newX, y: newY, ticksLeft: POISON_LIFETIME };
+        }
+
+        function applyPoisonEffect(snake) {
+            snake.score = Math.max(0, snake.score - 15);
+            let shrink = Math.min(3, snake.body.length - 1);
+            for (let i = 0; i < shrink; i++) snake.body.pop();
+            updateScoreboard();
+        }
+
+        // ── EISERNE JUNGFRAU ──────────────────────────────────────────────
+        let maidenSpiral   = [];
+        let maidenProgress = 0;
+        let maidenTick     = 0;
+
+        // ── D-PAD VISIBILITY ──────────────────────────────────────────────
+        function updateDpad() {
+            const wrapper = document.getElementById('dpad-wrapper');
+            const p2Zone  = document.getElementById('dpad-p2-zone');
+            const label1  = document.getElementById('dpad-label-p1');
+            if (!wrapper) return;
+
+            const isTouch     = window.matchMedia('(pointer: coarse)').matches;
+            const isLandscape = window.matchMedia('(max-height: 500px) and (orientation: landscape)').matches;
+            const show        = isTouch && gameState === 'PLAYING';
+
+            wrapper.classList.toggle('visible',     show);
+            wrapper.classList.toggle('multiplayer', show && isMultiplayer);
+
+            if (p2Zone) p2Zone.style.display = (show && isMultiplayer) ? 'flex' : 'none';
+            if (label1) label1.style.display  = isMultiplayer ? 'block' : 'none';
+
+            // Landscape + Multiplayer → D-Pads seitlich, Canvas verschmälert
+            document.body.classList.toggle('landscape-mp', show && isMultiplayer && isLandscape);
+        }
+
+        // ── MAIDEN SPIRAL ─────────────────────────────────────────────────
+        function generateMaidenSpiral() {
+            maidenSpiral = [];
+            let top = 0, bottom = ROWS - 1, left = 0, right = COLS - 1;
+            while (top <= bottom && left <= right) {
+                for (let i = left;  i <= right;  i++) maidenSpiral.push({x: i, y: top});
+                top++;
+                for (let i = top;   i <= bottom; i++) maidenSpiral.push({x: right, y: i});
+                right--;
+                if (top <= bottom) {
+                    for (let i = right; i >= left; i--) maidenSpiral.push({x: i, y: bottom});
+                    bottom--;
+                }
+                if (left <= right) {
+                    for (let i = bottom; i >= top; i--) maidenSpiral.push({x: left, y: i});
+                    left++;
+                }
+            }
+        }
+
+        // ── THEME ─────────────────────────────────────────────────────────
+        function changeTheme(themeName) {
+            currentTheme = themeName;
+            document.body.setAttribute('data-theme', themeName);
+            const sel   = document.getElementById('themeSelect');
+            const selOv = document.getElementById('themeSelectOverlay');
+            if (sel)   sel.value   = themeName;
+            if (selOv) selOv.value = themeName;
+            if (!rafId) draw();
+        }
+
+        // ── MODE ──────────────────────────────────────────────────────────
+        function setMode(mode) {
+            isMultiplayer = (mode === 'multi');
+            document.getElementById('btnSingle').classList.toggle('active', !isMultiplayer);
+            document.getElementById('btnMulti').classList.toggle('active',  isMultiplayer);
+            document.getElementById('hud2').style.display = isMultiplayer ? 'flex' : 'none';
+        }
+
+        // ── DIFFICULTY ────────────────────────────────────────────────────
+        function setDifficulty(diff) {
+            currentDifficulty = diff;
+            updateMenuSelection();
+            
+            // Play menu sound based on mode
+            if (diff === 'nightmare') {
+                playMenuSoundNightmare();
+            } else {
+                playMenuSoundSelect();
+            }
+        }
+
+        function toggleAddon(addon) {
+            if (currentDifficulty === 'nightmare') return;
+            userAddons[addon] = !userAddons[addon];
+            updateMenuSelection();
+            
+            // Play menu sound for addon toggle
+            playMenuSoundSelect();
+        }
+
+        function updateMenuSelection() {
+            difficultiesList.forEach(diff => {
+                const btn = document.getElementById('btn-' + diff);
+                if (btn) btn.classList.toggle('selected', diff === currentDifficulty);
+            });
+            const isNightmare = (currentDifficulty === 'nightmare');
+            ['obstacles', 'hunger', 'maiden', 'poison'].forEach(id => {
+                const btn = document.getElementById('btn-addon-' + id);
+                if (!btn) return;
+                btn.classList.remove('active-addon', 'locked-addon');
+                if (isNightmare)          btn.classList.add('locked-addon');
+                else if (userAddons[id])  btn.classList.add('active-addon');
+            });
+        }
+
+        // ── ENTITIES ──────────────────────────────────────────────────────
+        function initEntities() {
+            p1 = {
+                body: [{x: 10, y: Math.floor(ROWS/2)}],
+                dir: 'RIGHT', inputQueue: [], score: 0, dead: false, hungerTicks: 0, foodEaten: 0
+            };
+            p2 = {
+                body: [{x: COLS - 11, y: Math.floor(ROWS/2)}],
+                dir: 'LEFT', inputQueue: [], score: 0, dead: !isMultiplayer, hungerTicks: 0, foodEaten: 0
+            };
+            obstacles   = [];
+            poisonFood  = null;
+            hunter      = { active: false, x: 0, y: 0, moveCounter: 0 };
+            generateMaidenSpiral();
+            maidenProgress = 0;
+            maidenTick     = 0;
+            spawnFood();
+        }
+
+        function spawnFood() {
+            let valid = false, attempts = 0, newX, newY;
+            while (!valid && attempts < 1000) {
+                newX = Math.floor(Math.random() * COLS);
+                newY = Math.floor(Math.random() * ROWS);
+                valid = !isOccupied(newX, newY, false);
+                attempts++;
+            }
+            food = valid ? { x: newX, y: newY } : { x: -999, y: -999 };
+        }
+
+        function spawnObstacle() {
+            let valid = false, attempts = 0;
+            while (!valid && attempts < 100) {
+                let obs = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+                let dP1 = Math.abs(obs.x - p1.body[0].x) + Math.abs(obs.y - p1.body[0].y);
+                let dP2 = isMultiplayer && !p2.dead ? Math.abs(obs.x - p2.body[0].x) + Math.abs(obs.y - p2.body[0].y) : 10;
+                if (!isOccupied(obs.x, obs.y) && dP1 > 5 && dP2 > 5) { obstacles.push(obs); valid = true; }
+                attempts++;
+            }
+        }
+
+        function isOccupied(x, y, checkFood = true) {
+            if (p1 && p1.body.some(s => s.x === x && s.y === y)) return true;
+            if (isMultiplayer && p2 && p2.body.some(s => s.x === x && s.y === y)) return true;
+            if (activeAddons.obstacles && obstacles && obstacles.some(o => o.x === x && o.y === y)) return true;
+            if (checkFood && food && food.x === x && food.y === y) return true;
+            if (checkFood && poisonFood && poisonFood.x === x && poisonFood.y === y) return true;
+            if (activeAddons.maiden) {
+                for (let i = 0; i < maidenProgress; i++) {
+                    if (maidenSpiral[i].x === x && maidenSpiral[i].y === y) return true;
+                }
+            }
+            return false;
+        }
+
+        // ── GAME FLOW ─────────────────────────────────────────────────────
+        function startGame() {
+            document.getElementById('mainMenu').style.display    = 'none';
+            document.getElementById('gameOver').style.display    = 'none';
+            document.getElementById('pauseOverlay').style.display = 'none';
+            gameState   = 'PLAYING';
+            isNewRecord = false;
+            frameCount  = 0;
+            updateDpad();
+
+            if (currentDifficulty === 'nightmare') {
+                activeAddons  = { obstacles: true, hunger: true, maiden: true, poison: true };
+                currentMode   = 'nightmare';
+            } else {
+                activeAddons = { ...userAddons };
+                currentMode  = 'normal';
+            }
+
+            document.getElementById('ht1').style.display = activeAddons.hunger ? 'block' : 'none';
+            document.getElementById('ht2').style.display = activeAddons.hunger ? 'block' : 'none';
+
+            initEntities();
+
+            gameSpeed = 100;
+            switch (currentDifficulty) {
+                case 'easy':      gameSpeed = 175; break;
+                case 'slow':      gameSpeed = 125; break;
+                case 'medium':    gameSpeed = 100; break;
+                case 'quick':     gameSpeed =  70; break;
+                case 'ultra':     gameSpeed =  45; break;
+                case 'nightmare':
+                    gameSpeed = 35;
+                    hunter.active = true;
+                    hunter.x = Math.floor(COLS / 2);
+                    hunter.y = Math.floor(ROWS / 2);
+                    break;
+            }
+
+            graceTicks     = Math.floor(1000 / gameSpeed);
+            p1.hungerTicks = -graceTicks;
+            p2.hungerTicks = -graceTicks;
+
+            updateScoreboard();
+            updateHighscoreDisplay();
+
+            stopLoop();
+            lastFrameTime = 0;
+
+            // AudioContext erst vollständig resumt, dann Musik + SFX starten
+            initAudio().then(() => {
+                playSoundStart();
+                startMusic();
+            });
+
+            rafId = requestAnimationFrame(runLoop);
+        }
+
+        function showMenu() {
+            stopLoop();
+            stopMusic();
+            gameState = 'MENU';
+            
+            // Speichere Audio-Einstellungen beim Verlassen des Spiels
+            saveAudioSettings();
+            
+            document.getElementById('gameOver').style.display    = 'none';
+            document.getElementById('pauseOverlay').style.display = 'none';
+            document.getElementById('mainMenu').style.display    = 'flex';
+            updateSoundButtons(); // Update button states for menu display
+            updateMenuSelection();
+            updateDpad();
+            draw();
+        }
+
+        // ── v0.4: PAUSE / RESUME ──────────────────────────────────────────
+        function pauseGame() {
+            if (gameState !== 'PLAYING') return;
+            gameState = 'PAUSED';
+            stopLoop();
+            playSoundPause();
+            document.getElementById('pauseOverlay').style.display = 'flex';
+            draw(); // render frozen frame
+        }
+
+        function resumeGame() {
+            if (gameState !== 'PAUSED') return;
+            playSoundResume();
+            document.getElementById('pauseOverlay').style.display = 'none';
+            gameState     = 'PLAYING';
+            lastFrameTime = 0;
+            rafId = requestAnimationFrame(runLoop);
+        }
+
+        function updateScoreboard() {
+            document.getElementById('score1').innerText = `P1: ${p1.score}`;
+            if (isMultiplayer) document.getElementById('score2').innerText = `P2: ${p2.score}`;
+        }
+
+        function updateHungerUI() {
+            if (!activeAddons.hunger) return;
+            const maxHunger = 50;
+            const pct1 = Math.max(0, Math.min(100, 100 - (p1.hungerTicks / maxHunger) * 100));
+            document.getElementById('hf1').style.width = pct1 + '%';
+            if (isMultiplayer) {
+                const pct2 = Math.max(0, Math.min(100, 100 - (p2.hungerTicks / maxHunger) * 100));
+                document.getElementById('hf2').style.width = pct2 + '%';
+            }
+        }
+
+        // ── GAME LOGIC ────────────────────────────────────────────────────
+        function moveSnake(snake) {
+            if (snake.dead) return;
+            if (snake.inputQueue.length > 0) snake.dir = snake.inputQueue.shift();
+
+            const head = { ...snake.body[0] };
+            if (snake.dir === 'RIGHT') head.x++;
+            else if (snake.dir === 'LEFT')  head.x--;
+            else if (snake.dir === 'UP')    head.y--;
+            else if (snake.dir === 'DOWN')  head.y++;
+
+            snake.body.unshift(head);
+
+            let ateFood = false;
+
+            // Regular food
+            if (head.x === food.x && head.y === food.y) {
+                snake.score += 10;
+                snake.foodEaten++;
+                ateFood = true;
+                playSoundEat();
+                snake.hungerTicks = -graceTicks;
+                spawnFood();
+                if (activeAddons.obstacles && snake.foodEaten % 3 === 0) spawnObstacle();
+                if (activeAddons.maiden) maidenProgress = Math.max(0, maidenProgress - 5);
+                updateScoreboard();
+            }
+            // Poison food
+            else if (activeAddons.poison && poisonFood && head.x === poisonFood.x && head.y === poisonFood.y) {
+                playSoundPoison();
+                applyPoisonEffect(snake);
+                poisonFood = null;
+                ateFood = true;
+            }
+            else {
+                snake.body.pop();
+            }
+
+            if (activeAddons.hunger && !ateFood) {
+                snake.hungerTicks++;
+                if (snake.hungerTicks >= 50) {
+                    snake.hungerTicks = 0;
+                    if (snake.body.length > 1) {
+                        // Snake schrumpft und verliert Punkte
+                        snake.body.pop();
+                        snake.score = Math.max(0, snake.score - 5);
+                        updateScoreboard();
+                    } else {
+                        // v0.4 FIX: Bei Minimallänge (1 Segment) nicht töten,
+                        // nur Score-Abzug und Hunger-Reset → faireres Gameplay
+                        snake.score = Math.max(0, snake.score - 5);
+                        updateScoreboard();
+                    }
+                }
+            }
+        }
+
+        function checkCollisions() {
+            [p1, p2].forEach(snake => {
+                if (snake.dead) return;
+                const head = snake.body[0];
+                if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+                    playSoundCrash();
+                    snake.dead = true;
+                }
+                for (let i = 1; i < snake.body.length; i++) {
+                    if (head.x === snake.body[i].x && head.y === snake.body[i].y) {
+                        playSoundCrash();
+                        snake.dead = true;
+                    }
+                }
+                if (activeAddons.obstacles && obstacles.some(o => o.x === head.x && o.y === head.y)) {
+                    playSoundCrash();
+                    snake.dead = true;
+                }
+                if (activeAddons.maiden) {
+                    for (let i = 0; i < maidenProgress; i++) {
+                        if (maidenSpiral[i].x === head.x && maidenSpiral[i].y === head.y) {
+                            playSoundCrash();
+                            snake.dead = true;
+                        }
+                    }
+                }
+                if (hunter.active && head.x === hunter.x && head.y === hunter.y) {
+                    // Nightmare mode: use darker crash sound
+                    playSoundCrashNightmare();
+                    snake.dead = true;
+                }
+            });
+
+            if (isMultiplayer && !p1.dead && !p2.dead) {
+                const h1 = p1.body[0], h2 = p2.body[0];
+                if (h1.x === h2.x && h1.y === h2.y) {
+                    playSoundCrash();
+                    p1.dead = true; p2.dead = true;
+                }
+                else {
+                    if (p2.body.some(s => s.x === h1.x && s.y === h1.y)) {
+                        playSoundCrash();
+                        p1.dead = true;
+                    }
+                    if (p1.body.some(s => s.x === h2.x && s.y === h2.y)) {
+                        playSoundCrash();
+                        p2.dead = true;
+                    }
+                }
+            }
+        }
+
+        function updateHunterAndMaiden() {
+            // Hunter
+            if (hunter.active) {
+                hunter.moveCounter++;
+                if (hunter.moveCounter >= 3) {
+                    hunter.moveCounter = 0;
+                    let target = p1.body[0];
+                    if (isMultiplayer && !p2.dead) {
+                        let d1 = p1.dead ? 9999 : Math.abs(p1.body[0].x - hunter.x) + Math.abs(p1.body[0].y - hunter.y);
+                        let d2 = Math.abs(p2.body[0].x - hunter.x) + Math.abs(p2.body[0].y - hunter.y);
+                        if (d2 < d1) target = p2.body[0];
+                    }
+                    if (target) {
+                        if (hunter.x < target.x)      hunter.x++;
+                        else if (hunter.x > target.x) hunter.x--;
+                        else if (hunter.y < target.y) hunter.y++;
+                        else if (hunter.y > target.y) hunter.y--;
+                    }
+                }
+            }
+
+            // Maiden
+            if (activeAddons.maiden) {
+                maidenTick++;
+                if (maidenTick >= 15) {
+                    maidenTick = 0;
+                    if (maidenProgress < maidenSpiral.length) maidenProgress++;
+                }
+                if (food.x !== -999 && isOccupied(food.x, food.y, false)) spawnFood();
+            }
+
+            // Poison food lifecycle
+            // v0.4 FIX: gleichmäßige 1/35 Wahrscheinlichkeit pro Tick
+            // (statt nur alle 35 Ticks zu prüfen)
+            if (activeAddons.poison) {
+                if (poisonFood) {
+                    poisonFood.ticksLeft--;
+                    if (poisonFood.ticksLeft <= 0) poisonFood = null;
+                } else {
+                    if (Math.random() < (1 / POISON_SPAWN_DIV)) {
+                        spawnPoisonFood();
+                    }
+                }
+            }
+        }
+
+        function update() {
+            frameCount++;
+            moveSnake(p1);
+            if (isMultiplayer) moveSnake(p2);
+            updateHunterAndMaiden();
+            checkCollisions();
+            updateHungerUI();
+
+            if ((!isMultiplayer && p1.dead) || (isMultiplayer && p1.dead && p2.dead)) {
+                endGame('GAME OVER', `P1: ${p1.score}`);
+            } else if (isMultiplayer) {
+                if (p1.dead && !p2.dead) endGame('SPIELER 2 GEWINNT!', `P2: ${p2.score}`);
+                if (p2.dead && !p1.dead) endGame('SPIELER 1 GEWINNT!', `P1: ${p1.score}`);
+            }
+            draw();
+        }
+
+        function endGame(titleText, scoreText) {
+            stopLoop();
+            // Nightmare mode: use darker game over sound
+            if (currentDifficulty === 'nightmare') {
+                playSoundGameOverNightmare();
+            } else {
+                playSoundGameOver();
+            }
+            gameState = 'GAMEOVER';
+
+            // v0.4 FIX: Maiden-Spiral bei Spielende zurücksetzen
+            maidenProgress = 0;
+
+            const bestThisRun = isMultiplayer ? Math.max(p1.score, p2.score) : p1.score;
+            isNewRecord = checkAndSaveHighscore(bestThisRun);
+
+            document.getElementById('winnerText').innerText = titleText;
+            document.getElementById('finalScore').innerText = scoreText;
+            const banner = document.getElementById('hsBanner');
+            banner.textContent = isNewRecord ? '🏆 NEUER REKORD: ' + highscore + '!' : '🏆 BEST: ' + highscore;
+            banner.className   = 'hs-banner' + (isNewRecord ? ' new-record' : '');
+            document.getElementById('gameOver').style.display = 'flex';
+            updateDpad();
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           DRAWING LOGIC
+        ═══════════════════════════════════════════════════════════════ */
+        function draw() {
+            ctx.shadowBlur = 0;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if      (currentTheme === 'cyberpunk')  drawCyberpunk();
+            else if (currentTheme === 'retro')      drawRetro();
+            else if (currentTheme === 'ocean')      drawOcean();
+            else if (currentTheme === 'inferno')    drawInferno();
+            else if (currentTheme === 'pvz')        drawPvZ();
+            else if (currentTheme === 'matrix')     drawMatrix();
+            else if (currentTheme === 'vaporwave')  drawVaporwave();
+            else if (currentTheme === 'darkforest') drawDarkForest();
+        }
+
+        // Helper: draw poison apple per theme category
+        function drawPoisonFoodGeneric(style) {
+            if (!activeAddons.poison || !poisonFood || poisonFood.x < 0) return;
+            const px = poisonFood.x * TILE_SIZE;
+            const py = poisonFood.y * TILE_SIZE;
+            const pulse = Math.sin(frameCount * 0.18) * 2;
+
+            if (style === 'pixel') {
+                ctx.fillStyle = '#660066';
+                ctx.fillRect(px+3, py+3, TILE_SIZE-6, TILE_SIZE-6);
+                ctx.fillStyle = '#8bac0f';
+                ctx.fillRect(px+6, py+6, 3, 3);
+                ctx.fillRect(px+11, py+6, 3, 3);
+            } else if (style === 'circle') {
+                ctx.fillStyle   = '#aa00aa';
+                ctx.shadowBlur  = 10 + pulse;
+                ctx.shadowColor = '#ff00ff';
+                ctx.beginPath();
+                ctx.arc(px+10, py+10, 7 + pulse/2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(px+7, py+9, 2, 0, Math.PI*2);
+                ctx.arc(px+13, py+9, 2, 0, Math.PI*2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle   = '#cc00cc';
+                ctx.shadowBlur  = 12 + pulse;
+                ctx.shadowColor = '#ff00ff';
+                ctx.beginPath();
+                ctx.moveTo(px+10, py+2+pulse/2);
+                ctx.lineTo(px+18, py+10);
+                ctx.lineTo(px+10, py+18-pulse/2);
+                ctx.lineTo(px+2,  py+10);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        // ── CYBERPUNK ─────────────────────────────────────────────────────
+        function drawCyberpunk() {
+            ctx.fillStyle = '#0a0f14';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Erhöhte Gitterlinien-Sichtbarkeit (v0.5) - Neon-Raster
+            ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let x = 0; x < canvas.width;  x += TILE_SIZE) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+            for (let y = 0; y < canvas.height; y += TILE_SIZE) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+            ctx.stroke();
+            if (gameState === 'MENU') return;
+
+            if (activeAddons.maiden) {
+                // Erhöhte Sichtbarkeit der Eiserne Jungfrau (v0.5) - Glow-Effekt + dickere Linien
+                ctx.fillStyle  = getComputedStyle(document.documentElement).getPropertyValue('--maiden-color').trim() || '#ff0055';
+                ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
+                for (let i = 0; i < maidenProgress; i++) {
+                    const mx = maidenSpiral[i].x*TILE_SIZE, my = maidenSpiral[i].y*TILE_SIZE;
+                    // Äußere Leuchte
+                    ctx.fillRect(mx-1, my-1, TILE_SIZE+2, TILE_SIZE+2);
+                    // Inneres Feld
+                    ctx.shadowBlur = 8;
+                    ctx.fillRect(mx+2, my+2, TILE_SIZE-4, TILE_SIZE-4);
+                }
+                ctx.shadowBlur = 0;
+            }
+            if (food.x !== -999) {
+                ctx.fillStyle   = '#ff003c'; ctx.shadowBlur = 15; ctx.shadowColor = '#ff003c';
+                ctx.beginPath();
+                ctx.moveTo(food.x*TILE_SIZE+10, food.y*TILE_SIZE+2);
+                ctx.lineTo(food.x*TILE_SIZE+18, food.y*TILE_SIZE+10);
+                ctx.lineTo(food.x*TILE_SIZE+10, food.y*TILE_SIZE+18);
+                ctx.lineTo(food.x*TILE_SIZE+2,  food.y*TILE_SIZE+10);
+                ctx.fill();
+            }
+            drawPoisonFoodGeneric('diamond');
+            if (activeAddons.obstacles) {
+                ctx.shadowBlur = 0; ctx.fillStyle = '#444'; ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 2;
+                obstacles.forEach(o => {
+                    ctx.fillRect(o.x*TILE_SIZE+2, o.y*TILE_SIZE+2, TILE_SIZE-4, TILE_SIZE-4);
+                    ctx.strokeRect(o.x*TILE_SIZE+2, o.y*TILE_SIZE+2, TILE_SIZE-4, TILE_SIZE-4);
+                });
+            }
+            const drawSnake = (snake, color) => {
+                if (snake.dead) return;
+                ctx.fillStyle = color; ctx.shadowColor = color;
+                snake.body.forEach((seg, i) => {
+                    ctx.shadowBlur = i === 0 ? 15 : 5;
+                    ctx.fillRect(seg.x*TILE_SIZE+1, seg.y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
+                });
+            };
+            drawSnake(p1, '#00f3ff');
+            if (isMultiplayer) drawSnake(p2, '#ff00ff');
+            if (hunter.active) {
+                ctx.fillStyle = '#ff0000'; ctx.shadowBlur = 20; ctx.shadowColor = '#ff0000';
+                ctx.fillRect(hunter.x*TILE_SIZE+2, hunter.y*TILE_SIZE+2, TILE_SIZE-4, TILE_SIZE-4);
+            }
+        }
+
+        // ── RETRO 3310 ────────────────────────────────────────────────────
+        function drawRetro() {
+            ctx.fillStyle = '#8bac0f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Erhöhte Gitterlinien-Sichtbarkeit (v0.5) - dickes Pixel-Raster
+            ctx.strokeStyle = 'rgba(17, 34, 17, 0.3)';
+            ctx.lineWidth = 3;
+            for (let x = 0; x < canvas.width; x += TILE_SIZE) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += TILE_SIZE) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+            if (gameState === 'MENU') return;
+            const pixelColor = '#112211';
+            if (activeAddons.maiden) {
+                // Erhöhte Sichtbarkeit der Eiserne Jungfrau (v0.5) - dickerer Pixel-Rahmen
+                ctx.fillStyle = pixelColor;
+                for (let i = 0; i < maidenProgress; i++) {
+                    const mx = maidenSpiral[i].x*TILE_SIZE, my = maidenSpiral[i].y*TILE_SIZE;
+                    // Äußere Block-Füllung
+                    ctx.fillRect(mx-1, my-1, TILE_SIZE+2, TILE_SIZE+2);
+                    // Inneres Pixel-Raster mit dickerem Rahmen
+                    ctx.fillStyle = '#8bac0f';
+                    ctx.fillRect(mx, my, TILE_SIZE, TILE_SIZE);
+                    ctx.strokeStyle = '#112211';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(mx, my, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = pixelColor;
+                }
+            }
+
+            if (food.x !== -999 && Math.floor(frameCount / 3) % 2 === 0) {
+                ctx.fillStyle = pixelColor;
+                ctx.fillRect(food.x*TILE_SIZE+2, food.y*TILE_SIZE+2, TILE_SIZE-4, TILE_SIZE-4);
+            }
+            drawPoisonFoodGeneric('pixel');
+            if (activeAddons.obstacles) {
+                ctx.fillStyle = pixelColor;
+                obstacles.forEach(o => {
+                    ctx.fillRect(o.x*TILE_SIZE, o.y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = '#8bac0f';
+                    ctx.fillRect(o.x*TILE_SIZE+4, o.y*TILE_SIZE+4, TILE_SIZE-8, TILE_SIZE-8);
+                    ctx.fillStyle = pixelColor;
+                });
+            }
+            const drawSnake = (snake) => {
+                if (snake.dead) return;
+                ctx.fillStyle = pixelColor;
+                snake.body.forEach(seg => { ctx.fillRect(seg.x*TILE_SIZE+1, seg.y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2); });
+            };
+            drawSnake(p1);
+            if (isMultiplayer) drawSnake(p2);
+            if (hunter.active) {
+                ctx.fillStyle = pixelColor;
+                let hx = hunter.x*TILE_SIZE, hy = hunter.y*TILE_SIZE;
+                ctx.fillRect(hx+4, hy+2, 12, 10); ctx.fillRect(hx+6, hy+12, 8, 4);
+                ctx.fillStyle = '#8bac0f';
+                ctx.fillRect(hx+6, hy+6, 3, 3); ctx.fillRect(hx+11, hy+6, 3, 3);
+            }
+        }
+
+        // ── OCEAN ─────────────────────────────────────────────────────────
+        function drawOcean() {
+            let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#003366'); grad.addColorStop(1, '#00001a');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (gameState === 'MENU') return;
+            if (activeAddons.maiden) {
+                // Erhöhte Sichtbarkeit der Eiserne Jungfrau (v0.5) - dunkle Blöcke mit Leuchte
+                const oceanMaidenColor = getComputedStyle(document.documentElement).getPropertyValue('--maiden-color').trim() || '#000033';
+                ctx.fillStyle = oceanMaidenColor;
+                for (let i = 0; i < maidenProgress; i++) {
+                    const mx = maidenSpiral[i].x*TILE_SIZE, my = maidenSpiral[i].y*TILE_SIZE;
+                    // Dunkler Block mit Leuchte-Rahmen
+                    ctx.fillRect(mx-1, my-1, TILE_SIZE+2, TILE_SIZE+2);
+                    ctx.shadowBlur = 8;
+                    ctx.strokeStyle = '#00ffcc';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(mx, my, TILE_SIZE, TILE_SIZE);
+                }
+                ctx.shadowBlur = 0;
+            }
+
+            if (food.x !== -999) {
+                ctx.fillStyle = '#ffcc00';
+                ctx.beginPath(); ctx.arc(food.x*TILE_SIZE+10, food.y*TILE_SIZE+10, 8, 0, Math.PI*2); ctx.fill();
+            }
+            drawPoisonFoodGeneric('circle');
+            if (activeAddons.obstacles) {
+                ctx.fillStyle = '#002244';
+                obstacles.forEach(o => {
+                    ctx.beginPath(); ctx.arc(o.x*TILE_SIZE+10, o.y*TILE_SIZE+10, 9, 0, Math.PI*2); ctx.fill();
+                });
+            }
+            const drawSnake = (snake, color) => {
+                if (snake.dead) return;
+                ctx.fillStyle = color;
+                snake.body.forEach((seg, i) => {
+                    ctx.beginPath(); ctx.arc(seg.x*TILE_SIZE+10, seg.y*TILE_SIZE+10, i === 0 ? 10 : 8, 0, Math.PI*2); ctx.fill();
+                });
+            };
+            drawSnake(p1, '#00ffff');
+            if (isMultiplayer) drawSnake(p2, '#ff9900');
+            if (hunter.active) {
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath(); ctx.ellipse(hunter.x*TILE_SIZE+10, hunter.y*TILE_SIZE+10, 10, 6, 0, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        // ── INFERNO ───────────────────────────────────────────────────────
+        function drawInferno() {
+            ctx.fillStyle = '#1a0000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (gameState === 'MENU') return;
+            if (activeAddons.maiden) {
+                // Erhöhte Sichtbarkeit der Eiserne Jungfrau (v0.5) - gezackte Form mit Leuchte
+                const infernoMaidenColor = getComputedStyle(document.documentElement).getPropertyValue('--maiden-color').trim() || '#4d0000';
+                ctx.fillStyle = infernoMaidenColor;
+                for (let i = 0; i < maidenProgress; i++) {
+                    let mx = maidenSpiral[i].x*TILE_SIZE, my = maidenSpiral[i].y*TILE_SIZE;
+                    // Leuchte-Rahmen
+                    ctx.shadowBlur = 12;
+                    ctx.strokeStyle = '#ff3300';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(mx+1, my+1); ctx.lineTo(mx+19, my+1); ctx.lineTo(mx+10, my+11); ctx.lineTo(mx+1, my+19); ctx.lineTo(mx+1, my+1); ctx.stroke();
+                    // Zackige Form
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = infernoMaidenColor;
+                    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx+20, my); ctx.lineTo(mx+10, my+10); ctx.fill();
+                    ctx.fillRect(mx, my+10, 20, 10);
+                }
+            }
+            if (food.x !== -999) {
+                let pulse = Math.sin(frameCount * 0.2) * 3;
+                ctx.fillStyle = '#ff9900'; ctx.shadowBlur = 10 + pulse; ctx.shadowColor = '#ff9900';
+                ctx.beginPath(); ctx.arc(food.x*TILE_SIZE+10, food.y*TILE_SIZE+10, 7 + pulse/2, 0, Math.PI*2); ctx.fill();
+            }
+            drawPoisonFoodGeneric('circle');
+            if (activeAddons.obstacles) {
+                ctx.shadowBlur = 0; ctx.fillStyle = '#4d0000';
+                obstacles.forEach(o => {
+                    let x = o.x*TILE_SIZE, y = o.y*TILE_SIZE;
+                    ctx.beginPath(); ctx.moveTo(x+10, y); ctx.lineTo(x+20, y+20); ctx.lineTo(x, y+20); ctx.fill();
+                });
+            }
+            const drawSnake = (snake, color) => {
+                if (snake.dead) return;
+                ctx.fillStyle = color; ctx.shadowBlur = 5; ctx.shadowColor = color;
+                snake.body.forEach(seg => {
+                    let x = seg.x*TILE_SIZE, y = seg.y*TILE_SIZE;
+                    ctx.beginPath(); ctx.moveTo(x+10, y); ctx.lineTo(x+20, y+10); ctx.lineTo(x+10, y+20); ctx.lineTo(x, y+10); ctx.fill();
+                });
+            };
+            drawSnake(p1, '#ff3300');
+            if (isMultiplayer) drawSnake(p2, '#ffcc00');
+            if (hunter.active) {
+                ctx.fillStyle = '#fff'; ctx.shadowBlur = 20; ctx.shadowColor = '#ff0000';
+                ctx.beginPath(); ctx.arc(hunter.x*TILE_SIZE+10, hunter.y*TILE_SIZE+10, 9, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.beginPath(); ctx.arc(hunter.x*TILE_SIZE+10, hunter.y*TILE_SIZE+10, 3, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        // ── PLANTS VS ZOMBIES ─────────────────────────────────────────────
+        function drawPvZ() {
+            ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(45, 90, 39, 0.3)';
+            for (let x = 0; x < canvas.width; x += TILE_SIZE*2) {
+                for (let y = 0; y < canvas.height; y += TILE_SIZE*2) {
+                    ctx.beginPath(); ctx.arc(x+TILE_SIZE, y+TILE_SIZE, TILE_SIZE/3, 0, Math.PI*2); ctx.fill();
+                }
+            }
+            if (gameState === 'MENU') return;
+            if (activeAddons.maiden) {
+                // Erhöhte Sichtbarkeit der Eiserne Jungfrau (v0.5) - Zombie-Gesichter mit Leuchte
+                const pvzMaidenColor = getComputedStyle(document.documentElement).getPropertyValue('--maiden-color').trim() || '#8b4513';
+                ctx.fillStyle = pvzMaidenColor; ctx.shadowBlur = 12; ctx.shadowColor = '#ff2200';
+                for (let i = 0; i < maidenProgress; i++) {
+                    let mx = maidenSpiral[i].x*TILE_SIZE, my = maidenSpiral[i].y*TILE_SIZE;
+                    // Leuchte-Rahmen
+                    ctx.strokeStyle = '#ff2200';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.arc(mx+10, my+10, 9.5, 0, Math.PI*2); ctx.stroke();
+                    // Gesicht
+                    ctx.fillStyle = pvzMaidenColor;
+                    ctx.beginPath(); ctx.arc(mx+10, my+10, 8, 0, Math.PI*2); ctx.fill();
+                    // Augen (größer und heller)
+                    ctx.fillStyle = '#fff';
+                    ctx.shadowBlur = 6;
+                    ctx.beginPath(); ctx.arc(mx+7, my+7, 3.5, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(mx+13, my+7, 3.5, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+            if (food.x !== -999) {
+                ctx.fillStyle = '#ffcc00'; ctx.shadowBlur = 10; ctx.shadowColor = '#ffcc00';
+                for (let i = 0; i < 8; i++) {
+                    let angle = (i * Math.PI) / 4;
+                    ctx.beginPath();
+                    ctx.moveTo(food.x*TILE_SIZE+10, food.y*TILE_SIZE+10);
+                    ctx.lineTo(food.x*TILE_SIZE+10 + Math.cos(angle)*12, food.y*TILE_SIZE+10 + Math.sin(angle)*12);
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#8b4513';
+                ctx.beginPath(); ctx.arc(food.x*TILE_SIZE+10, food.y*TILE_SIZE+10, 6, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+            drawPoisonFoodGeneric('circle');
+            if (activeAddons.obstacles) {
+                ctx.fillStyle = '#654321'; ctx.strokeStyle = '#8b4513'; ctx.lineWidth = 2;
+                obstacles.forEach(o => {
+                    let ox = o.x*TILE_SIZE, oy = o.y*TILE_SIZE;
+                    ctx.beginPath(); ctx.arc(ox+10, oy+10, 9, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                    ctx.fillStyle = '#8b4513';
+                    ctx.beginPath(); ctx.arc(ox+7, oy+7, 2, 0, Math.PI*2); ctx.arc(ox+13, oy+7, 2, 0, Math.PI*2); ctx.arc(ox+10, oy+3, 2, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#654321';
+                });
+            }
+            const drawSnake = (snake, color) => {
+                if (snake.dead) return;
+                ctx.fillStyle = color; ctx.shadowColor = color;
+                snake.body.forEach((seg, i) => {
+                    ctx.shadowBlur = i === 0 ? 10 : 5;
+                    let x = seg.x*TILE_SIZE, y = seg.y*TILE_SIZE;
+                    ctx.beginPath(); ctx.arc(x+10, y+10, 9, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath(); ctx.arc(x+7, y+7, 2, 0, Math.PI*2); ctx.arc(x+13, y+7, 2, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = color;
+                });
+            };
+            drawSnake(p1, '#76c843');
+            if (isMultiplayer) drawSnake(p2, '#4caf50');
+            if (hunter.active) {
+                ctx.fillStyle = '#556b2f'; ctx.shadowBlur = 10; ctx.shadowColor = '#556b2f';
+                ctx.beginPath(); ctx.arc(hunter.x*TILE_SIZE+10, hunter.y*TILE_SIZE+10, 9, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ffcc00';
+                ctx.beginPath(); ctx.arc(hunter.x*TILE_SIZE+7, hunter.y*TILE_SIZE+7, 2, 0, Math.PI*2); ctx.arc(hunter.x*TILE_SIZE+13, hunter.y*TILE_SIZE+7, 2, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        /* ══════════════════════════════════════════════════════════════════
+           v0.3 THEMES
+        ══════════════════════════════════════════════════════════════════ */
+
+        // ── MATRIX CODE ───────────────────────────────────────────────────
+        function drawMatrix() {
+            ctx.fillStyle = '#000500';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Erhöhte Gitterlinien-Sichtbarkeit (v0.5) - Neon-Raster
+            ctx.strokeStyle = 'rgba(0, 255, 65, 0.25)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let x = 0; x < canvas.width;  x += TILE_SIZE) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+            for (let y = 0; y < canvas.height; y += TILE_SIZE) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+            ctx.stroke();
+
+            // Helle horizontale Linien für Scanline-Effekt
+            ctx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
+            ctx.lineWidth = 1;
+            for (let y = 0; y < canvas.height; y += TILE_SIZE) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            ctx.fillStyle = 'rgba(0, 255, 65, 0.015)';
+            for (let y = 0; y < canvas.height; y += 4) {
+                ctx.fillRect(0, y, canvas.width, 1);
+            }
+
+            if (gameState === 'MENU') return;
+
+            if (activeAddons.maiden) {
+                ctx.fillStyle  = '#001400';
+                ctx.shadowBlur = 0;
+                for (let i = 0; i < maidenProgress; i++) {
+                    ctx.fillRect(maidenSpiral[i].x*TILE_SIZE, maidenSpiral[i].y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+                ctx.strokeStyle = 'rgba(0,255,65,0.2)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < maidenProgress; i++) {
+                    ctx.strokeRect(maidenSpiral[i].x*TILE_SIZE+1, maidenSpiral[i].y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
+                }
+            }
+
+            if (food.x !== -999) {
+                const pulse = Math.sin(frameCount * 0.25) * 4;
+                ctx.fillStyle   = '#ffffff';
+                ctx.shadowBlur  = 15 + pulse;
+                ctx.shadowColor = '#00ff41';
+                ctx.fillRect(food.x*TILE_SIZE+4, food.y*TILE_SIZE+4, TILE_SIZE-8, TILE_SIZE-8);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('1', food.x*TILE_SIZE+10, food.y*TILE_SIZE+11);
+            }
+
+            if (activeAddons.poison && poisonFood && poisonFood.x >= 0) {
+                const glitch = frameCount % 4 < 2 ? 1 : 0;
+                ctx.fillStyle   = '#660000';
+                ctx.shadowBlur  = 8;
+                ctx.shadowColor = '#ff0000';
+                ctx.fillRect(poisonFood.x*TILE_SIZE+2+glitch, poisonFood.y*TILE_SIZE+2, TILE_SIZE-4, TILE_SIZE-4);
+                ctx.fillStyle = '#ff0000';
+                ctx.font = 'bold 9px monospace';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('0', poisonFood.x*TILE_SIZE+10, poisonFood.y*TILE_SIZE+11);
+                ctx.shadowBlur = 0;
+            }
+
+            if (activeAddons.obstacles) {
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#003300';
+                ctx.strokeStyle = '#00aa22';
+                ctx.lineWidth = 1;
+                obstacles.forEach(o => {
+                    ctx.fillRect(o.x*TILE_SIZE+1, o.y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
+                    ctx.strokeRect(o.x*TILE_SIZE+1, o.y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
+                });
+            }
+
+            const drawSnakeMatrix = (snake, color) => {
+                if (snake.dead) return;
+                snake.body.forEach((seg, i) => {
+                    const bright = i === 0 ? color : 'rgba(0,200,50,' + (0.3 + 0.5 * (1 - i / snake.body.length)) + ')';
+                    ctx.fillStyle   = bright;
+                    ctx.shadowBlur  = i === 0 ? 12 : 3;
+                    ctx.shadowColor = color;
+                    ctx.fillRect(seg.x*TILE_SIZE+2, seg.y*TILE_SIZE+2, TILE_SIZE-4, TILE_SIZE-4);
+                    if (i === 0) {
+                        ctx.shadowBlur = 0;
+                        ctx.fillStyle = '#000';
+                        ctx.font = 'bold 11px monospace';
+                        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText('>', seg.x*TILE_SIZE+10, seg.y*TILE_SIZE+11);
+                    }
+                });
+            };
+            drawSnakeMatrix(p1, '#00ff41');
+            if (isMultiplayer) drawSnakeMatrix(p2, '#00bbff');
+
+            if (hunter.active) {
+                const blink = Math.floor(frameCount / 5) % 2 === 0;
+                ctx.fillStyle   = blink ? '#ff0000' : '#880000';
+                ctx.shadowBlur  = 20;
+                ctx.shadowColor = '#ff0000';
+                ctx.fillRect(hunter.x*TILE_SIZE+1, hunter.y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('X', hunter.x*TILE_SIZE+10, hunter.y*TILE_SIZE+11);
+            }
+
+            ctx.shadowBlur = 0;
+        }
+
+        // ── VAPORWAVE ─────────────────────────────────────────────────────
+        function drawVaporwave() {
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.55);
+            skyGrad.addColorStop(0, '#0d0028');
+            skyGrad.addColorStop(0.5, '#2e0050');
+            skyGrad.addColorStop(1, '#6b0070');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height * 0.55);
+
+            const floorGrad = ctx.createLinearGradient(0, canvas.height * 0.55, 0, canvas.height);
+            floorGrad.addColorStop(0, '#1a0040');
+            floorGrad.addColorStop(1, '#0d001a');
+            ctx.fillStyle = floorGrad;
+            ctx.fillRect(0, canvas.height * 0.55, canvas.width, canvas.height * 0.45);
+
+            const sunY = canvas.height * 0.55;
+            const sunGrad = ctx.createRadialGradient(canvas.width/2, sunY, 0, canvas.width/2, sunY, 180);
+            sunGrad.addColorStop(0, 'rgba(255, 80, 180, 0.5)');
+            sunGrad.addColorStop(0.4, 'rgba(255, 50, 100, 0.2)');
+            sunGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = sunGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Erhöhte Gitterlinien-Sichtbarkeit (v0.5) - Perspektivgrid
+            const horizon = canvas.height * 0.55;
+            const vpX = canvas.width / 2;
+            ctx.lineWidth = 2;
+            
+            // Vertikale Linien (verstärkt)
+            for (let n = 0; n <= 16; n++) {
+                let x = (n / 16) * canvas.width;
+                ctx.strokeStyle = 'rgba(185, 103, 255, 0.4)';
+                ctx.beginPath(); ctx.moveTo(vpX, horizon); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            
+            // Horizontale Linien (verstärkt)
+            ctx.lineWidth = 0.8;
+            for (let n = 0; n <= 12; n++) {
+                let t = Math.pow(n / 12, 1.8);
+                let y = horizon + t * (canvas.height - horizon);
+                ctx.strokeStyle = `rgba(255, 113, 206, ${0.1 + t * 0.45})`;
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            if (gameState === 'MENU') return;
+
+            // Erhöhte Sichtbarkeit der Eiserne Jungfrau (v0.5) - Glow-Effekt + dickere Linien
+            if (activeAddons.maiden) {
+                ctx.fillStyle = '#2a0045';
+                ctx.shadowBlur = 12;
+                ctx.strokeStyle = '#ff71ce';
+                for (let i = 0; i < maidenProgress; i++) {
+                    const mx = maidenSpiral[i].x*TILE_SIZE, my = maidenSpiral[i].y*TILE_SIZE;
+                    // Äußere Leuchte
+                    ctx.fillRect(mx-1, my-1, TILE_SIZE+2, TILE_SIZE+2);
+                    // Inneres Feld mit Rahmen
+                    ctx.shadowBlur = 8;
+                    ctx.strokeRect(mx, my, TILE_SIZE, TILE_SIZE);
+                }
+                ctx.shadowBlur = 0;
+            }
+
+            if (food.x !== -999) {
+                const pulse = Math.sin(frameCount * 0.2) * 2;
+                ctx.strokeStyle = '#ff71ce';
+                ctx.shadowBlur  = 12 + pulse;
+                ctx.shadowColor = '#ff71ce';
+                ctx.lineWidth   = 2;
+                const fx = food.x*TILE_SIZE+10, fy = food.y*TILE_SIZE+10;
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i * Math.PI) / 3 + frameCount * 0.03;
+                    ctx.beginPath();
+                    ctx.moveTo(fx, fy);
+                    ctx.lineTo(fx + Math.cos(angle) * (9 + pulse), fy + Math.sin(angle) * (9 + pulse));
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#ffd6f9';
+                ctx.beginPath(); ctx.arc(fx, fy, 5, 0, Math.PI*2); ctx.fill();
+            }
+
+            if (activeAddons.poison && poisonFood && poisonFood.x >= 0) {
+                const glitch = frameCount % 6 < 2 ? 2 : 0;
+                ctx.fillStyle   = '#004040';
+                ctx.shadowBlur  = 10;
+                ctx.shadowColor = '#00ffee';
+                ctx.fillRect(poisonFood.x*TILE_SIZE+3+glitch, poisonFood.y*TILE_SIZE+3, TILE_SIZE-6, TILE_SIZE-6);
+                ctx.fillStyle = '#00ffee';
+                ctx.beginPath(); ctx.arc(poisonFood.x*TILE_SIZE+7, poisonFood.y*TILE_SIZE+9, 2, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(poisonFood.x*TILE_SIZE+13, poisonFood.y*TILE_SIZE+9, 2, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            if (activeAddons.obstacles) {
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#ff71ce';
+                ctx.lineWidth   = 1.5;
+                obstacles.forEach(o => {
+                    ctx.fillStyle = 'rgba(80, 0, 100, 0.5)';
+                    ctx.fillRect(o.x*TILE_SIZE+3, o.y*TILE_SIZE+3, TILE_SIZE-6, TILE_SIZE-6);
+                    ctx.strokeRect(o.x*TILE_SIZE+3, o.y*TILE_SIZE+3, TILE_SIZE-6, TILE_SIZE-6);
+                });
+            }
+
+            const drawSnakeVaporwave = (snake, headColor, bodyColor) => {
+                if (snake.dead) return;
+                snake.body.forEach((seg, i) => {
+                    ctx.fillStyle   = i === 0 ? headColor : bodyColor;
+                    ctx.globalAlpha = i === 0 ? 1 : (0.4 + 0.5 * (1 - i / snake.body.length));
+                    ctx.shadowBlur  = i === 0 ? 14 : 4;
+                    ctx.shadowColor = headColor;
+                    ctx.beginPath();
+                    ctx.arc(seg.x*TILE_SIZE+10, seg.y*TILE_SIZE+10, i === 0 ? 9 : 7, 0, Math.PI*2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            };
+            drawSnakeVaporwave(p1, '#ff71ce', '#b967ff');
+            if (isMultiplayer) drawSnakeVaporwave(p2, '#01cdfe', '#05ffa1');
+
+            if (hunter.active) {
+                ctx.fillStyle   = '#ff0050';
+                ctx.shadowBlur  = 20;
+                ctx.shadowColor = '#ff0050';
+                ctx.beginPath();
+                ctx.arc(hunter.x*TILE_SIZE+10, hunter.y*TILE_SIZE+10, 10, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(hunter.x*TILE_SIZE+7, hunter.y*TILE_SIZE+8, 2, 0, Math.PI*2);
+                ctx.arc(hunter.x*TILE_SIZE+13, hunter.y*TILE_SIZE+8, 2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1;
+        }
+
+        // ── DARK FOREST ───────────────────────────────────────────────────
+        function forestRng(x, y) {
+            return ((x * 374761393 + y * 1234567891 + 999983) % 999983) / 999983;
+        }
+
+        function drawDarkForest() {
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGrad.addColorStop(0, '#060d06');
+            bgGrad.addColorStop(1, '#0d1a08');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (let gx = 0; gx < COLS; gx++) {
+                for (let gy = 0; gy < ROWS; gy++) {
+                    const r = forestRng(gx, gy);
+                    if (r < 0.06) {
+                        const size = 4 + r * 60;
+                        ctx.fillStyle = `rgba(${20 + r*15}, ${40 + r*20}, ${10 + r*10}, ${0.25 + r * 0.3})`;
+                        ctx.beginPath();
+                        ctx.arc(gx*TILE_SIZE+10, gy*TILE_SIZE+10, size, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            if (gameState === 'MENU') return;
+
+            if (activeAddons.maiden) {
+                // Erhöhte Sichtbarkeit der Eiserne Jungfrau (v0.5) - dunkle Blöcke mit dickerem Rahmen
+                const forestMaidenColor = getComputedStyle(document.documentElement).getPropertyValue('--maiden-color').trim() || '#1a2d0f';
+                ctx.fillStyle = forestMaidenColor;
+                for (let i = 0; i < maidenProgress; i++) {
+                    const mx = maidenSpiral[i].x*TILE_SIZE, my = maidenSpiral[i].y*TILE_SIZE;
+                    ctx.fillRect(mx-1, my-1, TILE_SIZE+2, TILE_SIZE+2);
+                    ctx.shadowBlur = 8;
+                    ctx.strokeStyle = '#6aaa40';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(mx, my, TILE_SIZE, TILE_SIZE);
+                }
+                ctx.shadowBlur = 0;
+            }
+
+
+            if (food.x !== -999) {
+                const pulse = Math.sin(frameCount * 0.22) * 1.5;
+                ctx.fillStyle   = '#cc2200';
+                ctx.shadowBlur  = 10 + pulse;
+                ctx.shadowColor = '#ff4400';
+                ctx.beginPath();
+                ctx.arc(food.x*TILE_SIZE+10, food.y*TILE_SIZE+11, 7 + pulse/2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,200,180,0.5)';
+                ctx.beginPath();
+                ctx.arc(food.x*TILE_SIZE+8, food.y*TILE_SIZE+8, 2.5, 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = '#556b2f';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(food.x*TILE_SIZE+10, food.y*TILE_SIZE+4);
+                ctx.quadraticCurveTo(food.x*TILE_SIZE+14, food.y*TILE_SIZE+2, food.x*TILE_SIZE+16, food.y*TILE_SIZE+5);
+                ctx.stroke();
+            }
+
+            if (activeAddons.poison && poisonFood && poisonFood.x >= 0) {
+                const px = poisonFood.x*TILE_SIZE, py = poisonFood.y*TILE_SIZE;
+                const pulse = Math.sin(frameCount * 0.18) * 1;
+                ctx.fillStyle   = '#5a007a';
+                ctx.shadowBlur  = 8 + pulse;
+                ctx.shadowColor = '#aa00cc';
+                ctx.beginPath();
+                ctx.ellipse(px+10, py+9, 8+pulse, 6, 0, Math.PI, 0);
+                ctx.fill();
+                ctx.fillStyle = '#3d1a4a';
+                ctx.fillRect(px+7, py+9, 6, 7);
+                ctx.fillStyle = 'rgba(220,180,255,0.6)';
+                ctx.beginPath(); ctx.arc(px+8, py+7, 1.5, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(px+12, py+6, 1, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            if (activeAddons.obstacles) {
+                ctx.shadowBlur = 0;
+                obstacles.forEach(o => {
+                    const ox = o.x*TILE_SIZE, oy = o.y*TILE_SIZE;
+                    ctx.fillStyle = '#3d2007';
+                    ctx.beginPath(); ctx.arc(ox+10, oy+12, 8, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = '#5a3010'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.arc(ox+10, oy+12, 5, 0, Math.PI*2); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(ox+10, oy+12, 2, 0, Math.PI*2); ctx.stroke();
+                    ctx.fillStyle = 'rgba(60, 100, 30, 0.6)';
+                    ctx.beginPath(); ctx.ellipse(ox+10, oy+5, 9, 4, 0, 0, Math.PI*2); ctx.fill();
+                });
+            }
+
+            const drawSnakeForest = (snake, color) => {
+                if (snake.dead) return;
+                for (let i = snake.body.length - 1; i >= 0; i--) {
+                    const seg = snake.body[i];
+                    const alpha = 0.45 + 0.55 * (1 - i / Math.max(snake.body.length, 1));
+                    ctx.fillStyle   = color;
+                    ctx.globalAlpha = alpha;
+                    ctx.shadowBlur  = i === 0 ? 10 : 0;
+                    ctx.shadowColor = color;
+                    ctx.beginPath();
+                    ctx.arc(seg.x*TILE_SIZE+10, seg.y*TILE_SIZE+10, i === 0 ? 9 : 7, 0, Math.PI*2);
+                    ctx.fill();
+                    if (i === 0) {
+                        ctx.globalAlpha = 1;
+                        ctx.shadowBlur  = 0;
+                        ctx.fillStyle = '#ff4400';
+                        ctx.beginPath();
+                        ctx.arc(seg.x*TILE_SIZE+7,  seg.y*TILE_SIZE+8, 2, 0, Math.PI*2);
+                        ctx.arc(seg.x*TILE_SIZE+13, seg.y*TILE_SIZE+8, 2, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                }
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur  = 0;
+            };
+            drawSnakeForest(p1, '#6aaa40');
+            if (isMultiplayer) drawSnakeForest(p2, '#b07830');
+
+            if (hunter.active) {
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(20, 5, 5, 0.7)';
+                ctx.beginPath(); ctx.arc(hunter.x*TILE_SIZE+10, hunter.y*TILE_SIZE+10, 10, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ff2200';
+                ctx.shadowBlur = 15; ctx.shadowColor = '#ff0000';
+                ctx.beginPath(); ctx.arc(hunter.x*TILE_SIZE+6,  hunter.y*TILE_SIZE+9, 3, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(hunter.x*TILE_SIZE+14, hunter.y*TILE_SIZE+9, 3, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           TOUCH CONTROLS
+        ═══════════════════════════════════════════════════════════════ */
+        let touchStartX = 0, touchStartY = 0;
+        const SWIPE_THRESHOLD = 25;
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchStartX = e.changedTouches[0].clientX;
+            touchStartY = e.changedTouches[0].clientY;
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const endX = e.changedTouches[0].clientX;
+            const endY = e.changedTouches[0].clientY;
+            handleSwipe(touchStartX, touchStartY, endX, endY, 'p1');
+        }, { passive: false });
+
+        function handleSwipe(startX, startY, endX, endY, player) {
+            const diffX = endX - startX, diffY = endY - startY;
+            const absX = Math.abs(diffX), absY = Math.abs(diffY);
+            if (Math.max(absX, absY) < SWIPE_THRESHOLD) return;
+            const dir = absX >= absY ? (diffX > 0 ? 'RIGHT' : 'LEFT') : (diffY > 0 ? 'DOWN' : 'UP');
+            pushInput(player === 'p2' ? p2 : p1, dir);
+        }
+
+        function pushInput(snake, direction) {
+            if (gameState !== 'PLAYING' || !snake || snake.dead) return;
+            if (snake.inputQueue.length >= 2) return;
+            let last = snake.inputQueue.length > 0 ? snake.inputQueue[snake.inputQueue.length - 1] : snake.dir;
+            const opposites = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT' };
+            if (direction !== last && direction !== opposites[last]) {
+                snake.inputQueue.push(direction);
+            }
+        }
+
+        /* ── D-PAD LISTENERS ───────────────────────────────────────────── */
+        [['dpad1-up','UP','p1'], ['dpad1-down','DOWN','p1'], ['dpad1-left','LEFT','p1'], ['dpad1-right','RIGHT','p1'],
+         ['dpad2-up','UP','p2'], ['dpad2-down','DOWN','p2'], ['dpad2-left','LEFT','p2'], ['dpad2-right','RIGHT','p2']
+        ].forEach(([id, dir, player]) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                pushInput(player === 'p2' ? p2 : p1, dir);
+                // v0.4: Haptisches Feedback auf unterstützten Geräten
+                if (navigator.vibrate) navigator.vibrate(5);
+            }, { passive: false });
+            btn.addEventListener('mousedown', () => pushInput(player === 'p2' ? p2 : p1, dir));
+        });
+
+        /* ═══════════════════════════════════════════════════════════════
+           KEYBOARD CONTROLS
+        ═══════════════════════════════════════════════════════════════ */
+        document.addEventListener('keydown', (event) => {
+            const key = event.key;
+            if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(key)) event.preventDefault();
+
+            // ── PAUSE state: any resume key ──
+            if (gameState === 'PAUSED') {
+                if (key === 'p' || key === 'P' || key === 'Escape' || key === ' ') resumeGame();
+                return;
+            }
+
+            if (gameState === 'MENU') {
+                if (key === ' ') { startGame(); }
+                else if (key === 'ArrowUp' || key === 'ArrowDown') {
+                    let idx = difficultiesList.indexOf(currentDifficulty);
+                    if (key === 'ArrowDown') idx = (idx + 1) % difficultiesList.length;
+                    else                     idx = (idx - 1 + difficultiesList.length) % difficultiesList.length;
+                    setDifficulty(difficultiesList[idx]);
+                } else if (key === 'AltGraph' || event.code === 'AltRight') {
+                    setMode(isMultiplayer ? 'single' : 'multi');
+                } else if (key === '+' || key === '-') {
+                    let idx = themesList.indexOf(currentTheme);
+                    if (key === '+') idx = (idx + 1) % themesList.length;
+                    else             idx = (idx - 1 + themesList.length) % themesList.length;
+                    document.getElementById('themeSelect').value = themesList[idx];
+                    changeTheme(themesList[idx]);                } else if (key === '1') { toggleAddon('obstacles'); }
+                  else if (key === '2') { toggleAddon('hunger'); }
+                  else if (key === '3') { toggleAddon('maiden'); }
+                  else if (key === '4') { toggleAddon('poison'); }
+                return;
+            }
+
+            if (gameState === 'GAMEOVER') {
+                if (key === ' ' || key === 'Enter') startGame();
+                else if (key === 'Control')         showMenu();
+                return;
+            }
+
+            if (gameState !== 'PLAYING') return;
+
+            // ── Pause ──
+            if (key === 'p' || key === 'P' || key === 'Escape') { pauseGame(); return; }
+
+            // Player 1 (arrow keys)
+            if      (key === 'ArrowUp')    pushInput(p1, 'UP');
+            else if (key === 'ArrowDown')  pushInput(p1, 'DOWN');
+            else if (key === 'ArrowLeft')  pushInput(p1, 'LEFT');
+            else if (key === 'ArrowRight') pushInput(p1, 'RIGHT');
+
+            // Player 2 (WASD)
+            if (isMultiplayer) {
+                const k = key.toLowerCase();
+                if      (k === 'w') pushInput(p2, 'UP');
+                else if (k === 's') pushInput(p2, 'DOWN');
+                else if (k === 'a') pushInput(p2, 'LEFT');
+                else if (k === 'd') pushInput(p2, 'RIGHT');
+            }
+        });
+
+        // ── INIT ──────────────────────────────────────────────────────────
+        changeTheme('cyberpunk');
+        updateMenuSelection();
+        updateHighscoreDisplay();
+        loadAudioSettings();
+        loadSavedVolumes();
+
+        // ── CONTROLLER SUPPORT (PC & Mobile) ───────────────────────────────
+        let gamepadIndex = null;
+        let lastGamepadDir = null;
+
+        window.addEventListener('gamepadconnected', (e) => {
+            console.log('Controller connected:', e.gamepad.id);
+            playSoundStart(); // Feedback beim Verbinden
+        });
+
+        window.addEventListener('gamepaddisconnected', (e) => {
+            console.log('Controller disconnected');
+        });
+
+        function handleGamepadInput(gamepad) {
+            // P1: Linker Stick (axes 0/1) + D-Pad-Buttons (12-15)
+            const axisX = gamepad.axes[0];
+            const axisY = gamepad.axes[1];
+            const DEAD_ZONE = 0.5;
+
+            if      (axisX < -DEAD_ZONE) pushInput(p1, 'LEFT');
+            else if (axisX >  DEAD_ZONE) pushInput(p1, 'RIGHT');
+            else if (axisY < -DEAD_ZONE) pushInput(p1, 'UP');
+            else if (axisY >  DEAD_ZONE) pushInput(p1, 'DOWN');
+
+            // D-Pad Buttons: 12=UP, 13=DOWN, 14=LEFT, 15=RIGHT
+            if (gamepad.buttons[12]?.pressed) pushInput(p1, 'UP');
+            if (gamepad.buttons[13]?.pressed) pushInput(p1, 'DOWN');
+            if (gamepad.buttons[14]?.pressed) pushInput(p1, 'LEFT');
+            if (gamepad.buttons[15]?.pressed) pushInput(p1, 'RIGHT');
+
+            // P2 (Multiplayer): Rechter Stick (axes 2/3)
+            if (isMultiplayer && !p2.dead) {
+                const axisX2 = gamepad.axes[2];
+                const axisY2 = gamepad.axes[3];
+                if      (axisX2 < -DEAD_ZONE) pushInput(p2, 'LEFT');
+                else if (axisX2 >  DEAD_ZONE) pushInput(p2, 'RIGHT');
+                else if (axisY2 < -DEAD_ZONE) pushInput(p2, 'UP');
+                else if (axisY2 >  DEAD_ZONE) pushInput(p2, 'DOWN');
+            }
+
+            // Start (Button 9) = Spiel starten / Pause
+            if (gameState === 'MENU'   && gamepad.buttons[9]?.pressed) startGame();
+            if (gameState === 'PLAYING' && gamepad.buttons[9]?.pressed) pauseGame();
+            if (gameState === 'PAUSED' && gamepad.buttons[9]?.pressed) resumeGame();
+        }
+
+        function gamepadLoop() {
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+            for (let i = 0; i < gamepads.length; i++) {
+                if (gamepads[i]) handleGamepadInput(gamepads[i]);
+            }
+            requestAnimationFrame(gamepadLoop);
+        }
+
+        // Start Gamepad Loop
+        gamepadLoop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,486 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Snake Ultimate – GitHub Actions CI/CD
+#  Projekt: Vanilla HTML5/CSS3/JavaScript · Single-File · No Build Tools
+# ═══════════════════════════════════════════════════════════════════════════
+name: CI
+
+on:
+  push:
+    branches: [ "main", "master", "dev" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+  # Manueller Start über GitHub UI
+  workflow_dispatch:
+
+# ── Globale Umgebungsvariablen ────────────────────────────────────────────
+env:
+  MAIN_FILE: snake_ultimate.html
+
+# ═════════════════════════════════════════════════════════════════════════
+#  JOB 1 · html-validate
+#  Was es tut: Prüft das HTML auf strukturelle Fehler und Deprecations
+#  via html-validate (strikter als der W3C-Validator, offline nutzbar).
+# ═════════════════════════════════════════════════════════════════════════
+jobs:
+  html-validate:
+    name: "🏷️  HTML Validation"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Node.js wird nur für npx html-validate benötigt – kein package.json nötig
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Inline-Config: erlaubt <script> inline & moderne HTML5-Elemente
+      - name: Write html-validate config
+        run: |
+          cat > .htmlvalidate.json << 'EOF'
+          {
+            "extends": ["html-validate:recommended"],
+            "rules": {
+              "no-inline-style": "off",
+              "no-implicit-button-type": "off",
+              "long-title": "off",
+              "no-trailing-whitespace": "off",
+              "prefer-native-element": "off",
+              "require-sri": "off",
+              "script-type": "off",
+              "void-style": "off"
+            }
+          }
+          EOF
+
+      - name: Run html-validate
+        run: npx --yes html-validate@latest ${{ env.MAIN_FILE }}
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  JOB 2 · js-lint
+#  Was es tut: Extrahiert den <script>-Block aus der HTML-Datei und
+#  führt ESLint darauf aus. Deckt Syntax-Fehler, undeklarierten
+#  Variablen und häufige Fallstricke auf.
+# ═════════════════════════════════════════════════════════════════════════
+  js-lint:
+    name: "🔍  JavaScript Lint (ESLint)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ESLint + Browser-Globals installieren (kein package.json nötig)
+      - name: Install ESLint
+        run: npm install --no-save eslint@latest globals@latest
+
+      # <script>…</script> aus der HTML-Datei extrahieren
+      - name: Extract inline JavaScript
+        run: |
+          node - << 'JSEOF'
+          const fs   = require('fs');
+          const html = fs.readFileSync(process.env.MAIN_FILE, 'utf8');
+          const m    = html.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+          if (!m) { console.error('Kein <script>-Block gefunden!'); process.exit(1); }
+          fs.writeFileSync('_extracted.js', m[1]);
+          console.log(`JS extrahiert: ${m[1].length} Zeichen`);
+          JSEOF
+
+      # Flat-Config (ESLint v9+) direkt inline anlegen
+      - name: Write ESLint config
+        run: |
+          cat > eslint.config.mjs << 'EOF'
+          import globals from "globals";
+          export default [
+            {
+              files: ["_extracted.js"],
+              languageOptions: {
+                ecmaVersion: 2022,
+                sourceType: "script",
+                globals: {
+                  ...globals.browser,
+                  ...globals.es2021
+                }
+              },
+              rules: {
+                // Syntax & Grundregeln
+                "no-undef":            "error",
+                "no-unused-vars":      ["warn", { "vars": "all", "args": "after-used" }],
+                "no-unreachable":      "error",
+                "no-constant-condition": "warn",
+                "no-duplicate-case":   "error",
+                // Qualitäts-Checks
+                "eqeqeq":              ["warn", "smart"],
+                "no-eval":             "error",
+                "no-implied-eval":     "error",
+                "no-new-func":         "error",
+                // Stil (nur warn, kein Blocker)
+                "semi":                ["warn", "always"],
+                "no-extra-semi":       "warn"
+              }
+            }
+          ];
+          EOF
+
+      - name: Run ESLint
+        run: npx eslint _extracted.js --max-warnings=20
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  JOB 3 · syntax-smoke-test
+#  Was es tut: Node.js parst den extrahierten JS-Code direkt – das ist
+#  der schnellste Weg, um harte Syntax-Fehler (unbalancierte Klammern,
+#  unexpected token etc.) zu erkennen, ohne einen Browser zu starten.
+# ═════════════════════════════════════════════════════════════════════════
+  syntax-smoke-test:
+    name: "💨  JS Syntax Smoke-Test (Node Parse)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Extract & parse JavaScript
+        run: |
+          node - << 'JSEOF'
+          const fs   = require('fs');
+          const vm   = require('vm');
+          const html = fs.readFileSync(process.env.MAIN_FILE, 'utf8');
+          const m    = html.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+          if (!m) { console.error('Kein <script>-Block gefunden!'); process.exit(1); }
+          try {
+            new vm.Script(m[1]);   // parst den Code, führt ihn NICHT aus
+            console.log('✅  JavaScript Syntax OK');
+          } catch (e) {
+            console.error('❌  Syntax-Fehler:', e.message);
+            process.exit(1);
+          }
+          JSEOF
+
+      - name: Check required game functions exist
+        run: |
+          python3 - << 'PYEOF'
+          import sys, re
+
+          with open("snake_ultimate.html", encoding="utf-8") as f:
+              src = f.read()
+
+          # Kernfunktionen, die für das Spiel zwingend benötigt werden
+          required = [
+              "function startGame",
+              "function showMenu",
+              "function endGame",
+              "function update",
+              "function draw",
+              "function drawCyberpunk",
+              "function drawRetro",
+              "function drawOcean",
+              "function drawInferno",
+              "function drawPvZ",
+              "function drawMatrix",
+              "function drawVaporwave",
+              "function drawDarkForest",
+              "function initAudio",
+              "function startMusic",
+              "function stopMusic",
+              "function pauseGame",
+              "function resumeGame",
+              "function pushInput",
+              "function spawnFood",
+              "function moveSnake",
+              "function checkCollisions",
+          ]
+
+          missing = [fn for fn in required if fn not in src]
+          if missing:
+              print("❌  Fehlende Funktionen:")
+              for fn in missing:
+                  print(f"   - {fn}")
+              sys.exit(1)
+          else:
+              print(f"✅  Alle {len(required)} Kernfunktionen gefunden")
+          PYEOF
+
+      - name: Brace balance check
+        run: |
+          python3 - << 'PYEOF'
+          import sys, re
+
+          with open("snake_ultimate.html", encoding="utf-8") as f:
+              html = f.read()
+
+          # Nur den <script>-Block prüfen
+          m = re.search(r"<script[^>]*>([\s\S]*?)</script>", html, re.IGNORECASE)
+          if not m:
+              print("❌  Kein <script>-Block gefunden")
+              sys.exit(1)
+
+          js = m.group(1)
+
+          # Kommentare + Strings raus, damit Klammern in Strings nicht zählen
+          js_stripped = re.sub(r'//[^\n]*', '', js)
+          js_stripped = re.sub(r'/\*[\s\S]*?\*/', '', js_stripped)
+          js_stripped = re.sub(r'"(?:[^"\\]|\\.)*"', '""', js_stripped)
+          js_stripped = re.sub(r"'(?:[^'\\]|\\.)*'", "''", js_stripped)
+          js_stripped = re.sub(r'`(?:[^`\\]|\\.)*`', '``', js_stripped)
+
+          open_b  = js_stripped.count('{')
+          close_b = js_stripped.count('}')
+          open_p  = js_stripped.count('(')
+          close_p = js_stripped.count(')')
+          open_s  = js_stripped.count('[')
+          close_s = js_stripped.count(']')
+
+          errors = []
+          if open_b != close_b:
+              errors.append(f"Geschweifte Klammern unbalanciert: {{ {open_b}  }}  {close_b}")
+          if open_p != close_p:
+              errors.append(f"Runde Klammern unbalanciert:      ( {open_p}  ) {close_p}")
+          if open_s != close_s:
+              errors.append(f"Eckige Klammern unbalanciert:     [ {open_s}  ] {close_s}")
+
+          if errors:
+              print("❌  Klammer-Balancierung fehlgeschlagen:")
+              for e in errors: print(f"   {e}")
+              sys.exit(1)
+          else:
+              print(f"✅  Alle Klammern balanciert  {{ {open_b} }}  ( {open_p} )  [ {open_s} ]")
+          PYEOF
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  JOB 4 · file-size-check
+#  Was es tut: Überwacht die Dateigröße der HTML-Datei. Warnt bei
+#  >200 KB, schlägt bei >500 KB fehl – sinnvoll für ein Single-File-
+#  Projekt, bei dem der Browser die Datei direkt lädt.
+# ═════════════════════════════════════════════════════════════════════════
+  file-size-check:
+    name: "📦  File Size Check"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check file size
+        run: |
+          python3 - << 'PYEOF'
+          import os, sys
+
+          path      = os.environ.get("MAIN_FILE", "snake_ultimate.html")
+          size_b    = os.path.getsize(path)
+          size_kb   = size_b / 1024
+          warn_kb   = 200
+          fail_kb   = 500
+
+          print(f"📄  {path}: {size_kb:.1f} KB ({size_b:,} Bytes)")
+
+          if size_kb > fail_kb:
+              print(f"❌  Datei überschreitet {fail_kb} KB – bitte Assets auslagern!")
+              sys.exit(1)
+          elif size_kb > warn_kb:
+              print(f"⚠️   Datei nähert sich {warn_kb} KB – im Auge behalten.")
+          else:
+              print(f"✅  Dateigröße OK (unter {warn_kb} KB)")
+          PYEOF
+
+      - name: Report asset summary
+        run: |
+          echo "=== Repository Asset-Übersicht ==="
+          find . -not -path './.git/*' \
+                 \( -name "*.html" -o -name "*.js" -o -name "*.css" \
+                    -o -name "*.png" -o -name "*.jpg" -o -name "*.svg" \) \
+                 -exec du -sh {} \; | sort -h
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  JOB 5 · security-scan
+#  Was es tut: Scannt nach bekannt unsicheren Patterns im JS-Code:
+#  eval(), document.write(), innerHTML mit Variablen, etc.
+# ═════════════════════════════════════════════════════════════════════════
+  security-scan:
+    name: "🔒  Security Scan"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan for dangerous patterns
+        run: |
+          python3 - << 'PYEOF'
+          import re, sys
+
+          with open("snake_ultimate.html", encoding="utf-8") as f:
+              src = f.read()
+
+          # Muster: (regex, severity, Beschreibung)
+          patterns = [
+              (r'\beval\s*\(',            "ERROR",   "eval() gefunden – Code-Injection Risiko"),
+              (r'\bnew\s+Function\s*\(',  "ERROR",   "new Function() – wie eval()"),
+              (r'document\.write\s*\(',   "WARN",    "document.write() – veraltet und XSS-anfällig"),
+              (r'innerHTML\s*=\s*[^\'"]', "WARN",    "innerHTML mit Nicht-Literal – potentielle XSS"),
+              (r'outerHTML\s*=',          "WARN",    "outerHTML Zuweisung gefunden"),
+              (r'setTimeout\s*\(\s*[\'"]', "WARN",   "setTimeout mit String-Argument (eval-ähnlich)"),
+              (r'setInterval\s*\(\s*[\'"]',"WARN",   "setInterval mit String-Argument (eval-ähnlich)"),
+          ]
+
+          errors = []
+          warnings = []
+
+          for pattern, severity, description in patterns:
+              matches = [(i+1, line.strip()) for i, line
+                         in enumerate(src.splitlines())
+                         if re.search(pattern, line)]
+              if matches:
+                  entry = {"desc": description, "lines": matches}
+                  if severity == "ERROR":
+                      errors.append(entry)
+                  else:
+                      warnings.append(entry)
+
+          for w in warnings:
+              print(f"⚠️   {w['desc']}")
+              for ln, text in w['lines'][:3]:
+                  print(f"     Zeile {ln}: {text[:80]}")
+
+          for e in errors:
+              print(f"❌  {e['desc']}")
+              for ln, text in e['lines'][:3]:
+                  print(f"     Zeile {ln}: {text[:80]}")
+
+          if not errors and not warnings:
+              print("✅  Keine unsicheren Patterns gefunden")
+          elif not errors:
+              print(f"\n✅  Keine kritischen Fehler ({len(warnings)} Warnungen)")
+          else:
+              print(f"\n❌  {len(errors)} kritische Probleme gefunden")
+              sys.exit(1)
+          PYEOF
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  JOB 6 · readme-check
+#  Was es tut: Stellt sicher, dass README.md existiert und die
+#  wichtigsten Sektionen enthält (Features, Installation, Steuerung).
+#  Verhindert, dass die Doku veraltet oder unvollständig deployed wird.
+# ═════════════════════════════════════════════════════════════════════════
+  readme-check:
+    name: "📖  README Completeness"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate README sections
+        run: |
+          python3 - << 'PYEOF'
+          import sys, os
+
+          if not os.path.exists("README.md"):
+              print("❌  README.md fehlt!")
+              sys.exit(1)
+
+          with open("README.md", encoding="utf-8") as f:
+              readme = f.read()
+
+          required_sections = [
+              ("## ✨ Features",         "Features-Sektion"),
+              ("## 🎮 Steuerung",        "Steuerungs-Sektion"),
+              ("## 🚀 Installation",     "Installations-Sektion"),
+              ("## 🛠️ Entwicklung",     "Changelog/Entwicklungs-Sektion"),
+          ]
+
+          missing = [label for pattern, label in required_sections
+                     if pattern not in readme]
+
+          if missing:
+              print("⚠️   Fehlende README-Sektionen:")
+              for s in missing: print(f"   - {s}")
+              # nur Warnung, kein Fehler – Docs sind kein Blocker
+          else:
+              print("✅  Alle README-Sektionen vorhanden")
+
+          # Längencheck
+          words = len(readme.split())
+          print(f"ℹ️   README: {words} Wörter, {len(readme)} Zeichen")
+          PYEOF
+
+
+# ═════════════════════════════════════════════════════════════════════════
+#  JOB 7 · summary (läuft immer zuletzt, fasst alles zusammen)
+#  Was es tut: Erstellt einen GitHub Actions Job-Summary, der im
+#  PR/Commit-UI als formatierte Tabelle erscheint.
+# ═════════════════════════════════════════════════════════════════════════
+  summary:
+    name: "📊  CI Summary"
+    runs-on: ubuntu-latest
+    needs:
+      - html-validate
+      - js-lint
+      - syntax-smoke-test
+      - file-size-check
+      - security-scan
+      - readme-check
+    if: always()   # läuft auch wenn Jobs vorher fehlschlugen
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write Job Summary
+        run: |
+          python3 - << 'PYEOF'
+          import os
+
+          summary_file = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/stdout")
+
+          needs_results = {
+              "html-validate":    "${{ needs.html-validate.result }}",
+              "js-lint":          "${{ needs.js-lint.result }}",
+              "syntax-smoke-test":"${{ needs.syntax-smoke-test.result }}",
+              "file-size-check":  "${{ needs.file-size-check.result }}",
+              "security-scan":    "${{ needs.security-scan.result }}",
+              "readme-check":     "${{ needs.readme-check.result }}",
+          }
+
+          icons = {
+              "success": "✅",
+              "failure": "❌",
+              "skipped": "⏭️",
+              "cancelled": "🚫",
+          }
+
+          lines = [
+              "# 🐍 Snake Ultimate – CI Report\n",
+              "| Job | Status |",
+              "|-----|--------|",
+          ]
+          for job, result in needs_results.items():
+              icon = icons.get(result, "❓")
+              lines.append(f"| {job} | {icon} {result} |")
+
+          all_ok = all(r == "success" for r in needs_results.values())
+          lines.append("")
+          lines.append("## Gesamtergebnis")
+          lines.append("✅ **Alle Checks bestanden!**" if all_ok else "❌ **Mindestens ein Check fehlgeschlagen.**")
+
+          with open(summary_file, "w") as f:
+              f.write("\n".join(lines) + "\n")
+          print("\n".join(lines))
+          PYEOF
