@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pong Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a0a1a, #12122d);
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            padding: 10px;
+        }
+
+        h1 {
+            font-size: 3vmin;
+            margin-bottom: 1vmin;
+            text-shadow: 0 0 15px #0ff, 0 0 25px #0ff;
+            letter-spacing: 6px;
+            text-align: center;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { opacity: 0.7; }
+        }
+        @keyframes overlayFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #game-container {
+            position: relative;
+            border: 3px solid #0ff;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+            width: 90vmin;
+            max-width: 800px;
+            height: 60vmin;
+            max-height: 500px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            background: #0a0a1a;
+            width: 100%;
+            height: 100%;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            z-index: 10;
+            border-radius: 8px;
+            padding: 2vmin;
+        }
+        #ui-overlay.hidden {
+            display: none !important;
+        }
+        #ui-overlay h2 {
+            font-size: 5vmin;
+            margin: 0 0 1.5vmin 0;
+            color: #0ff;
+            text-shadow: 0 0 20px #0ff, 0 0 50px rgba(0, 255, 255, 0.6);
+            letter-spacing: 12px;
+        }
+        #ui-overlay p {
+            font-size: 2.5vmin;
+            margin: 0 0 2vmin 0;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+        }
+        #ui-overlay h3 {
+            font-size: 3vmin;
+            color: #0ff;
+            margin: 0 0 1.5vmin 0;
+            text-shadow: 0 0 10px #0ff;
+        }
+        #ui-overlay .winner-text {
+            font-size: 3.5vmin;
+            color: #0ff;
+            margin: 0 0 1vmin 0;
+            text-shadow: 0 0 20px #0ff, 0 0 40px rgba(0, 255, 255, 0.5);
+            animation: slideUp 0.5s ease;
+        }
+        #ui-overlay .score-result {
+            font-size: 2.5vmin;
+            color: #ccc;
+            margin: 0 0 2.5vmin 0;
+        }
+        /* Screen sections */
+        .overlay-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            gap: 1vmin;
+        }
+        .overlay-screen.active {
+            display: flex;
+        }
+        #ui-overlay button {
+            background: rgba(0, 255, 255, 0.03);
+            border: 1.5px solid rgba(0, 255, 255, 0.35);
+            color: #0ff;
+            padding: 1vmin 2vmin;
+            font-size: 1.8vmin;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            margin: 0.3vmin 0.4vmin;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            min-width: 10vmin;
+            text-align: center;
+        }
+        #ui-overlay button:hover {
+            background: rgba(0, 255, 255, 0.15);
+            color: #fff;
+            border-color: #0ff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+            transform: translateY(-1px);
+        }
+        #ui-overlay button:active {
+            transform: translateY(0);
+        }
+        #ui-overlay button:focus {
+            outline: 2px solid #0ff;
+            outline-offset: 2px;
+        }
+        #ui-overlay button.primary-btn {
+            background: rgba(0, 255, 255, 0.12);
+            border-color: #0ff;
+            font-size: 2vmin;
+            padding: 1.2vmin 2.5vmin;
+            box-shadow: 0 0 12px rgba(0, 255, 255, 0.25);
+        }
+        #ui-overlay button.primary-btn:hover {
+            background: rgba(0, 255, 255, 0.25);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        #ui-overlay button.secondary-btn {
+            font-size: 1.6vmin;
+            padding: 0.8vmin 1.5vmin;
+            border-color: rgba(0, 255, 255, 0.25);
+            min-width: 8vmin;
+        }
+        #score-display {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 1vmin;
+            font-size: 2vmin;
+        }
+        #score-display span {
+            font-size: 4vmin;
+            font-weight: bold;
+        }
+        .player-score { color: #0ff; text-shadow: 0 0 5px #0ff; }
+        .ai-score { color: #f00; text-shadow: 0 0 5px #f00; }
+        #controls-info {
+            margin-top: 1vmin;
+            font-size: 1.5vmin;
+            color: #aaa;
+            text-align: center;
+            line-height: 1.6;
+            padding: 0 2vmin;
+        }
+        #mode-select {
+            display: flex;
+            gap: 0.8vmin;
+        }
+        #mode-select button {
+            padding: 0.8vmin 1.8vmin;
+            font-size: 1.7vmin;
+        }
+        #mode-select button.active {
+            background: rgba(0, 255, 255, 0.15);
+            color: #fff;
+            border-color: #0ff;
+            box-shadow: 0 0 12px rgba(0, 255, 255, 0.35);
+        }
+        .difficulty-select {
+            display: flex;
+            gap: 0.8vmin;
+        }
+        .difficulty-select button {
+            padding: 0.8vmin 1.8vmin;
+            font-size: 1.7vmin;
+        }
+        .difficulty-select button.active {
+            background: rgba(0, 255, 255, 0.15);
+            color: #fff;
+            border-color: #0ff;
+            box-shadow: 0 0 12px rgba(0, 255, 255, 0.35);
+        }
+        /* Scoreboard overlay styles */
+        #overlay-scoreboard {
+            width: 85%;
+            max-width: 350px;
+            max-height: 35vh;
+            overflow-y: auto;
+            scrollbar-width: none;
+        }
+        #overlay-scoreboard::-webkit-scrollbar {
+            display: none;
+        }
+        #overlay-scoreboard .score-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.7vmin 1vmin;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+            font-size: 1.8vmin;
+            color: #bbb;
+        }
+        #overlay-scoreboard .score-entry:last-child {
+            border-bottom: none;
+        }
+        #overlay-scoreboard .score-entry:nth-child(even) {
+            background: rgba(0, 255, 255, 0.03);
+        }
+        #scoreboard-empty {
+            color: #888;
+            text-align: center;
+        }
+        #name-input {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6vmin;
+            width: 100%;
+            max-width: 28vmin;
+        }
+        #name-input input {
+            background: transparent;
+            border: none;
+            border-bottom: 1.5px solid rgba(0, 255, 255, 0.3);
+            color: #0ff;
+            padding: 0.6vmin 0.5vmin;
+            font-size: 2vmin;
+            text-align: center;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+        #name-input input:focus {
+            outline: none;
+            border-bottom-color: #0ff;
+            box-shadow: 0 2px 0 #0ff;
+        }
+        #name-input input::placeholder {
+            color: rgba(170, 170, 170, 0.4);
+        }
+        /* Old scoreboard - hidden, kept for reference */
+        #scoreboard {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>P O N G</h1>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="ui-overlay">
+            <!-- MAIN MENU SCREEN -->
+            <div id="screen-main-menu" class="overlay-screen active">
+                <h2>PONG</h2>
+                <div id="mode-select">
+                    <button type="button" id="btn-ai" class="active" onclick="selectMode('ai')">vs CPU</button>
+                    <button type="button" id="btn-2p" onclick="selectMode('2p')">2 Spieler</button>
+                </div>
+                <div class="difficulty-select" id="difficulty-select">
+                    <button type="button" onclick="setDifficulty('easy')">Leicht</button>
+                    <button type="button" class="active" onclick="setDifficulty('medium')">Mittel</button>
+                    <button type="button" onclick="setDifficulty('hard')">Schwer</button>
+                </div>
+                <div id="name-input">
+                    <input type="text" id="player1-name" placeholder="Spieler 1 Name" maxlength="20">
+                    <input type="text" id="player2-name" placeholder="Spieler 2 Name (optional)" maxlength="20">
+                </div>
+                <button type="button" class="primary-btn" onclick="startGame()">Spiel starten</button>
+                <button type="button" class="secondary-btn" onclick="showScoreboardScreen()">Beste Ergebnisse</button>
+            </div>
+
+            <!-- GAME OVER SCREEN -->
+            <div id="screen-game-over" class="overlay-screen">
+                <h2>PONG</h2>
+                <h3 class="winner-text" id="winner-text">&nbsp;</h3>
+                <p class="score-result" id="score-result"></p>
+                <button type="button" class="primary-btn" onclick="restartGame()">Erneut spielen</button>
+                <button type="button" class="secondary-btn" onclick="showMainMenuScreen()">Zum Menü</button>
+                <button type="button" class="secondary-btn" onclick="showScoreboardScreen()">Beste Ergebnisse</button>
+            </div>
+
+            <!-- SCOREBOARD SCREEN -->
+            <div id="screen-scoreboard" class="overlay-screen">
+                <h2>Beste Ergebnisse</h2>
+                <div id="overlay-scoreboard">
+                    <p id="scoreboard-empty">Noch keine Spiele gespielt!</p>
+                </div>
+                <button type="button" class="primary-btn" onclick="showMainMenuScreen()">Zurück zum Menü</button>
+            </div>
+        </div>
+    </div>
+    <div id="score-display">
+        <div class="player-score"><span id="player1-name-display">SPIELER 1</span>: <span id="player-score">0</span></div>
+        <div class="ai-score" id="ai-score-container">CPU: <span id="ai-score">0</span></div>
+    </div>
+    <div id="controls-info">
+        <strong>Spieler 1:</strong> Maus/Touch links | <strong>Spieler 2 (2P):</strong> Pfeiltasten ↑↓ oder Touch rechts<br>
+        Erst wer 5 Punkte erreicht, gewinnt!
+    </div>
+
+
+    <script>
+        // === Game Constants ===
+        const PADDLE_WIDTH = 12;
+        const PADDLE_HEIGHT = 100;
+        const BALL_SIZE = 12;
+        const WINNING_SCORE = 5;
+        const BASE_SPEED = 6;
+        const MAX_SPEED = 14;
+
+        // === Game State ===
+        let gameMode = 'ai';
+        let difficulty = 'medium'; // Set medium as default difficulty
+        let gameRunning = false;
+        let animationId = null;
+        let player1Score = 0;
+        let player2Score = 0;
+        let lastHitPlayer = null;
+        let gameWon = false;
+
+        // === Player Names ===
+        let player1Name = 'Spieler 1';
+        let player2Name = 'Spieler 2';
+
+        // === DOM Elements ===
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('ui-overlay');
+        const aiScoreContainer = document.getElementById('ai-score-container');
+        const difficultySelect = document.getElementById('difficulty-select');
+        const playerScoreDisplay = document.getElementById('player-score');
+        const aiScoreDisplay = document.getElementById('ai-score');
+        const player1NameDisplay = document.getElementById('player1-name-display');
+        const winnerText = document.getElementById('winner-text');
+        const scoreResult = document.getElementById('score-result');
+        const scoreboardEmpty = document.getElementById('scoreboard-empty');
+        const overlayScoreboard = document.getElementById('overlay-scoreboard');
+
+        // === Game Objects ===
+        const player1 = {
+            x: 15,
+            y: 0,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            color: '#0ff',
+            targetY: 0,
+            speed: 0,
+            isTouching: false
+        };
+
+        const player2 = {
+            x: 0,
+            y: 0,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            color: '#f00',
+            targetY: 0,
+            speed: 0,
+            isTouching: false
+        };
+
+        const ball = {
+            x: 0,
+            y: 0,
+            size: BALL_SIZE,
+            speedX: 0,
+            speedY: 0,
+            baseSpeed: BASE_SPEED,
+            speedMultiplier: 1
+        };
+
+        let particles = [];
+        let scoreboardData = JSON.parse(localStorage.getItem('pongScoreboard')) || [];
+        let touchLeftActive = false;
+        let touchRightActive = false;
+
+        // === Sounds ===
+        const sounds = {};
+
+        function initSounds() {
+            try {
+                sounds.hit = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAACAgICA...');
+                sounds.score = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAACAgICA...');
+                sounds.win = new Audio('data:audio/wav;base64,UklGR0lGAAAAXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAACAgICA...');
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+
+        function playSound(sound) {
+            if (sounds[sound]) {
+                sounds[sound].currentTime = 0;
+                sounds[sound].play().catch(e => {});
+            }
+        }
+
+        // === Particle System ===
+        function createParticles(x, y, color, count = 15) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 1,
+                    color: color,
+                    size: Math.random() * 2 + 1,
+                    maxSize: Math.random() * 2 + 1
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.05;
+                
+                // Gradually shrink particles
+                if (p.size > 0.2) {
+                    p.size *= 0.96;
+                }
+                
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            // Draw particles with proper alpha handling
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                ctx.globalAlpha = p.life * 0.8;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // === Drawing Functions ===
+        function drawRect(obj) {
+            // Draw paddle with background clear in a single operation
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(obj.x - 2, obj.y - 2, obj.width + 4, obj.height + 4);
+            
+            ctx.fillStyle = obj.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = obj.color;
+            ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+            ctx.shadowBlur = 0;
+
+            // Add a subtle border for better definition
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(obj.x, obj.y, obj.width, obj.height);
+        }
+
+        function drawBall() {
+            // Draw the ball with better anti-aliasing and clearer definition
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#fff';
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Add a subtle highlight
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(ball.x - ball.size * 0.2, ball.y - ball.size * 0.2, ball.size * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawNet() {
+            ctx.setLineDash([15, 15]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, 40, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        function draw() {
+            // Clear entire canvas with a single operation to prevent artifacts
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Redraw background
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawNet();
+            drawRect(player1);
+            drawRect(player2);
+            drawBall();
+            drawParticles();
+            
+            // Reset globalAlpha after particle drawing
+            ctx.globalAlpha = 1;
+        }
+
+        // === Game Logic ===
+        function resetBall() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+
+            const direction = lastHitPlayer === 1 ? -1 : 1;
+            ball.speedX = (Math.random() > 0.5 ? 1 : -1) * direction * ball.baseSpeed;
+            ball.speedY = (Math.random() * 2 - 1) * ball.baseSpeed * 1.5;
+
+            lastHitPlayer = null;
+        }
+
+        function updateBall() {
+            // Store previous position for better collision detection
+            const prevX = ball.x;
+            const prevY = ball.y;
+            
+            ball.x += ball.speedX;
+            ball.y += ball.speedY;
+
+            // Limit maximum speed
+            const currentSpeed = Math.sqrt(ball.speedX ** 2 + ball.speedY ** 2);
+            if (currentSpeed > MAX_SPEED) {
+                ball.speedX = (ball.speedX / currentSpeed) * MAX_SPEED;
+                ball.speedY = (ball.speedY / currentSpeed) * MAX_SPEED;
+            }
+
+            // Wall collision with better handling
+            if (ball.y <= 0 || ball.y >= canvas.height) {
+                ball.speedY *= -1;
+                playSound('hit');
+                createParticles(ball.x, ball.y, '#fff', 10);
+                
+                // Adjust position to prevent sticking to walls
+                if (ball.y < 0) ball.y = 0;
+                if (ball.y > canvas.height) ball.y = canvas.height;
+            }
+
+            const ballLeft = ball.x - ball.size/2;
+            const ballRight = ball.x + ball.size/2;
+            const ballTop = ball.y - ball.size/2;
+            const ballBottom = ball.y + ball.size/2;
+
+            // Player 1 collision (left paddle)
+            if (ballRight > player1.x && ballLeft < player1.x + player1.width &&
+                ballTop < player1.y + player1.height && ballBottom > player1.y) {
+                
+                // Calculate precise hit position
+                const hitPosition = (ball.y - player1.y) / player1.height;
+                const angle = (hitPosition - 0.5) * Math.PI / 2; // -45° to 45°
+                const speed = Math.sqrt(ball.speedX ** 2 + ball.speedY ** 2) * 1.05;
+                
+                // Set new direction with angle-based physics
+                ball.speedX = Math.abs(ball.speedX) * 1.05; // Always move right
+                ball.speedY = Math.sin(angle) * speed;
+                
+                lastHitPlayer = 1;
+                playSound('hit');
+                createParticles(ball.x, ball.y, player1.color, 15);
+                
+                // Prevent ball from getting stuck in paddle
+                ball.x = player1.x + player1.width + ball.size/2 + 1;
+            }
+
+            // Player 2 collision (right paddle)
+            if (ballLeft < player2.x + player2.width && ballRight > player2.x &&
+                ballTop < player2.y + player2.height && ballBottom > player2.y) {
+                
+                // Calculate precise hit position
+                const hitPosition = (ball.y - player2.y) / player2.height;
+                const angle = (hitPosition - 0.5) * Math.PI / 2; // -45° to 45°
+                const speed = Math.sqrt(ball.speedX ** 2 + ball.speedY ** 2) * 1.05;
+                
+                // Set new direction with angle-based physics
+                ball.speedX = -Math.abs(ball.speedX) * 1.05; // Always move left
+                ball.speedY = Math.sin(angle) * speed;
+                
+                lastHitPlayer = 2;
+                playSound('hit');
+                createParticles(ball.x, ball.y, player2.color, 15);
+                
+                // Prevent ball from getting stuck in paddle
+                ball.x = player2.x - ball.size/2 - 1;
+            }
+
+            // Scoring
+            if (ball.x < 0) {
+                player2Score++;
+                aiScoreDisplay.textContent = player2Score;
+                playSound('score');
+                createParticles(canvas.width/2, canvas.height/2, player2.color, 30);
+
+                if (player2Score >= WINNING_SCORE) {
+                    endGame(2);
+                    return;
+                }
+                resetBall();
+            } else if (ball.x > canvas.width) {
+                player1Score++;
+                playerScoreDisplay.textContent = player1Score;
+                playSound('score');
+                createParticles(canvas.width/2, canvas.height/2, player1.color, 30);
+
+                if (player1Score >= WINNING_SCORE) {
+                    endGame(1);
+                    return;
+                }
+                resetBall();
+            }
+        }
+
+        function movePlayer1() {
+            // Smooth movement with proper boundary checking
+            if (player1.y < 0) {
+                player1.y = 0;
+            }
+            if (player1.y + player1.height > canvas.height) {
+                player1.y = canvas.height - player1.height;
+            }
+
+            // Move towards target position with smooth acceleration
+            const diff = player1.targetY - (player1.y + player1.height / 2);
+            player1.y += diff * 0.1; // Smooth movement instead of exact positioning
+        }
+
+        function movePlayer2() {
+            if (gameMode === 'ai') {
+                const center = player2.y + player2.height / 2;
+                let target = ball.y;
+
+                switch(difficulty) {
+                    case 'easy':
+                        // Easy: Random movement with some accuracy
+                        target = ball.y + (Math.random() - 0.5) * 120;
+                        break;
+                    case 'medium': {
+                        // Medium: Predictive but with some error
+                        const timeToReachCenterX = Math.abs((canvas.width/2 - ball.x) / ball.speedX);
+                        target = ball.y + ball.speedY * timeToReachCenterX * 0.7 + (Math.random() - 0.5) * 40;
+                        break;
+                    }
+                    case 'hard': {
+                        // Hard: Perfect prediction
+                        const timeToReachCenterX = Math.abs((canvas.width/2 - ball.x) / ball.speedX);
+                        target = ball.y + ball.speedY * timeToReachCenterX;
+                        break;
+                    }
+                }
+                
+                // Ensure target is within canvas bounds
+                target = Math.max(player2.height/2, Math.min(canvas.height - player2.height/2, target));
+
+                // Add some randomness to make it more human-like
+                if (difficulty !== 'hard') {
+                    target += (Math.random() - 0.5) * 25;
+                }
+
+                const diff = target - center;
+                player2.y += diff * 0.07; // Slightly slower movement for smoother feel
+                
+                // Boundary checking with better handling
+                if (player2.y < 0) {
+                    player2.y = 0;
+                }
+                if (player2.y + player2.height > canvas.height) {
+                    player2.y = canvas.height - player2.height;
+                }
+            } else {
+                // 2-player mode movement
+                const center = player2.y + player2.height / 2;
+                const diff = player2.targetY - center;
+                player2.y += diff * 0.1; // Smooth movement
+                
+                // Boundary checking
+                if (player2.y < 0) {
+                    player2.y = 0;
+                }
+                if (player2.y + player2.height > canvas.height) {
+                    player2.y = canvas.height - player2.height;
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            // Only resize canvas if dimensions have changed significantly
+            const newWidth = canvas.offsetWidth;
+            const newHeight = canvas.offsetHeight;
+            
+            if (Math.abs(canvas.width - newWidth) > 1 || Math.abs(canvas.height - newHeight) > 1) {
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+            }
+
+            movePlayer1();
+            movePlayer2();
+            updateBall();
+            updateParticles();
+            draw();
+
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // === Screen Management ===
+        function showScreen(screenId) {
+            // Hide all screens
+            const screens = overlay.querySelectorAll('.overlay-screen');
+            screens.forEach(s => s.classList.remove('active'));
+            // Show target screen
+            document.getElementById(screenId).classList.add('active');
+            // Show overlay
+            overlay.classList.remove('hidden');
+        }
+
+        // === Game Flow ===
+        function startGame() {
+            if (gameRunning) return;
+
+            const p1Input = document.getElementById('player1-name');
+            const p2Input = document.getElementById('player2-name');
+            const player1Input = p1Input ? p1Input.value.trim() : '';
+            const player2Input = p2Input ? p2Input.value.trim() : '';
+
+            if (player1Input) player1Name = player1Input;
+            if (player2Input) player2Name = player2Input;
+
+            player1NameDisplay.textContent = player1Name;
+            if (gameMode === '2p') {
+                aiScoreContainer.textContent = `${player2Name}: `;
+            }
+
+            player1Score = 0;
+            player2Score = 0;
+            playerScoreDisplay.textContent = '0';
+            aiScoreDisplay.textContent = '0';
+            gameWon = false;
+            ball.speedMultiplier = 1;
+
+            overlay.classList.add('hidden');
+
+            player1.x = 15;
+            player1.y = canvas.height / 2 - player1.height / 2;
+            player2.x = canvas.width - 15 - player2.width;
+            player2.y = canvas.height / 2 - player2.height / 2;
+
+            resetBall();
+
+            gameRunning = true;
+            gameLoop();
+        }
+
+        function endGame(winner) {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+
+            const winnerName = winner === 1 ? player1Name : (gameMode === 'ai' ? 'CPU' : player2Name);
+            const loserName = winner === 1 ? (gameMode === 'ai' ? 'CPU' : player2Name) : player1Name;
+
+            addToScoreboard(winnerName, loserName, player1Score, player2Score);
+
+            winnerText.textContent = `${winnerName} hat gewonnen!`;
+            scoreResult.textContent = `${player1Name}: ${player1Score} - ${player2Name}: ${player2Score}`;
+
+            showScreen('screen-game-over');
+
+            playSound('win');
+        }
+
+        function restartGame() {
+            // Reuse names from main menu inputs
+            const p1Input = document.getElementById('player1-name');
+            const p2Input = document.getElementById('player2-name');
+            if (p1Input) player1Name = p1Input.value.trim() || player1Name;
+            if (p2Input && gameMode === '2p') player2Name = p2Input.value.trim() || player2Name;
+            player1NameDisplay.textContent = player1Name;
+            if (gameMode === '2p') {
+                aiScoreContainer.textContent = `${player2Name}: `;
+            }
+            startGame();
+        }
+
+        function showMainMenuScreen() {
+            showScreen('screen-main-menu');
+        }
+
+        function selectMode(mode) {
+            gameMode = mode;
+            const btnAi = document.getElementById('btn-ai');
+            const btn2p = document.getElementById('btn-2p');
+            if (btnAi) btnAi.classList.toggle('active', mode === 'ai');
+            if (btn2p) btn2p.classList.toggle('active', mode === '2p');
+
+            if (mode === 'ai') {
+                aiScoreContainer.textContent = 'CPU: ';
+            } else {
+                aiScoreContainer.textContent = `${player2Name}: `;
+            }
+        }
+
+        function setDifficulty(level) {
+            difficulty = level;
+            const buttons = difficultySelect.querySelectorAll('button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            if (level === 'easy') {
+                buttons[0].classList.add('active');
+            } else if (level === 'medium') {
+                buttons[1].classList.add('active');
+            } else if (level === 'hard') {
+                buttons[2].classList.add('active');
+            }
+        }
+
+        // === Scoreboard ===
+        function addToScoreboard(winner, loser, winnerScore, loserScore) {
+            const entry = {
+                date: new Date().toLocaleString(),
+                winner: winner,
+                loser: loser,
+                score: `${winnerScore}-${loserScore}`
+            };
+
+            scoreboardData.push(entry);
+
+            if (scoreboardData.length > 20) {
+                scoreboardData.shift();
+            }
+
+            localStorage.setItem('pongScoreboard', JSON.stringify(scoreboardData));
+        }
+
+        function showScoreboardScreen() {
+            // Build scoreboard content
+            overlayScoreboard.innerHTML = '';
+
+            if (scoreboardData.length === 0) {
+                scoreboardEmpty.style.display = 'block';
+                overlayScoreboard.appendChild(scoreboardEmpty);
+            } else {
+                scoreboardEmpty.style.display = 'none';
+                const sortedScores = [...scoreboardData].sort((a, b) => new Date(b.date) - new Date(a.date));
+                sortedScores.forEach(entry => {
+                    const div = document.createElement('div');
+                    div.className = 'score-entry';
+                    div.innerHTML = `
+                        <span>${entry.date}</span>
+                        <span>${entry.winner} besiegte ${entry.loser} ${entry.score}</span>
+                    `;
+                    overlayScoreboard.appendChild(div);
+                });
+            }
+
+            showScreen('screen-scoreboard');
+        }
+
+        // === Input Handling ===
+        function handleMouseMove(e) {
+            if (!gameRunning) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const y = e.clientY - rect.top;
+
+            if (!player1.isTouching) {
+                player1.targetY = y - player1.height / 2;
+            }
+        }
+
+        function handleKeyDown(e) {
+            if (!gameRunning || gameMode !== '2p') return;
+
+            if (e.key === 'ArrowUp') {
+                player2.targetY = player2.y - 10;
+            } else if (e.key === 'ArrowDown') {
+                player2.targetY = player2.y + 10;
+            }
+        }
+
+        function handleKeyUp(e) {
+            if (!gameRunning || gameMode !== '2p') return;
+
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                player2.targetY = player2.y + player2.height / 2;
+            }
+        }
+
+        function handleTouchStart(e) {
+            if (!gameRunning) return;
+
+            const touchX = e.touches[0].clientX;
+            const rect = canvas.getBoundingClientRect();
+
+            if (touchX < rect.left + rect.width/2) {
+                touchLeftActive = true;
+                player1.isTouching = true;
+            } else {
+                touchRightActive = true;
+                player2.isTouching = true;
+            }
+        }
+
+        function handleTouchMove(e) {
+            if (!gameRunning || e.touches.length === 0) return;
+
+            const touchX = e.touches[0].clientX;
+            const rect = canvas.getBoundingClientRect();
+
+            if (touchLeftActive && touchX < rect.left + rect.width/2) {
+                const y = e.touches[0].clientY - rect.top;
+                player1.targetY = y - player1.height / 2;
+            } else if (touchRightActive && touchX > rect.left + rect.width/2) {
+                const y = e.touches[0].clientY - rect.top;
+                player2.targetY = y - player2.height / 2;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (!gameRunning) return;
+
+            if (e.touches.length === 0) {
+                touchLeftActive = false;
+                touchRightActive = false;
+                player1.isTouching = false;
+                player2.isTouching = false;
+            }
+        }
+
+        // === Initialization ===
+        function init() {
+            initSounds();
+            
+            // Set initial canvas size
+            if (canvas.offsetWidth > 0 && canvas.offsetHeight > 0) {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            } else {
+                // Fallback values
+                canvas.width = 600;
+                canvas.height = 400;
+            }
+
+            player1.x = 15;
+            player1.y = canvas.height / 2 - player1.height / 2;
+            player2.x = canvas.width - 15 - player2.width;
+            player2.y = canvas.height / 2 - player2.height / 2;
+
+            resetBall();
+        }
+
+        // === Event Listeners ===
+        canvas.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('keyup', handleKeyUp);
+        canvas.addEventListener('touchstart', handleTouchStart);
+        canvas.addEventListener('touchmove', handleTouchMove);
+        canvas.addEventListener('touchend', handleTouchEnd);
+
+        window.addEventListener('resize', init);
+        init();
+    </script>
+</body>
+</html>
