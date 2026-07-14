@@ -281,9 +281,13 @@
         #scoreboard {
             display: none;
         }
+        .game-collection-link { position: fixed; left: 12px; bottom: 12px; z-index: 10000; padding: 8px 12px; border: 1px solid #0ff; border-radius: 999px; background: rgba(0, 0, 0, .9); color: #fff; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,.45); }
+        .game-collection-link:hover { background: #044; }
+        .game-collection-link:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     </style>
 </head>
 <body>
+    <a class="game-collection-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
     <h1>P O N G</h1>
     <div id="game-container">
         <canvas id="game-canvas"></canvas>

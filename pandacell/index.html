@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PandaCell – ein vollständiger FreeCell-Klon mit reproduzierbaren Deals.">
+  <title>PandaCell – FreeCell</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="back-link" href="../index.html">← Spieleauswahl</a>
+    <h1>🐼 PandaCell</h1>
+    <p>FreeCell: Räume alle 52 offenen Karten in die vier Foundations.</p>
+  </header>
+  <main>
+    <section class="hud" aria-label="Spielstand">
+      <label class="deal-control">Deal-Nummer
+        <input id="deal-number" type="number" min="1" max="32000" value="1" inputmode="numeric">
+      </label>
+      <div><span>Züge</span><strong id="moves">0</strong></div>
+      <div><span>Zeit</span><strong id="time">00:00</strong></div>
+      <div><span>Foundations</span><strong id="foundation-count">0 / 52</strong></div>
+      <div><span>Supermove</span><strong id="move-limit">1</strong></div>
+    </section>
+    <p id="message" class="message" role="status" aria-live="polite">Wähle eine Karte und danach ihr Ziel.</p>
+    <section class="game-table" aria-label="FreeCell-Spielfeld">
+      <div class="top-piles">
+        <section class="pile-group" aria-labelledby="free-title">
+          <h2 id="free-title">Freie Zellen</h2>
+          <div id="free-cells" class="free-cells"></div>
+        </section>
+        <section class="pile-group foundations-group" aria-labelledby="foundation-title">
+          <h2 id="foundation-title">Foundations</h2>
+          <div id="foundations" class="foundations"></div>
+        </section>
+      </div>
+      <section id="tableau" class="tableau" aria-label="Acht Tableau-Spalten"></section>
+    </section>
+    <section class="controls" aria-label="Spielaktionen">
+      <button id="undo" type="button">↶ Rückgängig</button>
+      <button id="restart" type="button">↻ Deal neu starten</button>
+      <button id="new-game" type="button">Neue Deal-Nummer</button>
+      <button id="auto" type="button">⤴ Sichere Auto-Moves</button>
+    </section>
+    <details class="rules">
+      <summary>Regeln &amp; Steuerung</summary>
+      <p>Alle 52 Karten liegen offen in acht Spalten. Baue im Tableau absteigend und mit wechselnden Farben. Eine Karte darf in eine freie Zelle, und Foundations werden je Farbe von Ass bis König gebaut. Verschiebe vollständige, korrekt gebaute Sequenzen; die Länge ist durch <strong>(freie Zellen + 1) × 2<sup>leere Spalten</sup></strong> begrenzt. Beim Ziel in eine leere Spalte zählt diese Zielspalte nicht mit.</p>
+      <ul>
+        <li>Maus/Touch: Karte oder Sequenz antippen, danach die Zielzelle, Foundation oder Spalte antippen. Doppeltippen bewegt nur sichere Foundation-Züge.</li>
+        <li>Tastatur: <kbd>Tab</kbd> und <kbd>Enter</kbd> bedienen alle Ziele; <kbd>U</kbd> macht rückgängig, <kbd>N</kbd> startet den Deal neu, <kbd>D</kbd> gibt eine neue Deal-Nummer und <kbd>A</kbd> führt sichere Auto-Moves aus.</li>
+      </ul>
+    </details>
+    <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="result-card">
+        <h2 id="result-title">Gewonnen!</h2>
+        <p id="result-text"></p>
+        <button id="result-new" type="button">Neue Deal-Nummer</button>
+      </div>
+    </div>
+  </main>
+  <footer><small>Offline-Spiel ohne Frameworks, Server oder externe Assets.</small></footer>
+</body>
+</html>

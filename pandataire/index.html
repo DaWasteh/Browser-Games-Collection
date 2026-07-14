@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pandataire – TriPeaks Solitaire</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a href="../index.html" class="back-link">← Spieleauswahl</a>
+    <h1>🐼 Pandataire</h1>
+    <p>TriPeaks Solitaire – räume die drei Gipfel ab.</p>
+  </header>
+  <main>
+    <section class="hud" aria-label="Spielstand">
+      <div><span>Züge</span><strong id="moves">0</strong></div>
+      <div><span>Serie</span><strong id="streak">0</strong></div>
+      <div><span>Zeit</span><strong id="time">00:00</strong></div>
+      <div><span>Übrig</span><strong id="remaining">28</strong></div>
+    </section>
+    <p id="message" class="message" role="status" aria-live="polite">Wähle eine freie Karte, die um eins höher oder niedriger ist.</p>
+    <section class="table-area" aria-label="TriPeaks-Tisch">
+      <div id="tableau" class="tableau" aria-label="28 Karten im Tableau"></div>
+      <div class="piles">
+        <div class="pile-wrap"><h2>Ablage</h2><div id="waste" class="pile waste" aria-label="Oberste Ablagekarte"></div></div>
+        <div class="pile-wrap"><h2>Talon</h2><button id="talon" class="pile talon" type="button" aria-label="Nächste Karte vom Talon ziehen"><span id="talon-count">23</span></button></div>
+      </div>
+    </section>
+    <section class="controls" aria-label="Spielaktionen">
+      <button id="undo" type="button">↶ Rückgängig</button>
+      <button id="restart" type="button">↻ Runde neu starten</button>
+      <button id="new-game" type="button">Neue Runde</button>
+    </section>
+    <details class="rules">
+      <summary>Regeln &amp; Steuerung</summary>
+      <p>Entferne alle 28 Tableau-Karten. Eine freie Karte darf auf die Ablage gelegt werden, wenn ihr Rang genau eins höher oder niedriger als der Ablagerang ist. Ass zählt sowohl vor der 2 als auch nach dem König. Ist kein Tableau-Zug möglich, ziehe eine Karte vom Talon. Der Talon ist begrenzt; bei leerem Talon und keinem Zug verlierst du.</p>
+      <ul><li>Maus/Touch: Karte oder Talon antippen.</li><li>Tastatur: <kbd>Tab</kbd> zu Karten, <kbd>Enter</kbd>/<kbd>Leertaste</kbd> auswählen; <kbd>U</kbd> macht rückgängig, <kbd>R</kbd> startet dieselbe Runde neu, <kbd>N</kbd> startet eine neue Runde.</li></ul>
+    </details>
+    <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="result-card"><h2 id="result-title">Runde beendet</h2><p id="result-text"></p><button id="result-button" type="button">Neue Runde</button></div>
+    </div>
+  </main>
+  <footer><small>Offline-Spiel ohne externe Abhängigkeiten.</small></footer>
+</body>
+</html>

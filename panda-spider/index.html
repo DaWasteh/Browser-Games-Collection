@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panda Spider – Spider-Solitaire</title>
+  <meta name="description" content="Panda Spider: Spider-Solitaire mit 1, 2 oder 4 Farben.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav aria-label="Hauptnavigation"><a class="back-link" href="../index.html">← Spieleauswahl</a></nav>
+    <div class="brand"><span class="brand-mark" aria-hidden="true">🐼</span><div><p class="eyebrow">PANDA SPIEL</p><h1>Panda Spider</h1></div></div>
+  </header>
+  <main class="game-shell">
+    <section class="intro" aria-labelledby="game-title">
+      <div><h2 id="game-title">Spider-Solitaire</h2><p>Baue acht vollständige Reihen von König bis Ass und räume das Spielfeld leer.</p></div>
+      <div class="controls" aria-label="Spielsteuerung">
+        <label for="suit-mode">Farben</label>
+        <select id="suit-mode">
+          <option value="1">1 Farbe · leicht</option>
+          <option value="2">2 Farben · mittel</option>
+          <option value="4">4 Farben · schwer</option>
+        </select>
+        <button id="new-game" class="button primary" type="button">Neues Spiel</button>
+        <button id="undo" class="button" type="button" disabled>↶ Rückgängig</button>
+      </div>
+    </section>
+
+    <section class="stats" aria-label="Spielstand">
+      <div><span>Züge</span><strong id="moves">0</strong></div>
+      <div><span>Zeit</span><strong id="time">00:00</strong></div>
+      <div><span>Reihen</span><strong id="completed">0 / 8</strong></div>
+      <div class="message" id="message" role="status" aria-live="polite">Wähle eine offene Karte oder eine gleichfarbige Folge.</div>
+    </section>
+
+    <section class="tableau-area" aria-labelledby="tableau-title">
+      <h2 id="tableau-title" class="visually-hidden">Spielfeld mit zehn Spalten</h2>
+      <div id="tableau" class="tableau" role="group" aria-label="Zehn Tableau-Spalten"></div>
+      <div class="stock-row">
+        <div class="stock-info"><span class="stock-icon" aria-hidden="true">▣</span><span>Restkarten: <strong id="stock-count">50</strong></span></div>
+        <button id="deal-stock" class="stock-button" type="button" aria-label="Je eine Karte auf jede Spalte verteilen">Karten austeilen <span aria-hidden="true">↗</span></button>
+      </div>
+    </section>
+
+    <details class="rules">
+      <summary>Regeln &amp; Bedienung</summary>
+      <div class="rules-grid">
+        <div><h3>Ziel</h3><p>Ordne Karten absteigend. Eine komplette, gleichfarbige Reihe K–A wird automatisch entfernt. Acht entfernte Reihen bedeuten Sieg.</p></div>
+        <div><h3>Züge</h3><p>Eine einzelne offene Karte darf auf den nächsthöheren Rang. Mehrere Karten dürfen nur als lückenlose, gleichfarbige Folge bewegt werden. Leere Spalten akzeptieren jede Karte oder Folge.</p></div>
+        <div><h3>Stock</h3><p>Der Stock enthält fünf Zehner-Reihen. Austeilen ist nur möglich, wenn jede Spalte mindestens eine Karte enthält.</p></div>
+        <div><h3>Tastatur</h3><p>Tab fokussiert Karten und Schaltflächen; Enter oder Leertaste wählt aus. Danach eine Zielkarte oder eine leere Spalte fokussieren und erneut bestätigen. <kbd>N</kbd> neues Spiel, <kbd>U</kbd> rückgängig.</p></div>
+      </div>
+    </details>
+  </main>
+  <footer><p>Panda Spider läuft vollständig offline. Karten sind per Maus, Touch und Tastatur bedienbar.</p></footer>
+  <script src="game.js"></script>
+</body>
+</html>

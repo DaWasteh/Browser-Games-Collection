@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minenräumkommando Foxtrott – Minesweeper</title>
+    <meta name="description" content="Minesweeper mit sicherem Erstklick, Chording und vier Schwierigkeitsstufen. Komplett offline im Browser spielbar.">
+    <link rel="stylesheet" href="minesweeper.css">
+</head>
+<body>
+    <a class="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
+    <button id="sound-toggle" type="button" aria-label="Ton an oder aus schalten">🔊</button>
+
+    <header class="app-header">
+        <h1>💣 Minenräumkommando <span class="neon">Foxtrott</span></h1>
+        <p>Minesweeper mit sicherem Erstklick, Chording und vier Schwierigkeitsstufen.</p>
+    </header>
+
+    <!-- visuell versteckte Status-Region für Screenreader (aria-live) -->
+    <div id="aria-status" class="status-region" role="status" aria-live="polite"></div>
+
+    <main id="game" aria-label="Minenräumkommando Foxtrott Spielfeld">
+        <section class="hud" aria-label="Spielanzeige">
+            <div class="hud-box">
+                <span class="hud-label" id="mines-label">Minen</span>
+                <span class="hud-value" id="mine-count" aria-live="polite">000</span>
+            </div>
+            <button id="smiley" type="button" aria-label="Neues Spiel starten">🙂</button>
+            <div class="hud-box">
+                <span class="hud-label">Zeit</span>
+                <span class="hud-value" id="timer" aria-live="polite">000</span>
+            </div>
+            <div class="hud-box" style="min-width:auto;">
+                <span class="hud-label">Status</span>
+                <span id="status-text" aria-live="polite">Bereit</span>
+            </div>
+        </section>
+
+        <div id="board-wrap">
+            <!-- Das Spielfeld (role="grid") wird per JavaScript aus Buttons aufgebaut. -->
+            <div id="board" role="grid" aria-label="Minenfeld" tabindex="-1"></div>
+        </div>
+
+        <section class="best-times" aria-label="Bestzeiten">
+            <h2>Bestzeiten</h2>
+            <ul id="best-times-list"><!-- per JS gefüllt --></ul>
+        </section>
+
+        <section class="controls-panel" aria-label="Steuerung">
+            <h2>Steuerung</h2>
+            <div class="controls-grid">
+                <span><kbd>Linksklick</kbd></span><span>Zelle aufdecken</span>
+                <span><kbd>Rechtsklick</kbd></span><span>Flagge setzen / entfernen</span>
+                <span><kbd>Mittelklick</kbd> / <kbd>Linksklick auf Zahl</kbd></span><span>Chord (Nachbarn aufdecken, wenn Flaggenanzahl passt)</span>
+                <span><kbd>Tippen</kbd></span><span>Zelle aufdecken</span>
+                <span><kbd>Lang drücken</kbd></span><span>Flagge setzen / entfernen</span>
+                <span><kbd>Pfeiltasten</kbd></span><span>Cursor bewegen</span>
+                <span><kbd>Enter</kbd> / <kbd>Leer</kbd></span><span>Aufdecken</span>
+                <span><kbd>F</kbd></span><span>Flagge</span>
+                <span><kbd>C</kbd></span><span>Chord</span>
+            </div>
+        </section>
+    </main>
+
+    <!-- Schwierigkeits-Menü -->
+    <div id="menu-overlay" role="dialog" aria-modal="true" aria-label="Schwierigkeit wählen">
+        <h1>Minenräumkommando Foxtrott</h1>
+        <div class="subtitle">Wähle deine Schwierigkeit</div>
+        <div class="difficulty-buttons">
+            <button type="button" class="btn btn-easy" data-difficulty="easy">
+                Rekrut
+                <span class="difficulty-label">9 × 9 · 10 Minen</span>
+            </button>
+            <button type="button" class="btn btn-medium" data-difficulty="medium">
+                Feldwebel
+                <span class="difficulty-label">16 × 16 · 40 Minen</span>
+            </button>
+            <button type="button" class="btn btn-hard" data-difficulty="hard">
+                Hauptmann
+                <span class="difficulty-label">16 × 30 · 99 Minen</span>
+            </button>
+            <button type="button" class="btn btn-insane" data-difficulty="insane">
+                General
+                <span class="difficulty-label">24 × 24 · 150 Minen</span>
+            </button>
+            <button type="button" class="btn btn-custom" data-difficulty="custom" id="custom-toggle" aria-expanded="false" aria-controls="custom-form">
+                Benutzerdefiniert
+                <span class="difficulty-label">Eigenes Feld</span>
+            </button>
+            <form id="custom-form" hidden>
+                <label for="cust-rows">Zeilen (5–40)</label>
+                <input id="cust-rows" name="rows" type="number" min="5" max="40" value="12" inputmode="numeric">
+                <label for="cust-cols">Spalten (5–40)</label>
+                <input id="cust-cols" name="cols" type="number" min="5" max="40" value="12" inputmode="numeric">
+                <label for="cust-mines">Minen (1 bis Zellen−9)</label>
+                <input id="cust-mines" name="mines" type="number" min="1" value="20" inputmode="numeric">
+                <div id="custom-error" role="alert"></div>
+                <button type="submit" class="btn btn-custom" data-difficulty="custom" style="grid-column:1/-1;margin-top:0.4rem;">Spielen</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Ergebnis-Overlay (Sieg / Niederlage) -->
+    <div id="result-overlay" role="dialog" aria-modal="true" aria-label="Ergebnis">
+        <h2 id="result-title"></h2>
+        <p id="result-text"></p>
+        <div class="result-actions">
+            <button type="button" class="btn btn-custom" id="result-replay">Nochmal</button>
+            <button type="button" class="btn btn-medium" id="result-menu">Zur Stufenwahl</button>
+        </div>
+    </div>
+
+    <script src="minesweeper-logic.js"></script>
+    <script src="minesweeper.js"></script>
+</body>
+</html>

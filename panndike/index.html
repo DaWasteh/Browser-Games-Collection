@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panndike – Klondike Solitaire</title><meta name="description" content="Offline Klondike Solitaire mit Zieh-1 und Zieh-3.">
+<link rel="stylesheet" href="styles.css"><script src="game.js" defer></script>
+</head>
+<body>
+<header class="top"><a class="back" href="../index.html">← Spieleauswahl</a><h1>♠ Panndike</h1><p>Klondike Solitaire – räume das Tableau und baue vier Foundations.</p></header>
+<main>
+<section class="hud" aria-label="Spielstand"><div><span>Züge</span><strong id="moves">0</strong></div><div><span>Zeit</span><strong id="time">00:00</strong></div><div><span>Foundations</span><strong id="foundation-count">0 / 52</strong></div><div><span>Ziehmodus</span><strong id="draw-label">1</strong></div></section>
+<p id="message" class="message" role="status" aria-live="polite">Wähle eine Karte und danach ihr Ziel.</p>
+<section class="game-table" aria-label="Klondike Spielfeld">
+<div class="top-piles"><div class="pile-group"><h2>Stock</h2><button id="stock" class="pile stock" type="button" aria-label="Karte vom Stock ziehen"><span id="stock-count"></span></button></div><div class="pile-group"><h2>Waste</h2><button id="waste" class="pile empty" type="button" aria-label="Oberste Waste-Karte"></button></div><div class="spacer"></div><div class="pile-group"><h2>Foundations</h2><div id="foundations" class="foundations" aria-label="Vier Foundations"></div></div></div>
+<div id="tableau" class="tableau" aria-label="Sieben Tableau-Spalten"></div>
+</section>
+<section class="controls" aria-label="Spielaktionen"><fieldset><legend>Ziehmodus</legend><label><input type="radio" name="draw" value="1" checked> Zieh 1</label><label><input type="radio" name="draw" value="3"> Zieh 3</label></fieldset><button id="undo" type="button">↶ Rückgängig</button><button id="new-game" type="button">↻ Neues Spiel</button><button id="auto" type="button">⤴ Sichere Foundation-Züge</button></section>
+<details class="rules"><summary>Regeln &amp; Steuerung</summary><p>Baue im Tableau absteigend mit wechselnden Farben. Eine leere Spalte darf nur mit einem König gefüllt werden. Foundations werden je Farbe aufsteigend von Ass bis König gebaut; die oberste Foundation-Karte kann zurück auf ein gültiges Tableau. Ziehe Karten aus dem Stock; ein leerer Stock recycelt die Waste.</p><ul><li>Maus/Touch: Karte antippen, dann Ziel antippen. Sequenzen lassen sich als Block verschieben.</li><li>Tastatur: Tab und Enter bedienen alle Karten; <kbd>U</kbd> macht rückgängig, <kbd>N</kbd> startet neu, <kbd>A</kbd> führt sichere Foundation-Züge aus.</li></ul></details>
+<div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title"><div class="result-card"><h2 id="result-title">Gewonnen!</h2><p id="result-text"></p><button id="result-new" type="button">Neues Spiel</button></div></div>
+</main><footer><small>Offline-Spiel ohne externe Abhängigkeiten.</small></footer>
+</body></html>

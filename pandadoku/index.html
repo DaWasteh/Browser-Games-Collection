@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pandadoku – Sudoku</title>
+  <meta name="description" content="Sudoku mit drei Schwierigkeitsgraden, Notizen, Hinweisen und eindeutig lösbaren Rätseln – komplett offline.">
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a href="../index.html" class="back-link">← Spieleauswahl</a>
+    <h1>🐼 Pandadoku</h1>
+    <p>Sudoku mit drei Stufen – jedes Rätsel hat genau eine Lösung.</p>
+  </header>
+
+  <main>
+    <section class="hud" aria-label="Spielstand">
+      <div><span>Zeit</span><strong id="time">00:00</strong></div>
+      <div><span>Fehler</span><strong id="mistakes">0</strong></div>
+      <div><span>Hinweise</span><strong id="hints-left">3</strong></div>
+      <div><span>Status</span><strong id="status">Bereit</strong></div>
+    </section>
+
+    <p id="message" class="message" role="status" aria-live="polite">Generiere erstes Rätsel …</p>
+
+    <div class="play-area">
+      <section class="board-wrap" aria-label="Sudoku-Spielfeld">
+        <div id="board" class="board" role="grid" aria-label="Sudoku, neun mal neun Felder"></div>
+        <div id="pause-overlay" class="pause-overlay" hidden>
+          <div class="pause-card">
+            <p class="pause-title">Pausiert</p>
+            <p class="pause-sub">Der Timer läuft nicht.</p>
+            <button id="resume-btn" type="button" class="primary">▶ Weiter</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side" aria-label="Werkzeuge">
+        <div class="pad" role="group" aria-label="Zahlenfeld">
+          <button id="num-1" type="button" class="num">1</button>
+          <button id="num-2" type="button" class="num">2</button>
+          <button id="num-3" type="button" class="num">3</button>
+          <button id="num-4" type="button" class="num">4</button>
+          <button id="num-5" type="button" class="num">5</button>
+          <button id="num-6" type="button" class="num">6</button>
+          <button id="num-7" type="button" class="num">7</button>
+          <button id="num-8" type="button" class="num">8</button>
+          <button id="num-9" type="button" class="num">9</button>
+        </div>
+        <button id="erase" type="button" class="erase">⌫ Löschen</button>
+
+        <div class="controls" role="group" aria-label="Aktionen">
+          <button id="note-btn" type="button" aria-pressed="false">✏ Notiz</button>
+          <button id="hint-btn" type="button">💡 Hinweis</button>
+          <button id="undo-btn" type="button">↶ Rückgängig</button>
+          <button id="redo-btn" type="button">↷ Wiederherstellen</button>
+          <button id="pause-btn" type="button">⏸ Pause</button>
+          <button id="restart-btn" type="button">↻ Neustart</button>
+          <button id="new-btn" type="button">⊕ Neues Spiel</button>
+        </div>
+
+        <div class="diff" role="group" aria-label="Schwierigkeit">
+          <button id="diff-leicht" type="button" aria-pressed="false">Leicht</button>
+          <button id="diff-mittel" type="button" aria-pressed="true">Mittel</button>
+          <button id="diff-schwer" type="button" aria-pressed="false">Schwer</button>
+        </div>
+      </aside>
+    </div>
+
+    <details class="rules">
+      <summary>Regeln &amp; Steuerung</summary>
+      <p>Fülle jede Zeile, jede Spalte und jeden 3×3-Kasten mit den Zahlen 1 bis 9 – ohne Wiederholungen. Pandadoku erzeugt jedes Rätsel so, dass es <em>genau eine</em> Lösung besitzt.</p>
+      <ul>
+        <li>Tippe ein Feld an und wähle eine Zahl – oder bewege dich mit den Pfeiltasten.</li>
+        <li><strong>✏ Notizmodus</strong> (Taste <kbd>N</kbd>): Trage mögliche Kandidaten als kleine Zahlen ein.</li>
+        <li><strong>💡 Hinweis</strong> (Taste <kbd>H</kbd>): Setzt ein korrektes Feld ein – maximal dreimal pro Rätsel.</li>
+        <li>Falsche Eingaben werden rot markiert. Die Lösung selbst wird dabei nicht verraten.</li>
+        <li>Tastatur: <kbd>1</kbd>–<kbd>9</kbd> eintragen, <kbd>Backspace</kbd>/<kbd>0</kbd> löschen, <kbd>Pfeiltasten</kbd> bewegen, <kbd>R</kbd> Neustart, <kbd>P</kbd> Pause, <kbd>M</kbd> Neues Spiel.</li>
+      </ul>
+    </details>
+
+    <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="result-card">
+        <h2 id="result-title">Pandadoku gelöst!</h2>
+        <p id="result-text"></p>
+        <div class="result-actions">
+          <button id="result-new-btn" type="button" class="primary">Neues Spiel</button>
+          <button id="result-close-btn" type="button">Schließen</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer><small>Offline-Spiel ohne externe Abhängigkeiten.</small></footer>
+</body>
+</html>

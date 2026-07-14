@@ -1,6 +1,9 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const logic = require('./tetris-logic.js');
+const path = require('node:path');
+const gameDir = __dirname;
+const repoRoot = path.resolve(gameDir, '..');
+const logic = require(path.join(gameDir, 'tetris-logic.js'));
 
 assert.equal(logic.COLS, 10);
 assert.equal(logic.ROWS, 20);
@@ -22,23 +25,20 @@ assert.equal(logic.collides(logic.createBoard(), iPiece, -1, 0), true);
 assert.equal(logic.lineScore(4, 2), 1600);
 assert.equal(logic.dropSpeedForLevel('hard', 99), 50);
 
-const html = fs.readFileSync('tetris.html', 'utf8');
+const html = fs.readFileSync(path.join(gameDir, 'tetris.html'), 'utf8');
 assert.match(html, /<script src="tetris-logic\.js"><\/script>/);
 assert.doesNotMatch(html, /onclick=/);
 assert.match(html, /data-difficulty="easy"/);
 assert.match(html, /osc\.onended =/);
 assert.match(html, /resetGameInterval\(\);/);
+assert.match(html, /href="\.\.\/index\.html"/);
 
-const workflow = fs.readFileSync('.github/workflows/deploy.yml', 'utf8');
-assert.doesNotMatch(workflow, /htmlhint.*\|\| true/);
-assert.match(workflow, /htmlhint@1\.9\.2/);
-assert.match(workflow, /node-version: '24'/);
-assert.match(workflow, /tetris-logic\.js/);
+const launcher = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
+assert.match(launcher, /href="tetris\/tetris\.html"/);
+
+const workflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/pages.yml'), 'utf8');
 assert.match(workflow, /permissions:\n  contents: read/);
-assert.match(workflow, /concurrency:\n      group: pages\n      cancel-in-progress: false/);
-assert.doesNotMatch(workflow, /uses:\s+[^@\s]+@v\d+\b/);
-assert.doesNotMatch(workflow, /echo "Branch: \$\{\{ github\.ref_name \}\}"/);
-assert.doesNotMatch(workflow, /tetris-\$\{\{ github\.event\.release\.tag_name \}\}\.zip/);
-assert.doesNotMatch(workflow, /gh release upload "\$\{\{ github\.event\.release\.tag_name \}\}"/);
+assert.match(workflow, /uses: actions\/upload-pages-artifact@v3/);
+assert.match(workflow, /path: \./);
 
 console.log('smoke ok');

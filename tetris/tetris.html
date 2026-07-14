@@ -269,9 +269,13 @@
                 font-size: clamp(42px, 14vw, 64px);
             }
         }
+        .game-collection-link { position: fixed; left: 12px; bottom: 12px; z-index: 10000; padding: 8px 12px; border: 1px solid #e94560; border-radius: 999px; background: rgba(15,15,35,.94); color: #fff; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,.45); }
+        .game-collection-link:hover { background: #c73650; }
+        .game-collection-link:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     </style>
 </head>
 <body>
+    <a class="game-collection-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
     <!-- Schwierigkeits-Menü -->
     <div id="menu-overlay">
         <h1>TETRIS</h1>

@@ -17,6 +17,14 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | ⏳ **Sand Game Pro** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Physik, Chemie und WebGL2-Rendering |
 | 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat, interaktiv auf Canvas |
 | 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Lemmings-inspiriertes Puzzle mit Pandas |
+| 🃏 **Pandataire** | [`pandataire/`](pandataire/) | TriPeaks-Solitaire mit Kartenserien und Undo |
+| 🕷️ **Panda Spider** | [`panda-spider/`](panda-spider/) | Spider-Solitaire mit einer, zwei oder vier Farben |
+| ♠️ **Panndike** | [`panndike/`](panndike/) | Klondike-Solitaire mit Zieh-1/3 und Foundations |
+| ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit Deal-Nummern und Supermoves |
+| 💣 **Minenräumkommando Foxtrott** | [`minenraeumkommando-foxtrott/`](minenraeumkommando-foxtrott/) | Minesweeper mit sicherem Erstklick und Chording |
+| 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit Tages- und Zufallsmodus |
+| 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku mit Notizen, Hinweisen und drei Schwierigkeitsgraden |
+| 🀄 **Pahjong** | [`pahjong/`](pahjong/) | Mahjong-Solitaire mit garantiert lösbaren Deals |
 
 Jeder Spiel-Ordner enthält ein eigenes README mit Details, Steuerung und Features.
 
