@@ -1,0 +1,33 @@
+name: Release
+
+# Erzeugt ein GitHub-Release mit der HTML-Datei als Anhang,
+# sobald ein Versions-Tag (z. B. v0.2) gepusht wird.
+
+on:
+  push:
+    tags:
+      - 'v*'           # alle Tags, die mit v beginnen (v0.2, v1.0.0, …)
+  workflow_dispatch:   # manueller Trigger mit Tag-Eingabe
+
+permissions:
+  contents: write      # darf Releases & Tags anlegen
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (vollständige Historie + Tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Release erstellen
+        uses: softprops/action-gh-release@v2
+        with:
+          # Automatische Changelog-Generierung aus Commits seit dem letzten Tag
+          generate_release_notes: true
+          # Spiel-Datei als Download-Anhang beifügen
+          files: panda_lemmings.html
+          # Verhindert "Draft"-Status: Release ist sofort veröffentlicht
+          draft: false
+          prerelease: false
