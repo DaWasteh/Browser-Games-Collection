@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browser Games Collection</title>
+  <meta name="description" content="Eine Sammlung von Browser-Spielen – kein Server, keine Abhängigkeiten, einfach spielen.">
+  <style>
+    :root {
+      --bg: #0a0a1a;
+      --card: #14142b;
+      --card-hover: #1c1c3a;
+      --border: #2a2a4a;
+      --text: #e8e8f0;
+      --muted: #9a9ab0;
+      --accent: #00ffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      background-image: radial-gradient(circle at 20% 10%, rgba(0, 255, 255, 0.06), transparent 40%),
+                        radial-gradient(circle at 80% 90%, rgba(255, 0, 255, 0.05), transparent 40%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+    header { text-align: center; margin-bottom: 2.5rem; }
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(1.8rem, 5vw, 2.8rem);
+      letter-spacing: 0.02em;
+    }
+    h1 .neon { color: var(--accent); text-shadow: 0 0 18px rgba(0, 255, 255, 0.45); }
+    header p { margin: 0; color: var(--muted); font-size: 1.05rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 1000px;
+    }
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      padding: 1.4rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+    .card:hover, .card:focus-visible {
+      transform: translateY(-3px);
+      border-color: var(--accent);
+      background: var(--card-hover);
+      outline: none;
+    }
+    .card .icon { font-size: 2.2rem; line-height: 1; }
+    .card h2 { margin: 0; font-size: 1.25rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.92rem; flex-grow: 1; }
+    .card .play {
+      margin-top: 0.4rem;
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    footer {
+      margin-top: 3rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🕹️ Browser <span class="neon">Games</span> Collection</h1>
+    <p>Kein Server, keine Abhängigkeiten – Spiel auswählen und losspielen.</p>
+  </header>
+
+  <main class="grid">
+    <a class="card" href="tetris/tetris.html">
+      <span class="icon">🧱</span>
+      <h2>Tetris</h2>
+      <p>Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen.</p>
+      <span class="play">▶ Spielen</span>
+    </a>
+    <a class="card" href="snake-ultimate/snake_ultimate.html">
+      <span class="icon">🐍</span>
+      <h2>Snake Ultimate</h2>
+      <p>Erweitertes Snake mit lokalem Multiplayer, 8 Themes und anpassbaren Addons.</p>
+      <span class="play">▶ Spielen</span>
+    </a>
+    <a class="card" href="pong/pong.html">
+      <span class="icon">🏓</span>
+      <h2>Pong</h2>
+      <p>Das klassische Duell – allein gegen die KI oder zu zweit am selben Gerät.</p>
+      <span class="play">▶ Spielen</span>
+    </a>
+    <a class="card" href="sandgame/sand_game.html">
+      <span class="icon">⏳</span>
+      <h2>Sand Game Pro</h2>
+      <p>Falling-Sand-Simulation mit Physik, Chemie, Biologie und WebGL2-Rendering.</p>
+      <span class="play">▶ Spielen</span>
+    </a>
+    <a class="card" href="game-of-life/game_of_life.html">
+      <span class="icon">🦠</span>
+      <h2>Game of Life</h2>
+      <p>Conways zellulärer Automat – interaktiv und performant auf Canvas.</p>
+      <span class="play">▶ Spielen</span>
+    </a>
+    <a class="card" href="panda-lemmings/panda_lemmings.html">
+      <span class="icon">🐼</span>
+      <h2>Panda Lemmings</h2>
+      <p>Lemmings-inspiriertes Puzzle: Führe die Pandas sicher ans Ziel.</p>
+      <span class="play">▶ Spielen</span>
+    </a>
+  </main>
+
+  <footer>
+    <p>Alle Spiele sind eigenständige HTML-Dateien.
+       Quellcode auf <a href="https://github.com/DaWasteh/Browser-Games-Collection">GitHub</a>.</p>
+  </footer>
+</body>
+</html>
