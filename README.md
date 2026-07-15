@@ -25,6 +25,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit Tages- und Zufallsmodus |
 | 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku mit Notizen, Hinweisen und drei Schwierigkeitsgraden |
 | 🀄 **Pahjong** | [`pahjong/`](pahjong/) | Mahjong-Solitaire mit garantiert lösbaren Deals |
+| 🐛 **Maulkorbraupen – Das Spiel** | [`maulkorbraupen-das-spiel/`](maulkorbraupen-das-spiel/) | Vertontes Textadventure mit sieben Kapiteln und Werk-Rätseln |
 
 Jeder Spiel-Ordner enthält ein eigenes README mit Details, Steuerung und Features.
 

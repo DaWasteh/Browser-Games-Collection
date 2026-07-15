@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Maulkorbraupen – Das Spiel: Ein vertontes Textadventure mit sieben Kapiteln, fünf Rätseln und dem Feierabend als Ziel.">
+  <title>Maulkorbraupen – Das Spiel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
+
+  <header class="game-header">
+    <div>
+      <p class="eyebrow">Ein vertontes Textadventure</p>
+      <h1>Maulkorbraupen <span>– Das Spiel</span></h1>
+    </div>
+    <div class="header-actions" aria-label="Spieloptionen">
+      <button id="map-button" class="icon-button" type="button" aria-haspopup="dialog">🗺️ <span>Karte</span></button>
+      <button id="audio-button" class="icon-button" type="button" aria-pressed="false">🔊 <span>Vorlesen</span></button>
+      <button id="reset-button" class="icon-button" type="button">↻ <span>Neustart</span></button>
+    </div>
+  </header>
+
+  <div class="progress-wrap" aria-label="Fortschritt">
+    <div class="progress-copy">
+      <span id="progress-label">Kapitel 1 von 7</span>
+      <span id="progress-percent">0 %</span>
+    </div>
+    <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
+  </div>
+
+  <main class="game-shell">
+    <section class="scene-visual" aria-label="Szenenbild">
+      <img id="scene-image" src="assets/01-intro.webp" width="1536" height="1024" alt="Maulkorbraupe vor dem Werk bei Sonnenuntergang" fetchpriority="high">
+      <div class="scene-chip" id="scene-chip">Kapitel 1</div>
+    </section>
+
+    <article class="story-panel" aria-labelledby="scene-title">
+      <header class="story-heading">
+        <p id="scene-kicker" class="eyebrow">Schichtende? Noch nicht!</p>
+        <h2 id="scene-title">Willkommen im Werk</h2>
+      </header>
+
+      <div id="story-text" class="story-text"></div>
+
+      <aside id="objective-card" class="objective-card">
+        <strong id="objective-label">Dein Auftrag</strong>
+        <p id="objective-text"></p>
+      </aside>
+
+      <div id="puzzle-area" class="puzzle-area" aria-label="Entscheidungen und Rätsel"></div>
+      <p id="game-status" class="game-status" role="status" aria-live="polite"></p>
+
+      <div class="story-actions">
+        <button id="hint-button" class="secondary-button" type="button">💡 Hinweis</button>
+        <button id="continue-button" class="primary-button" type="button">Schicht beginnen →</button>
+      </div>
+
+      <section class="inventory" aria-labelledby="inventory-title">
+        <h3 id="inventory-title">Schichtprotokoll</h3>
+        <ul id="inventory-list"></ul>
+      </section>
+    </article>
+  </main>
+
+  <p class="safety-note">🐛 Denken. Prüfen. Dokumentieren. Handeln. Freigeben.</p>
+
+  <dialog id="map-dialog" class="modal" aria-labelledby="map-title">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Orientierung</p>
+        <h2 id="map-title">Werkskarte</h2>
+      </div>
+      <button id="map-close" class="close-button" type="button" aria-label="Karte schließen">×</button>
+    </div>
+    <img src="assets/werkskarte.webp" width="1536" height="1024" alt="Werkskarte mit den sieben Stationen des Abenteuers" loading="lazy" decoding="async">
+    <ol id="chapter-list" class="chapter-list"></ol>
+  </dialog>
+
+  <dialog id="reset-dialog" class="modal confirm-modal" aria-labelledby="reset-title">
+    <div class="modal-header">
+      <h2 id="reset-title">Schicht neu beginnen?</h2>
+      <button id="reset-close" class="close-button" type="button" aria-label="Dialog schließen">×</button>
+    </div>
+    <p>Dein gespeicherter Fortschritt und alle gefundenen Freigabeziffern werden gelöscht.</p>
+    <div class="confirm-actions">
+      <button id="reset-cancel" class="secondary-button" type="button">Weiterspielen</button>
+      <button id="reset-confirm" class="danger-button" type="button">Neu beginnen</button>
+    </div>
+  </dialog>
+
+  <noscript>Dieses Spiel benötigt JavaScript. Bitte aktiviere JavaScript und lade die Seite neu.</noscript>
+  <script src="maulkorbraupen-logic.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
