@@ -11,7 +11,7 @@ if (nodeMajor < 22 || typeof fetch !== 'function' || typeof WebSocket !== 'funct
 }
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
-const games = ['panda-spider', 'pandacell', 'pandadoku', 'pandataire', 'panndike', 'texttl'];
+const games = ['panda-spider', 'pandacell', 'pandadoku', 'pandakreuzwort', 'pandataire', 'panndike', 'texttl'];
 const mime = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.css', 'text/css; charset=utf-8'],
@@ -171,7 +171,7 @@ try {
     const loaded = cdp.waitEvent('Page.loadEventFired');
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${httpPort}/${pathname}` });
     await loaded;
-    await delay(pathname.startsWith('pandadoku/') ? 900 : 250);
+    await delay(pathname.startsWith('pandadoku/') || pathname.startsWith('pandakreuzwort/') ? 900 : 250);
   }
 
   function assert(condition, message) {
@@ -223,15 +223,27 @@ try {
           const controls = [...document.querySelectorAll('select, input[type="number"]')];
           const contrasts = cards.map(contrast).filter(value => value != null);
           const controlContrasts = controls.map(contrast).filter(value => value != null);
+          const overflowers = [...document.querySelectorAll('body *')].filter(element => {
+            const rect = element.getBoundingClientRect();
+            return rect.right > document.documentElement.clientWidth + 1 || rect.left < -1;
+          }).slice(0, 5).map(element => ({
+            tag: element.tagName,
+            id: element.id,
+            className: String(element.className || ''),
+            left: Math.round(element.getBoundingClientRect().left),
+            right: Math.round(element.getBoundingClientRect().right),
+            width: Math.round(element.getBoundingClientRect().width)
+          }));
           return {
             applied: document.documentElement.dataset.gameStyle,
             overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            overflowers,
             minimumCardContrast: contrasts.length ? Math.min(...contrasts) : null,
             minimumControlContrast: controlContrasts.length ? Math.min(...controlContrasts) : null
           };
         })()`);
         assert(appearance.applied === style, `${game}: ${style} style did not apply`);
-        assert(!appearance.overflow, `${game}: body overflow at ${width}px in ${style} style`);
+        assert(!appearance.overflow, `${game}: body overflow at ${width}px in ${style} style ${JSON.stringify(appearance.overflowers)}`);
         if (appearance.minimumCardContrast != null) {
           assert(appearance.minimumCardContrast >= 3, `${game}: unreadable cards in ${style} style (contrast ${appearance.minimumCardContrast.toFixed(2)})`);
         }
@@ -293,6 +305,55 @@ try {
         return Array.isArray(puzzle) && PandaDoku.countSolutions(puzzle.slice(), 2) === 1;
       })()`);
       assert(uniquePuzzle, 'pandadoku: generated puzzle is not uniquely solvable');
+    }
+
+    if (game === 'pandakreuzwort') {
+      const crossword = await evaluate(`(async () => {
+        const initial = Pandakreuzwort.getState();
+        const tabStops = document.querySelectorAll('#board .cell[tabindex="0"]').length;
+        const languages = [...document.querySelectorAll('#lang-select option')].map(option => option.value);
+        const difficulties = [...document.querySelectorAll('.diff button')].map(button => button.id);
+        const clueCount = document.querySelectorAll('.clue-btn').length;
+        Pandakreuzwort.restart();
+        const restarted = Pandakreuzwort.getState();
+        Pandakreuzwort.newGame('smoke-first');
+        Pandakreuzwort.newGame('smoke-final');
+        await new Promise(resolve => setTimeout(resolve, 350));
+        const raced = Pandakreuzwort.getState();
+        Pandakreuzwort.setLanguage('bar');
+        await new Promise(resolve => setTimeout(resolve, 350));
+        const bavarian = Pandakreuzwort.getState();
+        const bavarianMetadata = document.querySelectorAll('.clue-btn .meta').length === bavarian.wordCount;
+        Pandakreuzwort.setDifficulty('experte');
+        await new Promise(resolve => setTimeout(resolve, 600));
+        const expert = Pandakreuzwort.getState();
+        return {
+          initial,
+          tabStops,
+          languages,
+          difficulties,
+          clueCount,
+          restartKeptSeed: restarted.seed === initial.seed,
+          restartKeptShape: restarted.rows === initial.rows && restarted.cols === initial.cols,
+          raceKeptLastSeed: raced.seed === 'smoke-final',
+          racePlayable: raced.status === 'playing' && raced.wordCount > 0,
+          bavarianPlayable: bavarian.language === 'bar' && bavarian.status === 'playing' && bavarian.wordCount > 0,
+          bavarianMetadata,
+          expertPlayable: expert.difficulty === 'experte' && expert.status === 'playing' && expert.wordCount >= 19,
+          finalTabStops: document.querySelectorAll('#board .cell[tabindex="0"]').length
+        };
+      })()`);
+      assert(crossword.initial.status === 'playing', 'pandakreuzwort: game did not boot');
+      assert(crossword.initial.wordCount >= 6, 'pandakreuzwort: generated too few words');
+      assert(crossword.initial.rows > 0 && crossword.initial.cols > 0, 'pandakreuzwort: generated an empty grid');
+      assert(crossword.tabStops === 1 && crossword.finalTabStops === 1, 'pandakreuzwort: grid must have exactly one tab stop');
+      assert(crossword.languages.join(',') === 'de,bar', 'pandakreuzwort: language choices are incomplete');
+      assert(crossword.difficulties.join(',') === 'diff-leicht,diff-mittel,diff-schwer,diff-experte', 'pandakreuzwort: difficulty choices are incomplete');
+      assert(crossword.clueCount === crossword.initial.wordCount, 'pandakreuzwort: clue count does not match word count');
+      assert(crossword.restartKeptSeed && crossword.restartKeptShape, 'pandakreuzwort: restart changed the puzzle');
+      assert(crossword.raceKeptLastSeed && crossword.racePlayable, 'pandakreuzwort: generation race did not keep the latest request');
+      assert(crossword.bavarianPlayable && crossword.bavarianMetadata, 'pandakreuzwort: Bairisch mode or clue metadata is incomplete');
+      assert(crossword.expertPlayable, 'pandakreuzwort: Experte mode did not generate enough words');
     }
 
     if (game === 'pandataire') {

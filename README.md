@@ -24,6 +24,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | 💣 **Minenräumkommando Foxtrott** | [`minenraeumkommando-foxtrott/`](minenraeumkommando-foxtrott/) | Minesweeper mit sicherem Erstklick und Chording |
 | 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit Tages- und Zufallsmodus |
 | 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku mit Notizen, Hinweisen und drei Schwierigkeitsgraden |
+| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Seed-randomisierte Kreuzworträtsel in vier Stufen auf Deutsch oder Bairisch |
 | 🀄 **Pahjong** | [`pahjong/`](pahjong/) | Mahjong-Solitaire mit garantiert lösbaren Deals |
 | 🐛 **Maulkorbraupen – Das Spiel** | [`maulkorbraupen-das-spiel/`](maulkorbraupen-das-spiel/) | Vertontes Textadventure mit sieben Kapiteln und Werk-Rätseln |
 
@@ -48,6 +49,7 @@ Kontrast, Tastaturfokus und kritische Neustart-Rennen.
 ```bash
 node browser-smoke-test.mjs
 node texttl/smoke-test.cjs
+node pandakreuzwort/smoke-test.cjs
 ```
 
 ## 📜 Historie
