@@ -288,6 +288,32 @@ try {
         return after.puzzle.join('') === before && after.board.join('') === before;
       })()`);
       assert(generationRaceSafe, 'pandadoku: pending generation overwrote a restart');
+      const uniquePuzzle = await evaluate(`(() => {
+        const puzzle = PandaDoku.getState().puzzle;
+        return Array.isArray(puzzle) && PandaDoku.countSolutions(puzzle.slice(), 2) === 1;
+      })()`);
+      assert(uniquePuzzle, 'pandadoku: generated puzzle is not uniquely solvable');
+    }
+
+    if (game === 'pandataire') {
+      const completeDeck = await evaluate(`(() => {
+        const state = Pandataire.getState();
+        const deck = [...state.cards.filter(card => !card.removed), ...state.talon, state.waste];
+        return deck.length === 52 && new Set(deck.map(card => card.rank + ':' + card.suit)).size === 52;
+      })()`);
+      assert(completeDeck, 'pandataire: deal does not contain 52 unique cards');
+    }
+
+    if (game === 'pandacell') {
+      const deterministicDeal = await evaluate(`(() => {
+        PandaCell.newGame(12345);
+        const first = PandaCell.getState().tableau;
+        PandaCell.newGame(12345);
+        const second = PandaCell.getState().tableau;
+        const ids = second.flat();
+        return JSON.stringify(first) === JSON.stringify(second) && ids.length === 52 && new Set(ids).size === 52;
+      })()`);
+      assert(deterministicDeal, 'pandacell: numbered deal replay is not deterministic and unique');
     }
 
     if (game === 'texttl') {
@@ -346,7 +372,34 @@ try {
     }
   }
 
-  console.log(`browser smoke ok (${games.length} games, 3 viewports × 3 styles, navigation, contrast, focus)`);
+  await navigate('pahjong/index.html');
+  const pahjongUi = await evaluate(`(async () => {
+    const result = document.querySelector('#result');
+    const back = document.querySelector('nav a[href]');
+    const summary = document.querySelector('details > summary');
+    const isTopmost = element => {
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit === element || element.contains(hit);
+    };
+    window.scrollTo(0, 0);
+    await new Promise(requestAnimationFrame);
+    const backClickable = isTopmost(back);
+    summary.scrollIntoView({ block: 'center' });
+    await new Promise(requestAnimationFrame);
+    return {
+      resultHidden: result.hidden && getComputedStyle(result).display === 'none',
+      backClickable,
+      rulesClickable: isTopmost(summary),
+      pairPlanValid: Pahjong.testPlan(50).allPassed
+    };
+  })()`);
+  assert(pahjongUi.resultHidden, 'pahjong: hidden result dialog still blocks the page');
+  assert(pahjongUi.backClickable, 'pahjong: overview link is covered by another element');
+  assert(pahjongUi.rulesClickable, 'pahjong: rules summary is covered by another element');
+  assert(pahjongUi.pairPlanValid, 'pahjong: generated pair-removal plan is invalid');
+
+  console.log(`browser smoke ok (${games.length} styled games plus Pahjong UI, 3 viewports × 3 styles, navigation, contrast, focus)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();
