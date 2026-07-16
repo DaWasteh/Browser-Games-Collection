@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Panndike – Klondike Solitaire</title><meta name="description" content="Offline Klondike Solitaire mit Zieh-1 und Zieh-3.">
-<link rel="stylesheet" href="styles.css"><script src="game.js" defer></script>
+<script src="../shared/game-shell.js"></script><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="../shared/game-shell.css"><script src="game.js" defer></script>
 </head>
 <body>
-<header class="top"><a class="back" href="../index.html">← Spieleauswahl</a><h1>♠ Panndike</h1><p>Klondike Solitaire – räume das Tableau und baue vier Foundations.</p></header>
+<header class="top"><a class="back" href="../index.html">← Spieleübersicht</a><h1>♠ Panndike</h1><p>Klondike Solitaire – räume das Tableau und baue vier Foundations.</p></header>
 <main>
 <section class="hud" aria-label="Spielstand"><div><span>Züge</span><strong id="moves">0</strong></div><div><span>Zeit</span><strong id="time">00:00</strong></div><div><span>Foundations</span><strong id="foundation-count">0 / 52</strong></div><div><span>Ziehmodus</span><strong id="draw-label">1</strong></div></section>
 <p id="message" class="message" role="status" aria-live="polite">Wähle eine Karte und danach ihr Ziel.</p>

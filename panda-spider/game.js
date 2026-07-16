@@ -129,7 +129,7 @@
 
   function makeCardButton(card, columnIndex, index, top) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'card'; button.style.top = `${top}rem`;
-    button.dataset.column = String(columnIndex); button.dataset.index = String(index); button.setAttribute('aria-label', card.faceUp ? `${rankName(card.rank)} ${SUITS[card.suit].name}, Spalte ${columnIndex + 1}` : 'Verdeckte Karte');
+    button.dataset.column = String(columnIndex); button.dataset.index = String(index); button.dataset.focusKey = `card-${card.id}`; button.setAttribute('aria-label', card.faceUp ? `${rankName(card.rank)} ${SUITS[card.suit].name}, Spalte ${columnIndex + 1}` : 'Verdeckte Karte');
     if (!card.faceUp) { button.classList.add('face-down'); button.disabled = true; button.textContent = ' '; return button; }
     button.classList.toggle('is-red', SUITS[card.suit].color === 'red');
     if (state.selected && state.selected.column === columnIndex && index >= state.selected.index) button.classList.add('is-selected');
@@ -140,9 +140,11 @@
   }
 
   function render() {
+    const active = document.activeElement;
+    const focusKey = active && els.tableau.contains(active) ? active.dataset.focusKey : '';
     els.tableau.replaceChildren();
     state.columns.forEach((column, columnIndex) => {
-      const wrapper = document.createElement('div'); wrapper.className = 'column'; wrapper.dataset.column = String(columnIndex); wrapper.setAttribute('role', 'group'); wrapper.setAttribute('aria-label', `Spalte ${columnIndex + 1}, ${column.length} Karten`);
+      const wrapper = document.createElement('div'); wrapper.className = 'column'; wrapper.dataset.column = String(columnIndex); wrapper.dataset.focusKey = `column-${columnIndex}`; wrapper.setAttribute('role', 'group'); wrapper.setAttribute('aria-label', `Spalte ${columnIndex + 1}, ${column.length} Karten`);
       const label = document.createElement('span'); label.className = 'column-label'; label.textContent = String(columnIndex + 1); wrapper.append(label);
       wrapper.tabIndex = 0;
       if (state.selected && state.selected.column !== columnIndex && column.length === 0) wrapper.classList.add('selected-target');
@@ -153,6 +155,7 @@
       els.tableau.append(wrapper);
     });
     updateStats();
+    if (focusKey) els.tableau.querySelector(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
   function tick() { if (state.status === 'playing' && state.startedAt) state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); els.time.textContent = formatTime(state.elapsed); }
 

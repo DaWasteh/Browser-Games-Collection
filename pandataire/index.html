@@ -4,12 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pandataire – TriPeaks Solitaire</title>
+  <script src="../shared/game-shell.js"></script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/game-shell.css">
   <script src="game.js" defer></script>
 </head>
 <body>
   <header class="site-header">
-    <a href="../index.html" class="back-link">← Spieleauswahl</a>
+    <a href="../index.html" class="back-link">← Spieleübersicht</a>
     <h1>🐼 Pandataire</h1>
     <p>TriPeaks Solitaire – räume die drei Gipfel ab.</p>
   </header>
@@ -35,11 +37,11 @@
     </section>
     <details class="rules">
       <summary>Regeln &amp; Steuerung</summary>
-      <p>Entferne alle 28 Tableau-Karten. Eine freie Karte darf auf die Ablage gelegt werden, wenn ihr Rang genau eins höher oder niedriger als der Ablagerang ist. Ass zählt sowohl vor der 2 als auch nach dem König. Ist kein Tableau-Zug möglich, ziehe eine Karte vom Talon. Der Talon ist begrenzt; bei leerem Talon und keinem Zug verlierst du.</p>
+      <p>Entferne alle 28 Tableau-Karten. Eine freie Karte darf auf die Ablage gelegt werden, wenn ihr Rang genau eins höher oder niedriger als der Ablagerang ist. Ass zählt sowohl vor der 2 als auch nach dem König. Du darfst jederzeit eine Karte vom Talon ziehen; prüfe vorher, ob noch eine passende freie Karte liegt. Der Talon ist begrenzt; bei leerem Talon und keinem Zug verlierst du.</p>
       <ul><li>Maus/Touch: Karte oder Talon antippen.</li><li>Tastatur: <kbd>Tab</kbd> zu Karten, <kbd>Enter</kbd>/<kbd>Leertaste</kbd> auswählen; <kbd>U</kbd> macht rückgängig, <kbd>R</kbd> startet dieselbe Runde neu, <kbd>N</kbd> startet eine neue Runde.</li></ul>
     </details>
     <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
-      <div class="result-card"><h2 id="result-title">Runde beendet</h2><p id="result-text"></p><button id="result-button" type="button">Neue Runde</button></div>
+      <div class="result-card"><h2 id="result-title">Runde beendet</h2><p id="result-text"></p><div class="result-actions"><button id="result-undo" type="button">↶ Letzten Zug zurück</button><button id="result-button" type="button">Neue Runde</button></div></div>
     </div>
   </main>
   <footer><small>Offline-Spiel ohne externe Abhängigkeiten.</small></footer>

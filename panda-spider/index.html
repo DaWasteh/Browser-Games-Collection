@@ -5,18 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Panda Spider – Spider-Solitaire</title>
   <meta name="description" content="Panda Spider: Spider-Solitaire mit 1, 2 oder 4 Farben.">
+  <script src="../shared/game-shell.js"></script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/game-shell.css">
 </head>
 <body>
   <header class="site-header">
-    <nav aria-label="Hauptnavigation"><a class="back-link" href="../index.html">← Spieleauswahl</a></nav>
+    <nav aria-label="Hauptnavigation"><a class="back-link" href="../index.html">← Spieleübersicht</a></nav>
     <div class="brand"><span class="brand-mark" aria-hidden="true">🐼</span><div><p class="eyebrow">PANDA SPIEL</p><h1>Panda Spider</h1></div></div>
   </header>
   <main class="game-shell">
     <section class="intro" aria-labelledby="game-title">
       <div><h2 id="game-title">Spider-Solitaire</h2><p>Baue acht vollständige Reihen von König bis Ass und räume das Spielfeld leer.</p></div>
       <div class="controls" aria-label="Spielsteuerung">
-        <label for="suit-mode">Farben</label>
+        <label for="suit-mode">Schwierigkeit / Kartenfarben</label>
         <select id="suit-mode">
           <option value="1">1 Farbe · leicht</option>
           <option value="2">2 Farben · mittel</option>

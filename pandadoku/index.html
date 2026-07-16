@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pandadoku – Sudoku</title>
   <meta name="description" content="Sudoku mit drei Schwierigkeitsgraden, Notizen, Hinweisen und eindeutig lösbaren Rätseln – komplett offline.">
+  <script src="../shared/game-shell.js"></script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/game-shell.css">
   <script src="game.js" defer></script>
 </head>
 <body>
   <header class="site-header">
-    <a href="../index.html" class="back-link">← Spieleauswahl</a>
+    <a href="../index.html" class="back-link">← Spieleübersicht</a>
     <h1>🐼 Pandadoku</h1>
     <p>Sudoku mit drei Stufen – jedes Rätsel hat genau eine Lösung.</p>
   </header>
@@ -28,9 +30,9 @@
     <div class="play-area">
       <section class="board-wrap" aria-label="Sudoku-Spielfeld">
         <div id="board" class="board" role="grid" aria-label="Sudoku, neun mal neun Felder"></div>
-        <div id="pause-overlay" class="pause-overlay" hidden>
+        <div id="pause-overlay" class="pause-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="pause-title">
           <div class="pause-card">
-            <p class="pause-title">Pausiert</p>
+            <p class="pause-title" id="pause-title">Pausiert</p>
             <p class="pause-sub">Der Timer läuft nicht.</p>
             <button id="resume-btn" type="button" class="primary">▶ Weiter</button>
           </div>

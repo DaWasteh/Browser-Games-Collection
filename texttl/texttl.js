@@ -97,6 +97,7 @@
     };
     var lastGame = null;            // {mode,puzzleNumber,won,attempts,rows,solution} für Teilen
     var toastTimer = null;
+    var gameVersion = 0;            // invalidiert ausstehende Animations-Timer bei Neustart/Moduswechsel
 
     // --- Bewegungs-Präferenz ---
     var reducedMotion = false;
@@ -174,8 +175,13 @@
     function setTile(tile, letter, grade) {
         clearTileClasses(tile);
         if (letter) {
+            var gradeLabel = {
+                correct: 'richtige Stelle',
+                present: 'im Wort, andere Stelle',
+                absent: 'nicht im Wort'
+            }[grade];
             tile.textContent = letter;
-            tile.setAttribute('aria-label', letter);
+            tile.setAttribute('aria-label', letter + (gradeLabel ? ': ' + gradeLabel : ''));
         } else {
             tile.textContent = '';
             tile.setAttribute('aria-label', 'leer');
@@ -263,8 +269,9 @@
             if (row) {
                 var tile = row.children[state.current.length - 1];
                 if (tile) {
+                    var version = gameVersion;
                     tile.classList.add('pop');
-                    setTimeout(function () { tile.classList.remove('pop'); }, 130);
+                    setTimeout(function () { if (version === gameVersion) tile.classList.remove('pop'); }, 130);
                 }
             }
         }
@@ -290,8 +297,10 @@
         }
 
         var grades = L.evaluate(guess, state.solution);
+        var version = gameVersion;
         state.accepting = false; // während Animation keine Eingaben
-        animateRow(state.guesses.length, grades, state.current.slice(), function () {
+        animateRow(state.guesses.length, grades, state.current.slice(), version, function () {
+            if (version !== gameVersion) return;
             state.guesses.push(guess);
             state.current = [];
             state.accepting = true;
@@ -318,7 +327,7 @@
         });
     }
 
-    function animateRow(rowIndex, grades, letters, done) {
+    function animateRow(rowIndex, grades, letters, version, done) {
         var row = rowEls()[rowIndex];
         if (!row) { done(); return; }
         var tiles = row.children;
@@ -342,6 +351,7 @@
                 tile.style.animationDelay = (idx * step) + 'ms';
                 tile.classList.add('flip');
                 setTimeout(function () {
+                    if (version !== gameVersion) return;
                     tile.classList.remove('filled');
                     tile.classList.add(grades[idx]);
                     updateKeyState(letters[idx], grades[idx]);
@@ -350,7 +360,7 @@
             })(j);
             last = j * step + half;
         }
-        setTimeout(done, last + 80);
+        setTimeout(function () { if (version === gameVersion) done(); }, last + 80);
     }
 
     function updateKeyState(letter, grade) {
@@ -361,6 +371,7 @@
     // Spielende
     // ============================================================
     function finishGame(won) {
+        var version = gameVersion;
         state.status = won ? 'won' : 'lost';
         state.accepting = false;
         var attempts = state.guesses.length;
@@ -410,7 +421,7 @@
                 var tiles = row.children;
                 for (var i = 0; i < tiles.length; i++) {
                     (function (t, idx) {
-                        setTimeout(function () { t.classList.add('bounce'); }, idx * 90);
+                        setTimeout(function () { if (version === gameVersion) t.classList.add('bounce'); }, idx * 90);
                     })(tiles[i], i);
                 }
             }
@@ -420,7 +431,7 @@
                      : 'Verloren. Das Wort war ' + state.solution + '.');
 
         // Modal leicht verzögert anzeigen, damit die Flip-Animation enden kann
-        setTimeout(function () { showResultModal(won, stats); }, reducedMotion ? 150 : 500);
+        setTimeout(function () { if (version === gameVersion) showResultModal(won, stats); }, reducedMotion ? 150 : 500);
     }
 
     // ============================================================
@@ -593,6 +604,7 @@
     }
 
     function startDaily() {
+        gameVersion++;
         state.mode = 'daily';
         var now = new Date();
         state.dailyKey = L.dayKey(now);
@@ -652,6 +664,7 @@
     }
 
     function startRandom() {
+        gameVersion++;
         state.mode = 'random';
         state.solution = L.randomWord();
         state.dailyKey = null;
@@ -666,6 +679,7 @@
     function restartCurrent() {
         // Gleiche Lösung noch einmal üben (keine Statistikänderung beim bloßen Reset).
         if (!state.solution) return;
+        gameVersion++;
         resetBoardState();
         if (state.mode === 'daily') {
             // Auch nach Reload bleibt der Neustart frisch; die Statistik wird
@@ -761,9 +775,10 @@
         restartBtn.addEventListener('click', restartCurrent);
 
         helpBtn.addEventListener('click', function () {
-            var open = !rulesEl.open;
-            rulesEl.open = open;
-            helpBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            rulesEl.open = !rulesEl.open;
+        });
+        rulesEl.addEventListener('toggle', function () {
+            helpBtn.setAttribute('aria-expanded', rulesEl.open ? 'true' : 'false');
         });
         statsBtn.addEventListener('click', showStatsOnlyModal);
 

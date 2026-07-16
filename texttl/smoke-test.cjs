@@ -222,7 +222,8 @@ assert.match(html, /<script src="texttl-logic\.js"><\/script>/, 'Logik-Script-Ta
 assert.match(html, /<script src="texttl\.js" defer><\/script>/, 'UI-Script-Tag mit defer');
 assert.match(html, /href="texttl\.css"/, 'CSS referenziert');
 assert.match(html, /\.\.\/index\.html/, 'Back-Link zur Collection');
-assert.match(html, /aria-label="Zur Spieleauswahl"/, 'Back-Link aria-label');
+assert.match(html, /aria-label="Zur Spieleübersicht"/, 'Back-Link aria-label');
+assert.match(html, /\.\.\/shared\/game-shell\.js/, 'gemeinsame Stilsteuerung');
 assert.match(html, /role="status"[\s\S]*aria-live="polite"/, 'aria-live Status-Region');
 assert.match(html, /role="grid"/, 'role=grid für Spielfeld');
 assert.match(html, /role="dialog"[\s\S]*aria-modal="true"/, 'Modal role/aria-modal');
@@ -237,6 +238,7 @@ assert.doesNotMatch(html, /innerHTML/, 'kein innerHTML');
 // ============================================================
 const uiJs = fs.readFileSync(path.join(__dirname, 'texttl.js'), 'utf8');
 assert.doesNotMatch(uiJs, /\.innerHTML\s*=/, 'kein innerHTML im UI-Code');
+assert.match(uiJs, /gameVersion/, 'ausstehende Animationen werden bei Neustart invalidiert');
 assert.doesNotMatch(uiJs, /onclick=/, 'keine Inline-Handler im UI-Code');
 assert.match(uiJs, /addEventListener\('keydown'/, 'physische Tastatur angebunden');
 assert.match(uiJs, /addEventListener\('click'/, 'Klick-Handler vorhanden');

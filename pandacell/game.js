@@ -120,15 +120,77 @@
   function cardText(id) { const card = state.cards.get(id); return `${NAMES[card.rank]}${SUITS[card.suit]}`; }
   function formatTime(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
   function announce(text) { $('message').textContent = text; }
-  function cardButton(id, extra = '') { const card = state.cards.get(id); const button = document.createElement('button'); button.type = 'button'; button.className = `card${isRed(id) ? ' red' : ''}${extra}`; button.dataset.id = String(id); button.setAttribute('aria-label', cardText(id)); const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = NAMES[card.rank]; const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit]; button.append(rank, suit); return button; }
+  function cardButton(id, extra = '') { const card = state.cards.get(id); const button = document.createElement('button'); button.type = 'button'; button.className = `card${isRed(id) ? ' red' : ''}${extra}`; button.dataset.id = String(id); button.dataset.focusKey = `card-${id}`; button.setAttribute('aria-label', cardText(id)); const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = NAMES[card.rank]; const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit]; button.append(rank, suit); return button; }
   function renderPile(button, id, label) { button.replaceChildren(); const foundationClass = button.classList.contains('foundation') ? ' foundation' : ''; button.className = `pile${foundationClass}` + (id === null ? '' : ` occupied${isRed(id) ? ' red' : ''}`); button.setAttribute('aria-label', label + (id === null ? ' leer' : `: ${cardText(id)}`)); if (id === null) { const placeholder = document.createElement('span'); placeholder.className = 'placeholder'; placeholder.textContent = '＋'; button.append(placeholder); } else { const card = state.cards.get(id); const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = NAMES[card.rank]; const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit]; button.append(rank, suit); } }
   function render() {
-    const free = $('free-cells'); free.replaceChildren();
-    state.free.forEach((id, index) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'pile'; renderPile(button, id, `Freie Zelle ${index + 1}`); button.addEventListener('click', () => state.selected ? acceptFree(index) : selectFree(index)); free.append(button); });
-    const foundations = $('foundations'); foundations.replaceChildren(); state.foundations.forEach((rankValue, suit) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'pile foundation'; const id = rankValue ? suit * 13 + rankValue - 1 : null; renderPile(button, id, `Foundation ${SUITS[suit]}`); button.addEventListener('click', () => acceptFoundation(suit)); foundations.append(button); });
-    const table = $('tableau'); table.replaceChildren();
-    state.tableau.forEach((column, columnIndex) => { const wrapper = document.createElement('div'); wrapper.className = 'column'; wrapper.dataset.column = String(columnIndex); wrapper.setAttribute('aria-label', `Tableau-Spalte ${columnIndex + 1}`); if (state.selected && state.selected.zone === 'tableau' && state.selected.index !== columnIndex) wrapper.classList.add('target'); wrapper.addEventListener('click', event => { if (event.target === wrapper) acceptOnTableau(columnIndex); }); column.forEach((id, cardIndex) => { const button = cardButton(id); button.style.top = `${cardIndex * (window.innerWidth <= 650 ? 37 : 49)}px`; if (state.selected && state.selected.zone === 'tableau' && state.selected.index === columnIndex && cardIndex >= state.selected.cardIndex) button.classList.add('selected'); button.addEventListener('click', event => { event.stopPropagation(); if (state.selected) acceptOnTableau(columnIndex); else selectTableau(columnIndex, cardIndex); }); button.addEventListener('dblclick', event => { event.stopPropagation(); doubleClick(id); }); wrapper.append(button); }); table.append(wrapper); });
-    $('moves').textContent = String(state.moves); $('time').textContent = formatTime(currentElapsed()); $('foundation-count').textContent = `${state.foundations.reduce((a, b) => a + b, 0)} / 52`; $('move-limit').textContent = String(supermoveLimit(false)); $('undo').disabled = !state.history.length || state.status !== 'playing';
+    const table = $('tableau');
+    const active = document.activeElement;
+    const focusKey = active && (table.contains(active) || $('free-cells').contains(active) || $('foundations').contains(active)) ? active.dataset.focusKey : '';
+
+    const free = $('free-cells');
+    free.replaceChildren();
+    state.free.forEach((id, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pile';
+      button.dataset.focusKey = `free-${index}`;
+      renderPile(button, id, `Freie Zelle ${index + 1}`);
+      button.addEventListener('click', () => state.selected ? acceptFree(index) : selectFree(index));
+      free.append(button);
+    });
+
+    const foundations = $('foundations');
+    foundations.replaceChildren();
+    state.foundations.forEach((rankValue, suit) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pile foundation';
+      button.dataset.focusKey = `foundation-${suit}`;
+      const id = rankValue ? suit * 13 + rankValue - 1 : null;
+      renderPile(button, id, `Foundation ${SUITS[suit]}`);
+      button.addEventListener('click', () => acceptFoundation(suit));
+      foundations.append(button);
+    });
+
+    table.replaceChildren();
+    state.tableau.forEach((column, columnIndex) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'column';
+      wrapper.dataset.column = String(columnIndex);
+      wrapper.dataset.focusKey = `column-${columnIndex}`;
+      if (column.length === 0) {
+        wrapper.tabIndex = 0;
+        wrapper.setAttribute('role', 'button');
+      }
+      wrapper.setAttribute('aria-label', `Tableau-Spalte ${columnIndex + 1}${column.length ? '' : ', leer'}`);
+      if (state.selected && state.selected.zone === 'tableau' && state.selected.index !== columnIndex) wrapper.classList.add('target');
+      wrapper.addEventListener('click', event => { if (event.target === wrapper) acceptOnTableau(columnIndex); });
+      wrapper.addEventListener('keydown', event => {
+        if (state.selected && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          acceptOnTableau(columnIndex);
+        }
+      });
+      column.forEach((id, cardIndex) => {
+        const button = cardButton(id);
+        button.style.top = `${cardIndex * (window.innerWidth <= 650 ? 37 : 49)}px`;
+        if (state.selected && state.selected.zone === 'tableau' && state.selected.index === columnIndex && cardIndex >= state.selected.cardIndex) button.classList.add('selected');
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          if (state.selected) acceptOnTableau(columnIndex); else selectTableau(columnIndex, cardIndex);
+        });
+        button.addEventListener('dblclick', event => { event.stopPropagation(); doubleClick(id); });
+        wrapper.append(button);
+      });
+      table.append(wrapper);
+    });
+
+    $('moves').textContent = String(state.moves);
+    $('time').textContent = formatTime(currentElapsed());
+    $('foundation-count').textContent = `${state.foundations.reduce((a, b) => a + b, 0)} / 52`;
+    $('move-limit').textContent = String(supermoveLimit(false));
+    $('undo').disabled = !state.history.length || state.status !== 'playing';
+    if (focusKey) document.querySelector(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
   $('undo').addEventListener('click', undo); $('restart').addEventListener('click', () => reset(state.deal)); $('new-game').addEventListener('click', nextDeal); $('auto').addEventListener('click', autoMove); $('result-new').addEventListener('click', nextDeal); $('deal-number').addEventListener('change', event => reset(event.target.value));
   document.addEventListener('keydown', event => { if (event.target.matches('input,textarea') && event.key !== 'Escape') return; const key = event.key.toLowerCase(); if (key === 'u') { event.preventDefault(); undo(); } else if (key === 'n') { event.preventDefault(); reset(state.deal); } else if (key === 'd') { event.preventDefault(); nextDeal(); } else if (key === 'a') { event.preventDefault(); autoMove(); } else if (event.key === 'escape') { state.selected = null; render(); announce('Auswahl aufgehoben.'); } });

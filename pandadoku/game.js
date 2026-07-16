@@ -159,7 +159,9 @@ const cells = [];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'cell';
+    btn.tabIndex = i === 0 ? 0 : -1;
     btn.setAttribute('role', 'gridcell');
+    btn.setAttribute('aria-selected', 'false');
     if (c % 3 === 2 && c !== 8) btn.classList.add('sep-r');
     if (r % 3 === 2 && r !== 8) btn.classList.add('sep-b');
     btn.dataset.i = String(i);
@@ -324,16 +326,19 @@ function togglePause() {
     $('pause-overlay').hidden = false;
     $('pause-btn').textContent = '▶ Weiter';
     render();
+    $('resume-btn').focus();
   } else if (status === 'paused') {
     status = 'playing';
     runningSince = Date.now();
     $('pause-overlay').hidden = true;
     $('pause-btn').textContent = '⏸ Pause';
     render();
+    queueMicrotask(() => $('pause-btn').focus());
   }
 }
 
 function restart() {
+  genToken++;
   if (!puzzle) return;
   board = puzzle.slice();
   givens = puzzle.map(v => v !== 0);
@@ -438,6 +443,7 @@ function cellLabel(i) {
 
 function render() {
   const selVal = selected >= 0 ? board[selected] : 0;
+  const activeCell = selected >= 0 ? selected : 0;
   const selPeers = selected >= 0 ? PEERS[selected] : null;
   for (let i = 0; i < 81; i++) {
     const c = cells[i];
@@ -458,6 +464,8 @@ function render() {
       for (let n = 1; n <= 9; n++) c.noteSpans[n - 1].textContent = ns.has(n) ? String(n) : '';
     }
     c.btn.setAttribute('aria-label', cellLabel(i));
+    c.btn.setAttribute('aria-selected', String(i === selected));
+    c.btn.tabIndex = i === activeCell ? 0 : -1;
     c.btn.disabled = status !== 'playing';
   }
 

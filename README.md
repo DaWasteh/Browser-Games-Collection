@@ -38,6 +38,18 @@ Jeder Spiel-Ordner enthält ein eigenes README mit Details, Steuerung und Featur
 git clone https://github.com/DaWasteh/Browser-Games-Collection.git
 ```
 
+## ✅ Tests
+
+Der browserbasierte Smoke-Test benötigt **Node.js 22 oder neuer** sowie eine lokale
+Installation von Chrome, Edge oder Chromium. Er prüft die sechs Panda-/Rätselspiele
+bei 320, 375 und 414 Pixel Breite in allen drei Ansichten, außerdem Navigation,
+Kontrast, Tastaturfokus und kritische Neustart-Rennen.
+
+```bash
+node browser-smoke-test.mjs
+node texttl/smoke-test.cjs
+```
+
 ## 📜 Historie
 
 Dieses Repository fasst sechs ehemals eigenständige Repositories zusammen
