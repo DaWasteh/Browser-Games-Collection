@@ -198,7 +198,25 @@ try {
     assert(shell.backPath.endsWith('/index.html'), `${game}: overview target is wrong`);
     assert(!shell.bodyOverflow, `${game}: page has unintended horizontal body overflow at 375px`);
 
-    for (const width of [320, 375, 414]) {
+    if (game === 'pandataire' || game === 'pandakreuzwort' || game === 'texttl') {
+      const dialogFocus = await evaluate(`(async () => {
+        const dialog = document.querySelector('#result, #result-overlay');
+        const opener = document.querySelector('#new-game, #new-btn, #stats-btn');
+        if (!dialog || !opener) return { available: false };
+        opener.focus();
+        dialog.hidden = false;
+        await new Promise(resolve => setTimeout(resolve, 40));
+        const focusedInside = dialog.contains(document.activeElement);
+        const backgroundInert = document.querySelectorAll('[inert]').length > 0;
+        dialog.hidden = true;
+        await new Promise(resolve => setTimeout(resolve, 40));
+        return { available: true, focusedInside, backgroundInert, restored: document.activeElement === opener };
+      })()`);
+      assert(dialogFocus.available && dialogFocus.focusedInside && dialogFocus.backgroundInert && dialogFocus.restored,
+        `${game}: shared dialog focus/inert/restore failed ${JSON.stringify(dialogFocus)}`);
+    }
+
+    for (const width of [320, 375, 414, 600]) {
       await cdp.send('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: true });
       for (const style of ['panda', 'night', 'contrast']) {
         const appearance = await evaluate(`(() => {
@@ -354,15 +372,163 @@ try {
       assert(crossword.raceKeptLastSeed && crossword.racePlayable, 'pandakreuzwort: generation race did not keep the latest request');
       assert(crossword.bavarianPlayable && crossword.bavarianMetadata, 'pandakreuzwort: Bairisch mode or clue metadata is incomplete');
       assert(crossword.expertPlayable, 'pandakreuzwort: Experte mode did not generate enough words');
+
+      // Regression: Jede Eingabe wird persistiert (Debounce + pagehide) und
+      // überlebt einen Neuladen; der Won-Status + eingefrorene Zeit werden restauriert.
+      await evaluate(`Pandakreuzwort.newGame('persist-seed')`);
+      await delay(400);
+      const persist = await evaluate(`(() => {
+        // Erste wählbare Zelle ansteuern und einen Buchstaben tippen.
+        const cell = document.querySelector('#board .cell[tabindex="0"]') || document.querySelector('#board .cell');
+        if (!cell) return { ok: false, reason: 'no cell' };
+        cell.click();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'A', bubbles: true }));
+        return { ok: true, letter: (document.querySelector('#board .cell.sel .letter') || {}).textContent || '' };
+      })()`);
+      assert(persist.ok, 'pandakreuzwort: cell should be focusable for input');
+      await delay(450); // Entprell-Timer (300 ms) abwarten
+      const savedRaw = await evaluate(`localStorage.getItem('pandakreuzwort-save-v2') || ''`);
+      assert(savedRaw.includes(persist.letter), 'pandakreuzwort: typed letter was persisted to storage');
+
+      // Won-Status + Timer restaurieren: Das Rätsel durch korrektes Ausfüllen
+      // wirklich lösen (setzt den In-Memory-Zustand 'won', den pagehide dann
+      // konsistent persistiert), neu laden und Status + eingefrorene Zeit prüfen.
+      await evaluate(`(async () => {
+        Pandakreuzwort.newGame('won-seed');
+        await new Promise(r => setTimeout(r, 350));
+        const data = JSON.parse(localStorage.getItem('pandakreuzwort-save-v2'));
+        const solution = {};
+        for (const k in data.cells) solution[k] = data.cells[k].letter;
+        const cells = [...document.querySelectorAll('#board .cell[role="gridcell"]')];
+        for (const btn of cells) {
+          const key = btn.dataset.r + ',' + btn.dataset.c;
+          btn.click();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: solution[key], bubbles: true }));
+        }
+      })()`);
+      const wonBefore = await evaluate(`Pandakreuzwort.getState()`);
+      assert(wonBefore.status === 'won', `pandakreuzwort: filling all cells should win (got ${wonBefore.status})`);
+      const elapsedAtWin = wonBefore.elapsed;
+      await navigate('pandakreuzwort/index.html');
+      const wonState = await evaluate(`Pandakreuzwort.getState()`);
+      assert(wonState.status === 'won', `pandakreuzwort: won status not restored after reload (got ${wonState.status})`);
+      assert(wonState.elapsed === elapsedAtWin, `pandakreuzwort: frozen timer not restored after reload (got ${wonState.elapsed}, won at ${elapsedAtWin})`);
+      await delay(1300); // darf nicht weiterzählen
+      const wonElapsedLater = await evaluate(`Pandakreuzwort.getState().elapsed`);
+      assert(wonElapsedLater === elapsedAtWin, `pandakreuzwort: won timer advanced while frozen (got ${wonElapsedLater})`);
     }
 
     if (game === 'pandataire') {
-      const completeDeck = await evaluate(`(() => {
-        const state = Pandataire.getState();
-        const deck = [...state.cards.filter(card => !card.removed), ...state.talon, state.waste];
-        return deck.length === 52 && new Set(deck.map(card => card.rank + ':' + card.suit)).size === 52;
+      const report = await evaluate(`(() => {
+        function deckUnique() {
+          const s = Pandataire.getState();
+          const deck = [...s.cards, ...s.stock, ...s.waste];
+          return deck.length === 52 && new Set(deck.map(c => c.rank + ':' + c.suit)).size === 52;
+        }
+        function dealKeys() {
+          const s = Pandataire.getState();
+          return JSON.stringify({ c: s.cards, s: s.stock, w: s.waste });
+        }
+        const modes = ['tripeaks', 'golf', 'pyramid'];
+        const perMode = {};
+        for (const m of modes) {
+          Pandataire.newGame(m, 24680);
+          const before = dealKeys();
+          Pandataire.restart();
+          const after = dealKeys();
+          const st = Pandataire.getState();
+          perMode[m] = {
+            mode: Pandataire.getMode(),
+            deckUnique: deckUnique(),
+            deterministic: before === after,
+            cardCount: st.cards.length,
+            stockCount: st.stock.length,
+            status: st.status
+          };
+        }
+        // Tastatur: Moduswechsel über 1/2/3 und ein Zug (Ziehen).
+        Pandataire.newGame('tripeaks', 1);
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true }));
+        const k2 = Pandataire.getMode();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
+        const k3 = Pandataire.getMode();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
+        const k1 = Pandataire.getMode();
+        document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', bubbles: true }));
+        const movesAfterDraw = Pandataire.getState().moves;
+        // Pyramid: Auswahlmechanik (deterministisch) + König/Paar falls vorhanden.
+        Pandataire.newGame('pyramid', 5);
+        const freeBtns = [...document.querySelectorAll('#tableau .card:not(:disabled)')];
+        const freeState = Pandataire.getState();
+        const pickCard = freeBtns.find(b => freeState.cards[Number(b.dataset.id)].rank !== 13);
+        let selectionWorks = false, deselectWorks = false;
+        if (pickCard) {
+          pickCard.click();
+          selectionWorks = Pandataire.getState().selectedId === Number(pickCard.dataset.id);
+          pickCard.click();
+          deselectWorks = Pandataire.getState().selectedId === null;
+        }
+        // Freier König allein entfernbar? (über mehrere Seeds suchen.)
+        let kingRemoved = false;
+        for (const ks of [5, 6, 7, 8, 9, 10, 11, 12]) {
+          Pandataire.newGame('pyramid', ks);
+          const st2 = Pandataire.getState();
+          const freeKingBtn = [...document.querySelectorAll('#tableau .card:not(:disabled)')]
+            .find(b => st2.cards[Number(b.dataset.id)].rank === 13);
+          if (freeKingBtn) {
+            freeKingBtn.click();
+            kingRemoved = Pandataire.getState().cards[Number(freeKingBtn.dataset.id)].removed;
+            break;
+          }
+        }
+        return { perMode, keys: { k2, k3, k1 }, movesAfterDraw, selectionWorks, deselectWorks, kingRemoved };
       })()`);
-      assert(completeDeck, 'pandataire: deal does not contain 52 unique cards');
+      for (const m of ['tripeaks', 'golf', 'pyramid']) {
+        const r = report.perMode[m];
+        assert(r.mode === m, `pandataire: mode ${m} did not activate`);
+        assert(r.deckUnique, `pandataire: ${m} deal is not 52 unique cards`);
+        assert(r.deterministic, `pandataire: ${m} restart is not deterministic`);
+        assert(r.status === 'playing', `pandataire: ${m} did not start playing`);
+        assert(r.cardCount === (m === 'golf' ? 35 : 28), `pandataire: ${m} tableau size is wrong`);
+      }
+      assert(report.perMode.tripeaks.stockCount === 23, 'pandataire: TriPeaks stock size wrong');
+      assert(report.perMode.golf.stockCount === 16, 'pandataire: Golf stock size wrong');
+      assert(report.perMode.pyramid.stockCount === 24, 'pandataire: Pyramid stock size wrong');
+      assert(report.keys.k2 === 'golf', 'pandataire: key 2 did not switch to Golf');
+      assert(report.keys.k3 === 'pyramid', 'pandataire: key 3 did not switch to Pyramid');
+      assert(report.keys.k1 === 'tripeaks', 'pandataire: key 1 did not switch to TriPeaks');
+      assert(report.movesAfterDraw >= 1, 'pandataire: draw key did not perform a move');
+      assert(report.selectionWorks, 'pandataire: Pyramid card selection did not register');
+      assert(report.deselectWorks, 'pandataire: Pyramid card deselect did not clear selection');
+      assert(report.kingRemoved, 'pandataire: Pyramid free King was not removable alone');
+
+      // Layout: jeder Modus ohne Überlauf bei 320/375/414 px.
+      for (const m of ['tripeaks', 'golf', 'pyramid']) {
+        for (const width of [320, 375, 414]) {
+          await cdp.send('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: true });
+          await evaluate(`Pandataire.setMode('${m}')`);
+          await delay(40);
+          const layout = await evaluate(`(() => {
+            const overflowers = [...document.querySelectorAll('body *')].filter(element => {
+              const rect = element.getBoundingClientRect();
+              return rect.right > document.documentElement.clientWidth + 1 || rect.left < -1;
+            }).slice(0, 5).map(element => ({
+              tag: element.tagName, id: element.id, className: String(element.className || ''),
+              left: Math.round(element.getBoundingClientRect().left), right: Math.round(element.getBoundingClientRect().right)
+            }));
+            return {
+              applied: Pandataire.getMode(),
+              bodyOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+              overflowers
+            };
+          })()`);
+          assert(layout.applied === m, `pandataire: ${m} did not apply at ${width}px`);
+          assert(!layout.bodyOverflow, `pandataire: ${m} body overflow at ${width}px ${JSON.stringify(layout.overflowers)}`);
+          assert(layout.overflowers.length === 0, `pandataire: ${m} element overflow at ${width}px ${JSON.stringify(layout.overflowers)}`);
+        }
+      }
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+      await evaluate(`Pandataire.setMode('tripeaks')`);
     }
 
     if (game === 'pandacell') {
@@ -375,6 +541,57 @@ try {
         return JSON.stringify(first) === JSON.stringify(second) && ids.length === 52 && new Set(ids).size === 52;
       })()`);
       assert(deterministicDeal, 'pandacell: numbered deal replay is not deterministic and unique');
+
+      // Regression: Doppelklick auf eine vergrabene (nicht oberste) „sichere“ Karte
+      // darf sie NICHT auf die Foundation heben (nur freie/oberste Karten sind zugänglich).
+      const buriedSafe = await evaluate(`(() => {
+        for (let d = 1; d <= 80; d++) {
+          PandaCell.newGame(d);
+          const st = PandaCell.getState();
+          for (let col = 0; col < 8; col++) {
+            const column = st.tableau[col];
+            for (let i = 0; i < column.length - 1; i++) {
+              const id = column[i];
+              const btn = document.querySelector('[data-id="' + id + '"]');
+              if (!btn) continue;
+              const label = btn.getAttribute('aria-label') || '';
+              if (!/^A/.test(label)) continue; // vergrabenes Ass (zu Beginn stets „safe“)
+              const before = st.foundations.join(',');
+              btn.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+              const after = PandaCell.getState();
+              return {
+                found: true, deal: d, col, index: i,
+                foundationChanged: after.foundations.join(',') !== before,
+                stillBuried: after.tableau[col].includes(id)
+              };
+            }
+          }
+        }
+        return { found: false };
+      })()`);
+      assert(buriedSafe.found, 'pandacell: a deal with a buried Ace should exist for the regression');
+      assert(!buriedSafe.foundationChanged, `pandacell: buried Ace was illegally auto-foundationed on deal ${buriedSafe.deal}`);
+      assert(buriedSafe.stillBuried, `pandacell: buried Ace was removed from its column on deal ${buriedSafe.deal}`);
+    }
+
+    if (game === 'panndike') {
+      // Regression: erneutes Antippen der bereits gewählten Karte wählt ab,
+      // OHNE vorher eine irreführende „nicht erlaubt“-Meldung auszugeben.
+      const deselect = await evaluate(`(() => {
+        Panndike.newGame();
+        const topCardOfCol0 = document.querySelector('#tableau .column:nth-child(1) .card:last-child');
+        if (!topCardOfCol0) return { ok: false, reason: 'no top card' };
+        topCardOfCol0.click(); // auswählen
+        const selectedAfterFirst = !!document.querySelector('#tableau .column:nth-child(1) .card:last-child.selected');
+        // gleiche Karte erneut antippen → Abwahl
+        document.querySelector('#tableau .column:nth-child(1) .card:last-child').click();
+        const stillSelected = !!document.querySelector('#tableau .column:nth-child(1) .card:last-child.selected');
+        const msg = document.getElementById('message').textContent;
+        return { selectedAfterFirst, stillSelected, msg, noSpuriousError: msg !== 'Dieser Zug ist nicht erlaubt.' };
+      })()`);
+      assert(deselect.selectedAfterFirst, 'panndike: top card should be selectable');
+      assert(!deselect.stillSelected, 'panndike: re-clicking the selected card should deselect');
+      assert(deselect.noSpuriousError, `panndike: deselection announced a spurious invalid-move error: "${deselect.msg}"`);
     }
 
     if (game === 'texttl') {
@@ -396,6 +613,24 @@ try {
         return flipSafe && bounceSafe;
       })()`);
       assert(raceSafe, 'texttl: stale evaluation timers modified a restarted game');
+
+      // Regression: ß wird als einzelnes Zeichen gerendert (kein CSS text-transform,
+      // das ß zu SS machen würde) – in Kachel und Bildschirmtaste.
+      const esszet = await evaluate(`(() => {
+        const szKey = document.querySelector('.key[data-key="ß"]');
+        const szKeyTransform = szKey ? getComputedStyle(szKey).textTransform : null;
+        const szKeyText = szKey ? szKey.textContent : null;
+        // ß ins Brett tippen (bereits normalisiert)
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ß', bubbles: true }));
+        const tile = document.querySelector('.board .tile.filled');
+        const tileTransform = tile ? getComputedStyle(tile).textTransform : null;
+        const tileText = tile ? tile.textContent : null;
+        return { szKeyTransform, szKeyText, tileTransform, tileText };
+      })()`);
+      assert(esszet.szKeyTransform === 'none', `texttl: ß key must not be uppercased (text-transform ${esszet.szKeyTransform})`);
+      assert(esszet.szKeyText === 'ß', 'texttl: ß key label is ß');
+      assert(esszet.tileTransform === 'none', `texttl: tile must not be uppercased (text-transform ${esszet.tileTransform})`);
+      assert(esszet.tileText === 'ß', 'texttl: ß tile shows ß (single glyph)');
     }
 
     if (game === games[0]) {
@@ -460,7 +695,36 @@ try {
   assert(pahjongUi.rulesClickable, 'pahjong: rules summary is covered by another element');
   assert(pahjongUi.pairPlanValid, 'pahjong: generated pair-removal plan is invalid');
 
-  console.log(`browser smoke ok (${games.length} styled games plus Pahjong UI, 3 viewports × 3 styles, navigation, contrast, focus)`);
+  // Regression: Dokumentierte Kurzbefehle (H/M/U/N) wirken auch, wenn ein
+  // Stein (button) fokussiert ist – früher wurden sie bei Fokus auf einem
+  // Button verschluckt. Native Space/Enter bleiben unangetastet.
+  const pahjongKeys = await evaluate(`(() => {
+    // 1) 'n' bei fokussiertem Stein muss neu mischen (frisches Spiel: 144 Steine).
+    const tile = document.querySelector('#board .tile:not(:disabled)');
+    if (tile) tile.focus();
+    const beforeN = Pahjong.getState().remaining;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', bubbles: true }));
+    const afterN = Pahjong.getState().remaining;
+    const reshuffledOnN = afterN === 144 && beforeN === 144;
+    // 2) 'u' nach einem Zug muss rückgängig machen, selbst bei fokussiertem Stein.
+    const hint = Pahjong.findHint();
+    let undoWorked = false;
+    if (hint) {
+      document.querySelector('#board .tile:nth-child(' + (hint[0] + 1) + ')').click();
+      document.querySelector('#board .tile:nth-child(' + (hint[1] + 1) + ')').click();
+      const movesAfterPair = Pahjong.getState().moves;
+      const t2 = document.querySelector('#board .tile:not(:disabled)');
+      if (t2) t2.focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', bubbles: true }));
+      undoWorked = Pahjong.getState().moves < movesAfterPair;
+    }
+    return { reshuffledOnN, undoWorked, hadHint: !!hint };
+  })()`);
+  assert(pahjongKeys.reshuffledOnN, 'pahjong: N shortcut did not redeal while a tile was focused');
+  assert(pahjongKeys.hadHint, 'pahjong: a free hint pair should exist for the undo test');
+  assert(pahjongKeys.undoWorked, 'pahjong: U shortcut did not undo while a tile was focused');
+
+  console.log(`browser smoke ok (${games.length} styled games plus Pahjong UI, 4 viewports × 3 styles, navigation, contrast, focus)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();

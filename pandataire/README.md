@@ -1,33 +1,56 @@
 # Pandataire
 
-Eigenständiger, offline spielbarer TriPeaks-Solitaire-Klon für die Browser-Games-Collection.
+Eigenständiger, offline spielbarer Solitaire-Sammelband für die Browser-Games-Collection – drei Varianten in einem Spiel: **TriPeaks**, **Golf** und **Pyramid**.
 
 ## Spielen
 
-`index.html` direkt im Browser öffnen. Die Navigation **← Spieleauswahl** führt zurück zu `../index.html`.
+`index.html` direkt im Browser öffnen. Die Navigation **← Spieleübersicht** führt zurück zu `../index.html`.
+Oben wird der Modus gewählt (TriPeaks / Golf / Pyramid); die Auswahl wird lokal gespeichert.
 
-## Regeln
+## Modi und Regeln
 
-- Das Tableau enthält die klassischen 28 Karten in drei Gipfeln: 3 + 6 + 9 + 10 Karten.
-- Eine Karte ist frei, wenn keine der beiden Karten, die sie überdecken, noch im Tableau liegt.
-- Eine freie Karte darf auf die Ablage, wenn ihr Rang genau eins höher oder niedriger ist.
-- Das Ass ist zyklisch: A liegt auf 2 oder K und umgekehrt.
-- Ist kein Zug möglich, wird eine Karte vom Talon gezogen. Der Talon hat 23 Karten.
-- Sieg: alle 28 Tableau-Karten entfernen. Niederlage: Talon leer und kein gültiger Tableau-Zug.
+### TriPeaks
+- 28 Karten in drei Gipfeln (3 + 6 + 9 + 10).
+- Eine Karte ist frei, wenn keine der beiden deckenden Karten mehr im Tableau liegt.
+- Freie Karte auf die Ablage, wenn ihr Rang genau eins höher oder niedriger ist – Ass und König sind benachbart (A↔K).
+- Talon: 23 Karten. Sieg: alle 28 Karten entfernt. Niederlage: Talon leer und kein gültiger Zug.
 
-Jede neue Runde wird aus einem kontrollierten, legalen Entfernungspfad erzeugt und ist daher grundsätzlich lösbar; Farben und Talon-Reihenfolge werden zufällig variiert.
+### Golf
+- 35 Karten in sieben Spalten zu je fünf Karten.
+- Nur der freie Spaltenboden (die unterste Karte einer Spalte) ist spielbar.
+- Gleiche Rang-±1-Regel wie TriPeaks inklusive A↔K-Nachbarschaft.
+- Talon: 16 Karten. Sieg: alle 35 Karten entfernt.
+
+### Pyramid
+- 28 Karten in einer Pyramide (1 + 2 + … + 7).
+- Eine Karte ist frei, wenn beide darunter liegenden Karten entfernt sind.
+- Entferne **Paare** freier Karten, deren Rangsumme 13 ergibt (6+7, 5+8, 4+9, 3+10, 2+J, A+Q). Ein **König (13)** geht allein raus.
+- Eine freie Karte lässt sich auch mit der **Ablagespitze** paaren.
+- Talon: 24 Karten, einmal umladbar (Umlauf). Sieg: alle 28 Pyramid-Karten entfernt.
+
+Jede neue Runde wird aus einem kontrollierten, legalen Lösungspfad erzeugt und ist daher lösbar; Farben und Talon-Reihenfolge variieren zufällig.
 
 ## Steuerung und Funktionen
 
-- Maus/Touch: Tableaukarte oder Talon antippen.
-- Tastatur: `Tab` und `Enter`/Leertaste für Karten, `U` für Rückgängig, `R` für Neustart derselben Austeilung, `N` für eine neue Runde, `D` zum Ziehen.
+- Maus/Touch: Karte oder Talon antippen; bei Pyramid eine zweite Karte (oder die Ablage) zum Paaren wählen.
+- Tastatur: `Tab` zu Karten, `Enter`/`Leertaste` auswählen; `U` Rückgängig, `R` gleiche Runde neu, `N` neue Runde, `D` Talon ziehen, `1`/`2`/`3` Modus wählen.
 - **Rückgängig**, **Runde neu starten** (gleicher Deal), **Neue Runde** (neuer Deal).
-- Anzeigen für Züge, Zeit, Restkarten und aktuelle Serie.
+- Anzeigen für Züge, Serie, Zeit, Übrig (sowie Umlauf bei Pyramid).
 
 ## Dateien und Prüfung
 
-- `index.html` – semantischer Einstieg
-- `styles.css` – responsive Tisch- und Kartenansicht
-- `game.js` – komplette Spiellogik und Eingabe
+- `index.html` – semantischer Einstieg mit Moduswahl
+- `styles.css` – responsive Tisch-, Karten- und Modus-Ansicht
+- `engine.js` – DOM-freie, in Node testbare Kernlogik (PRNG, Deck, Züge, Undo, Lösbarkeit)
+- `rulesets.js` – DOM-freie Regelsätze TriPeaks/Golf/Pyramid (Topologie, Layout, Generator)
+- `game.js` – Controller und Ansicht (Moduswahl, Rendering, Eingabe, HUD)
+- `smoke-test.cjs` – logischer Smoke-Test (1000 Seeds je Modus, keine Abhängigkeiten)
 
-Syntaxprüfung: `node --check game.js`.
+Syntax- und Logikprüfung:
+
+```bash
+node --check engine.js
+node --check rulesets.js
+node --check game.js
+node smoke-test.cjs
+```

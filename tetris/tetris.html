@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tetris Game</title>
     <style>
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         * {
             margin: 0;
             padding: 0;
@@ -277,7 +278,7 @@
 <body>
     <a class="game-collection-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
     <!-- Schwierigkeits-Menü -->
-    <div id="menu-overlay">
+    <div id="menu-overlay" role="dialog" aria-modal="true" aria-label="Tetris-Menü">
         <h1>TETRIS</h1>
         <div class="subtitle">Wähle deine Schwierigkeit</div>
         <div class="difficulty-buttons">
@@ -297,7 +298,10 @@
     </div>
 
     <!-- Sound-Toggle -->
-    <button id="sound-toggle">🔊</button>
+    <button id="sound-toggle" aria-label="Sound an/aus">🔊</button>
+
+    <!-- Live-Ansage von Spielzustand (Menü/Game Over) für Screenreader -->
+    <div id="game-status" class="sr-only" role="status" aria-live="polite"></div>
 
     <!-- Combo-Anzeige -->
     <div id="combo-display"></div>
@@ -396,13 +400,37 @@
         let comboTimeoutId = null;
         let soundEnabled = true;
 
+        // Defensiv geladener High-Score (private Mode / blockiertes localStorage
+        // bringt die Seite nicht zum Absturz).
+        let highScore = 0;
+        try {
+            const stored = parseInt(localStorage.getItem('tetris_highscore') || '0', 10);
+            if (!isNaN(stored)) highScore = stored;
+        } catch (e) { highScore = 0; }
+        function saveHighScore() {
+            const improved = score > highScore;
+            if (improved) highScore = score;
+            try { localStorage.setItem('tetris_highscore', String(highScore)); } catch (e) {}
+            return improved;
+        }
+        function announceStatus(text) {
+            const el = document.getElementById('game-status');
+            if (el) el.textContent = text;
+        }
+
         // === Audio-System (Web Audio API) ===
         let audioCtx = null;
 
         function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
+            try {
+                if (!audioCtx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) audioCtx = new AC();
+                }
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume().catch(() => {});
+                }
+            } catch (e) { audioCtx = null; }
         }
 
         function playTone(freq, duration, type = 'square', volume = 0.15) {
@@ -695,6 +723,8 @@
                 clearInterval(gameInterval);
                 gameInterval = null;
                 playGameOverSound();
+                const newBest = saveHighScore();
+                announceStatus(`Game Over. Score ${score}.` + (newBest ? ' Neuer bester Score!' : ` Bester Score ${highScore}.`));
             }
         }
 
@@ -779,6 +809,13 @@
             draw();
         }
 
+        function setMenuModal(open) {
+            const menu = document.getElementById('menu-overlay');
+            Array.from(document.body.children).forEach((element) => {
+                if (element !== menu && element.id !== 'game-status') element.inert = open;
+            });
+        }
+
         function showMenu() {
             if (gameInterval) {
                 clearInterval(gameInterval);
@@ -786,7 +823,12 @@
             }
             currentPiece = null;
             nextPiece = null;
-            document.getElementById('menu-overlay').style.display = 'flex';
+            const menu = document.getElementById('menu-overlay');
+            menu.style.display = 'flex';
+            setMenuModal(true);
+            announceStatus('Tetris-Menü: Wähle eine Schwierigkeit.');
+            const firstBtn = menu.querySelector('button');
+            if (firstBtn) firstBtn.focus();
         }
 
         function startGame(difficulty = 'medium') {
@@ -807,7 +849,9 @@
             document.getElementById('level').textContent = '1';
             document.getElementById('lines').textContent = '0';
             document.getElementById('difficulty-display').textContent = diff.label;
+            setMenuModal(false);
             document.getElementById('menu-overlay').style.display = 'none';
+            announceStatus(`Neues Spiel: ${diff.label}.`);
 
             if (gameInterval) {
                 clearInterval(gameInterval);
@@ -840,18 +884,21 @@
 
             switch (e.key) {
                 case 'ArrowLeft':
+                    e.preventDefault();
                     if (!collides(currentPiece, currentX - 1, currentY)) {
                         currentX--;
                         playMoveSound();
                     }
                     break;
                 case 'ArrowRight':
+                    e.preventDefault();
                     if (!collides(currentPiece, currentX + 1, currentY)) {
                         currentX++;
                         playMoveSound();
                     }
                     break;
                 case 'ArrowDown':
+                    e.preventDefault();
                     if (!collides(currentPiece, currentX, currentY + 1)) {
                         currentY++;
                         score += 1;
@@ -859,6 +906,7 @@
                     }
                     break;
                 case 'ArrowUp':
+                    e.preventDefault();
                     const rotated = rotate(currentPiece.shape);
                     if (!collides(currentPiece, currentX, currentY, rotated)) {
                         currentPiece.shape = rotated;
@@ -925,22 +973,25 @@
                     }
                 }
             } else if (dy > 50) {
-                // Down Swipe = Hard Drop
+                // Down Swipe = Hard Drop (gleiche Punkte pro Zelle wie Leertaste)
                 while (!collides(currentPiece, currentX, currentY + 1)) {
                     currentY++;
+                    score += 2;
                 }
                 playDropSound();
                 lockPiece();
                 clearLines();
                 spawnPiece();
                 resetGameInterval();
+                document.getElementById('score').textContent = score;
             }
             draw();
         });
 
-        // Initial zeichnen
+        // Initial zeichnen und den echten Modalzustand herstellen.
         createBoard();
         draw();
+        showMenu();
     </script>
 </body>
 </html>

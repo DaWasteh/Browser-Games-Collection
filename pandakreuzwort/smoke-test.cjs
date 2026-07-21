@@ -206,6 +206,28 @@ function makeBasePuzzle() {
 }
 
 // ============================================================
+// 10b) Winzige Pools (length 0/1/2) dürfen nicht werfen
+// ============================================================
+function makeTinyEntry(id, answer) {
+    return { id: id, language: 'de', displayAnswer: answer, gridAnswer: L.normalizeGridAnswer(answer), clue: 'Test', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'], reviewed: true, source: { kind: 'project-editorial' } };
+}
+for (const n of [0, 1, 2]) {
+    const pool = [];
+    for (let i = 0; i < n; i++) pool.push(makeTinyEntry('tiny-' + i, ['AUTO', 'HAUS', 'BAUM'][i]));
+    let p, threw = false;
+    try {
+        p = L.generatePuzzle({ seed: 'tiny-pool', language: 'de', difficulty: 'mittel', entries: pool, datasetVersion: DATA.datasetVersion });
+    } catch (e) { threw = true; }
+    assert.equal(threw, false, 'pool.length=' + n + ' darf nicht werfen');
+    // Wohlgeformtes Ergebnis (validierbar). Leerer Pool → ungültig (sicher abgelehnt),
+    // 1–2 Wörter → einzelnes gültiges Ankerwort.
+    const v = L.validatePuzzle(p, pool);
+    if (n === 0) assert.equal(v.ok, false, 'leerer Pool → kein gültiges Puzzle, aber kein Wurf');
+    else assert.equal(v.ok, true, 'pool.length=' + n + ' liefert gültiges Ankerwort-Puzzle');
+    assert.ok(p.rows >= 1 && p.cols >= 1, 'wohlgeformte Gitterdimensionen');
+}
+
+// ============================================================
 // 11) sanitizeSavedPuzzle: kaputte Daten werden verworfen
 // ============================================================
 const good = L.generatePuzzle({ seed: 'save', language: 'de', difficulty: 'mittel', entries: DATA.entries, datasetVersion: DATA.datasetVersion });
@@ -216,6 +238,17 @@ assert.equal(L.sanitizeSavedPuzzle({}, DATA.entries), null, 'leeres Objekt verwo
     const broken = JSON.parse(JSON.stringify(good));
     broken.placements[0].clue = '';
     assert.equal(L.sanitizeSavedPuzzle(broken, DATA.entries), null, 'kaputtes Puzzle verworfen');
+
+    const forged = JSON.parse(JSON.stringify(good));
+    const used = new Set(forged.placements.map(p => p.entryId));
+    const replacement = DATA.entries.find(e => e.language === forged.language && !used.has(e.id));
+    assert.ok(replacement, 'unbenutzter Datensatz für Manipulationstest vorhanden');
+    forged.placements[0].entryId = replacement.id;
+    assert.equal(L.sanitizeSavedPuzzle(forged, DATA.entries), null, 'gefälschte entryId verworfen');
+
+    const forgedClue = JSON.parse(JSON.stringify(good));
+    forgedClue.placements[0].clue = 'Gefälschter Hinweis';
+    assert.equal(L.sanitizeSavedPuzzle(forgedClue, DATA.entries), null, 'gefälschter Hinweis verworfen');
 }
 
 // ============================================================
@@ -247,6 +280,15 @@ assert.match(uiJs, /PandakreuzwortLogic/, 'nutzt Logik-Modul');
 assert.match(uiJs, /window\.Pandakreuzwort/, 'exponiert window.Pandakreuzwort');
 assert.match(uiJs, /genToken/, 'Generation-Token (Race-Schutz)');
 assert.match(uiJs, /aria-live|announce/, 'barrierefreie Rückmeldung');
+assert.match(uiJs, /scheduleSave/, 'Eingaben werden entprellt persistiert (scheduleSave)');
+assert.match(uiJs, /pagehide/, 'pagehide sichert ausstehende Eingaben');
+assert.match(uiJs, /flushSave/, 'flushSave leert den Entprell-Timer');
+// Won-Status und verstrichene Zeit werden persistiert (status-Feld im Save).
+assert.match(uiJs, /status: status/, 'Won-Status wird gespeichert');
+assert.match(uiJs, /data\.status === 'won'/, 'Won-Status wird beim Laden wiederhergestellt');
+assert.match(uiJs, /data\.status === 'won' && complete/, 'Won-Status erfordert ein vollständig korrektes Board');
+// Fallback-Generierung validiert den zweiten Versuch und scheitert sicher.
+assert.match(uiJs, /Beide Versuche ungültig/, 'Fallback-Generierung scheitert sicher');
 
 // Datei-Existenz
 assert.ok(fs.existsSync(path.join(__dirname, 'pandakreuzwort-logic.js')), 'logic file');

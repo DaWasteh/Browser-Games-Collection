@@ -57,6 +57,12 @@ assert.equal(logic.isValidLetter('z'), true);
 assert.equal(logic.isValidLetter('1'), false);
 assert.equal(logic.isValidLetter('ab'), false);
 
+// Großes ß (ẞ U+1E9E) wird als einzelnes Graphem akzeptiert und zu ß normalisiert.
+assert.equal(logic.toUpperDe('ẞ'), 'ß', 'Groß-ß wird zu ß normalisiert');
+assert.equal(logic.isValidLetter('ẞ'), true, 'Groß-ß ist ein gültiger Buchstabe');
+assert.deepEqual(logic.graphemes('ẞ'), ['ß'], 'Groß-ß → ein Graphem ß');
+assert.equal(logic.normalize('ẞIR'), 'ßIR', 'Wort mit Groß-ß wird normalisiert');
+
 // ============================================================
 // 4) Bewertung — Zweifachdurchlauf für Doppelbuchstaben
 // ============================================================
@@ -180,6 +186,12 @@ const fixed = logic.cloneStats(partial);
 assert.equal(fixed.played, 5);
 assert.deepEqual(fixed.dist, [1, 1, 1, 0, 0, 0]);
 assert.equal(fixed.currentStreak, 0);
+const corruptStats = logic.cloneStats({ played: -7, won: 99, currentStreak: -3, maxStreak: 500, dist: [-1, Infinity] });
+assert.equal(corruptStats.played, 0, 'negative Spielzahl wird bereinigt');
+assert.equal(corruptStats.won, 0, 'Siege werden auf gespielte Partien begrenzt');
+assert.equal(corruptStats.currentStreak, 0, 'negative Serie wird bereinigt');
+assert.equal(corruptStats.maxStreak, 0, 'Maximalserie bleibt plausibel');
+assert.deepEqual(corruptStats.dist, [0, 0, 0, 0, 0, 0], 'ungültige Verteilung wird bereinigt');
 
 // ============================================================
 // 8) Spoilerfreies Teilen (keine Buchstaben)
@@ -233,6 +245,17 @@ assert.doesNotMatch(html, /onclick=/, 'keine Inline-Handler');
 assert.doesNotMatch(html, /innerHTML/, 'kein innerHTML');
 
 // ============================================================
+// 10b) CSS: ß darf NICHT über text-transform: uppercase zu SS werden.
+// Einzig das HUD-Label (.hud .stat span) darf uppercase bleiben;
+// .tile und .key zeigen bereits großgeschriebene Grapheme (ß bleibt ß).
+// ============================================================
+const css = fs.readFileSync(path.join(__dirname, 'texttl.css'), 'utf8');
+const upperCount = (css.match(/text-transform:\s*uppercase/g) || []).length;
+assert.equal(upperCount, 1, 'nur das HUD-Label darf text-transform: uppercase haben (ß in Kachel/Taste bleibt ß)');
+assert.doesNotMatch(css, /\.tile\s*\{[^}]*text-transform:\s*uppercase/, '.tile ohne uppercase');
+assert.doesNotMatch(css, /\.key\s*\{[^}]*text-transform:\s*uppercase/, '.key ohne uppercase');
+
+// ============================================================
 // 11) JS-UI-Konventionen (kein innerHTML, defensives localStorage,
 //     Tastatur-Listener, Clipboard-Fallback)
 // ============================================================
@@ -254,6 +277,8 @@ assert.match(uiJs, /dailyWord/, 'Tageswort genutzt');
 assert.match(uiJs, /randomWord/, 'Zufallswort genutzt');
 assert.match(uiJs, /recordResult/, 'Statistik-Auswertung angebunden');
 assert.match(uiJs, /validateDailySave/, 'Tagesfortschritt wird validiert');
+assert.match(uiJs, /var solvedAt = guesses\.indexOf\(solution\)/, 'Save-Status wird gegen frühere Lösungen geprüft');
+assert.match(uiJs, /shareBtn\.hidden = !\(lastGame && state\.status !== 'playing'\)/, 'wiederhergestellte Ergebnisse bleiben teilbar');
 assert.match(uiJs, /sanitizeGuesses/, 'gespeicherte Versuche werden defensiv geprüft');
 assert.match(uiJs, /saveDaily\(\{[\s\S]*guesses: \[\],[\s\S]*status: 'playing'/, 'Neustart persistiert frischen Tageszustand');
 

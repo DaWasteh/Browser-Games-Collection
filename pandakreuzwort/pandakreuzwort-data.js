@@ -116,7 +116,7 @@
         { id: 'de-groesse', language: 'de', displayAnswer: 'Größe', clue: 'Ausdehnung eines Dings', difficulty: 2, allowedProfiles: ['mittel', 'schwer'] },
         { id: 'de-strasse', language: 'de', displayAnswer: 'Straße', clue: 'Fahrbahn für Autos', difficulty: 2, allowedProfiles: ['mittel', 'schwer'] },
         { id: 'de-fuss', language: 'de', displayAnswer: 'Fuß', clue: 'Körperteil zum Gehen', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'] },
-        { id: 'de-rose2', language: 'de', displayAnswer: 'Nase', clue: 'Gesichtsteil zum Riechen', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'] },
+        { id: 'de-nase', language: 'de', displayAnswer: 'Nase', clue: 'Gesichtsteil zum Riechen', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'] },
         { id: 'de-auge', language: 'de', displayAnswer: 'Auge', clue: 'Organ zum Sehen', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'] },
         { id: 'de-ohr', language: 'de', displayAnswer: 'Ohr', clue: 'Organ zum Hören', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'] },
         { id: 'de-hand', language: 'de', displayAnswer: 'Hand', clue: 'Greifwerkzeug am Arm', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'] },

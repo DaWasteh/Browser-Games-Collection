@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pong Game</title>
     <style>
         * {
@@ -291,7 +291,7 @@
     <h1>P O N G</h1>
     <div id="game-container">
         <canvas id="game-canvas"></canvas>
-        <div id="ui-overlay">
+        <div id="ui-overlay" role="dialog" aria-modal="true" aria-label="Pong-Menü">
             <!-- MAIN MENU SCREEN -->
             <div id="screen-main-menu" class="overlay-screen active">
                 <h2>PONG</h2>
@@ -334,7 +334,7 @@
     </div>
     <div id="score-display">
         <div class="player-score"><span id="player1-name-display">SPIELER 1</span>: <span id="player-score">0</span></div>
-        <div class="ai-score" id="ai-score-container">CPU: <span id="ai-score">0</span></div>
+        <div class="ai-score" id="ai-score-container"><span id="ai-score-label">CPU</span>: <span id="ai-score">0</span></div>
     </div>
     <div id="controls-info">
         <strong>Spieler 1:</strong> Maus/Touch links | <strong>Spieler 2 (2P):</strong> Pfeiltasten ↑↓ oder Touch rechts<br>
@@ -370,6 +370,7 @@
         const ctx = canvas.getContext('2d');
         const overlay = document.getElementById('ui-overlay');
         const aiScoreContainer = document.getElementById('ai-score-container');
+        const aiScoreLabel = document.getElementById('ai-score-label');
         const difficultySelect = document.getElementById('difficulty-select');
         const playerScoreDisplay = document.getElementById('player-score');
         const aiScoreDisplay = document.getElementById('ai-score');
@@ -413,28 +414,66 @@
         };
 
         let particles = [];
-        let scoreboardData = JSON.parse(localStorage.getItem('pongScoreboard')) || [];
-        let touchLeftActive = false;
-        let touchRightActive = false;
+        function loadScoreboardData() {
+            try {
+                const raw = localStorage.getItem('pongScoreboard');
+                if (!raw) return [];
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed)
+                    ? parsed.filter(entry => entry && typeof entry === 'object').slice(-50)
+                    : [];
+            } catch (e) { return []; }
+        }
+        let scoreboardData = loadScoreboardData();
+        let paused = false;
+        const FIXED_DT = 1000 / 60;
+        let lastFrameTime = 0;
+        let simAccumulator = 0;
 
         // === Sounds ===
+        // Zuverlässige, assetfreie Töne via WebAudio (die alten data:-URIs endeten
+        // auf ein literales »…« und dekodierten nie). Mit graceful Fallback, falls
+        // WebAudio nicht verfügbar ist.
         const sounds = {};
+        let audioCtx = null;
 
-        function initSounds() {
-            try {
-                sounds.hit = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAACAgICA...');
-                sounds.score = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAACAgICA...');
-                sounds.win = new Audio('data:audio/wav;base64,UklGR0lGAAAAXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAACAgICA...');
-            } catch (e) {
-                console.log('Audio not supported');
+        function ensureAudio() {
+            if (audioCtx) {
+                if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+                return audioCtx;
             }
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (AC) audioCtx = new AC();
+            } catch (e) { audioCtx = null; }
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+            return audioCtx;
         }
 
-        function playSound(sound) {
-            if (sounds[sound]) {
-                sounds[sound].currentTime = 0;
-                sounds[sound].play().catch(e => {});
-            }
+        function initSounds() {
+            // Töne werden on-demand via WebAudio erzeugt (keine externen Assets).
+            ensureAudio();
+        }
+
+        const SOUND_FREQ = { hit: 520, score: 700, win: 880 };
+        function playSound(name) {
+            try {
+                const ac = ensureAudio();
+                if (!ac) return;
+                const now = ac.currentTime;
+                const osc = ac.createOscillator();
+                const gain = ac.createGain();
+                osc.connect(gain);
+                gain.connect(ac.destination);
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(SOUND_FREQ[name] || 500, now);
+                gain.gain.setValueAtTime(0.0001, now);
+                gain.gain.exponentialRampToValueAtTime(0.16, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+                osc.onended = () => { try { osc.disconnect(); gain.disconnect(); } catch (e) {} };
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } catch (e) { /* graceful: stumm */ }
         }
 
         // === Particle System ===
@@ -664,17 +703,15 @@
         }
 
         function movePlayer1() {
-            // Smooth movement with proper boundary checking
+            // Bewegung zuerst, dann beschneiden (verhindert einframigen Überstand).
+            const diff = player1.targetY - (player1.y + player1.height / 2);
+            player1.y += diff * 0.1;
             if (player1.y < 0) {
                 player1.y = 0;
             }
             if (player1.y + player1.height > canvas.height) {
                 player1.y = canvas.height - player1.height;
             }
-
-            // Move towards target position with smooth acceleration
-            const diff = player1.targetY - (player1.y + player1.height / 2);
-            player1.y += diff * 0.1; // Smooth movement instead of exact positioning
         }
 
         function movePlayer2() {
@@ -735,25 +772,51 @@
             }
         }
 
-        function gameLoop() {
+        function gameLoop(timestamp) {
             if (!gameRunning) return;
+            animationId = requestAnimationFrame(gameLoop);
+            if (typeof timestamp !== 'number') timestamp = performance.now(); // direkter Aufruf aus startGame
 
-            // Only resize canvas if dimensions have changed significantly
+            // Nur Canvas-Dimensionen syncen, falls sie sich geändert haben.
             const newWidth = canvas.offsetWidth;
             const newHeight = canvas.offsetHeight;
-            
-            if (Math.abs(canvas.width - newWidth) > 1 || Math.abs(canvas.height - newHeight) > 1) {
+            if (newWidth > 0 && newHeight > 0 && (Math.abs(canvas.width - newWidth) > 1 || Math.abs(canvas.height - newHeight) > 1)) {
                 canvas.width = newWidth;
                 canvas.height = newHeight;
             }
 
-            movePlayer1();
-            movePlayer2();
-            updateBall();
-            updateParticles();
-            draw();
+            // Festschritt-Simulation bei 60 Hz, unabhängig vom Display-Refresh.
+            if (lastFrameTime === 0) lastFrameTime = timestamp;
+            let frameTime = timestamp - lastFrameTime;
+            lastFrameTime = timestamp;
+            if (frameTime > 250) frameTime = 250; // Catch-up-Klammer (Tab-Wechsel/Stalls)
 
-            animationId = requestAnimationFrame(gameLoop);
+            if (!paused) {
+                simAccumulator += frameTime;
+                let steps = 0;
+                while (simAccumulator >= FIXED_DT && steps < 5 && gameRunning) {
+                    movePlayer1();
+                    movePlayer2();
+                    updateBall();
+                    updateParticles();
+                    simAccumulator -= FIXED_DT;
+                    steps++;
+                }
+                if (simAccumulator > FIXED_DT * 5) simAccumulator = 0; // Spiral-of-Death-Schutz
+            }
+
+            draw();
+            if (paused) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 48px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('PAUSE', canvas.width / 2, canvas.height / 2);
+                ctx.restore();
+            }
         }
 
         // === Screen Management ===
@@ -762,14 +825,20 @@
             const screens = overlay.querySelectorAll('.overlay-screen');
             screens.forEach(s => s.classList.remove('active'));
             // Show target screen
-            document.getElementById(screenId).classList.add('active');
+            const target = document.getElementById(screenId);
+            target.classList.add('active');
             // Show overlay
             overlay.classList.remove('hidden');
+            // Fokus in den Dialog bewegen (Tastatur-/Screenreader-Zugang).
+            const focusable = target.querySelector('button, [href], input, select, textarea');
+            if (focusable) focusable.focus();
         }
 
         // === Game Flow ===
         function startGame() {
             if (gameRunning) return;
+
+            ensureAudio();
 
             const p1Input = document.getElementById('player1-name');
             const p2Input = document.getElementById('player2-name');
@@ -781,7 +850,7 @@
 
             player1NameDisplay.textContent = player1Name;
             if (gameMode === '2p') {
-                aiScoreContainer.textContent = `${player2Name}: `;
+                aiScoreLabel.textContent = player2Name;
             }
 
             player1Score = 0;
@@ -797,6 +866,8 @@
             player1.y = canvas.height / 2 - player1.height / 2;
             player2.x = canvas.width - 15 - player2.width;
             player2.y = canvas.height / 2 - player2.height / 2;
+            player1.targetY = player1.y + player1.height / 2;
+            player2.targetY = player2.y + player2.height / 2;
 
             resetBall();
 
@@ -806,6 +877,7 @@
 
         function endGame(winner) {
             gameRunning = false;
+            paused = false;
             cancelAnimationFrame(animationId);
 
             const winnerName = winner === 1 ? player1Name : (gameMode === 'ai' ? 'CPU' : player2Name);
@@ -829,7 +901,7 @@
             if (p2Input && gameMode === '2p') player2Name = p2Input.value.trim() || player2Name;
             player1NameDisplay.textContent = player1Name;
             if (gameMode === '2p') {
-                aiScoreContainer.textContent = `${player2Name}: `;
+                aiScoreLabel.textContent = player2Name;
             }
             startGame();
         }
@@ -846,9 +918,9 @@
             if (btn2p) btn2p.classList.toggle('active', mode === '2p');
 
             if (mode === 'ai') {
-                aiScoreContainer.textContent = 'CPU: ';
+                aiScoreLabel.textContent = 'CPU';
             } else {
-                aiScoreContainer.textContent = `${player2Name}: `;
+                aiScoreLabel.textContent = player2Name;
             }
         }
 
@@ -880,7 +952,9 @@
                 scoreboardData.shift();
             }
 
-            localStorage.setItem('pongScoreboard', JSON.stringify(scoreboardData));
+            try {
+                localStorage.setItem('pongScoreboard', JSON.stringify(scoreboardData));
+            } catch (e) { /* localStorage blockiert/voll – Scoreboard bleibt im Speicher */ }
         }
 
         function showScoreboardScreen() {
@@ -896,15 +970,25 @@
                 sortedScores.forEach(entry => {
                     const div = document.createElement('div');
                     div.className = 'score-entry';
-                    div.innerHTML = `
-                        <span>${entry.date}</span>
-                        <span>${entry.winner} besiegte ${entry.loser} ${entry.score}</span>
-                    `;
+                    const date = document.createElement('span');
+                    date.textContent = String(entry.date || '');
+                    const result = document.createElement('span');
+                    result.textContent = `${String(entry.winner || '')} besiegte ${String(entry.loser || '')} ${String(entry.score || '')}`;
+                    div.append(date, result);
                     overlayScoreboard.appendChild(div);
                 });
             }
 
             showScreen('screen-scoreboard');
+        }
+
+        function togglePause() {
+            if (!gameRunning) return;
+            paused = !paused;
+            if (paused) {
+                lastFrameTime = 0;
+                simAccumulator = 0;
+            }
         }
 
         // === Input Handling ===
@@ -914,18 +998,26 @@
             const rect = canvas.getBoundingClientRect();
             const y = e.clientY - rect.top;
 
+            // targetY ist die gewünschte Paddle-Mitte → Cursor sitzt mittig auf dem Paddle.
             if (!player1.isTouching) {
-                player1.targetY = y - player1.height / 2;
+                player1.targetY = y;
             }
         }
 
         function handleKeyDown(e) {
+            if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+                togglePause();
+                return;
+            }
             if (!gameRunning || gameMode !== '2p') return;
 
+            // targetY = gewünschte Paddle-Mitte, damit ↑ und ↓ beide funktionieren.
             if (e.key === 'ArrowUp') {
-                player2.targetY = player2.y - 10;
+                e.preventDefault();
+                player2.targetY = player2.y + player2.height / 2 - 60;
             } else if (e.key === 'ArrowDown') {
-                player2.targetY = player2.y + 10;
+                e.preventDefault();
+                player2.targetY = player2.y + player2.height / 2 + 60;
             }
         }
 
@@ -939,43 +1031,45 @@
 
         function handleTouchStart(e) {
             if (!gameRunning) return;
-
-            const touchX = e.touches[0].clientX;
+            e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-
-            if (touchX < rect.left + rect.width/2) {
-                touchLeftActive = true;
-                player1.isTouching = true;
-            } else {
-                touchRightActive = true;
-                player2.isTouching = true;
+            const midX = rect.left + rect.width / 2;
+            for (const touch of e.changedTouches) {
+                const y = touch.clientY - rect.top;
+                if (touch.clientX < midX) {
+                    player1.isTouching = true;
+                    player1.targetY = y;
+                } else {
+                    player2.isTouching = true;
+                    player2.targetY = y;
+                }
             }
         }
 
         function handleTouchMove(e) {
             if (!gameRunning || e.touches.length === 0) return;
-
-            const touchX = e.touches[0].clientX;
+            e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-
-            if (touchLeftActive && touchX < rect.left + rect.width/2) {
-                const y = e.touches[0].clientY - rect.top;
-                player1.targetY = y - player1.height / 2;
-            } else if (touchRightActive && touchX > rect.left + rect.width/2) {
-                const y = e.touches[0].clientY - rect.top;
-                player2.targetY = y - player2.height / 2;
+            const midX = rect.left + rect.width / 2;
+            // Mehrere Finger gleichzeitig: linke Hälfte → P1, rechte Hälfte → P2.
+            for (const touch of e.touches) {
+                const y = touch.clientY - rect.top;
+                if (touch.clientX < midX) player1.targetY = y;
+                else player2.targetY = y;
             }
         }
 
         function handleTouchEnd(e) {
             if (!gameRunning) return;
-
-            if (e.touches.length === 0) {
-                touchLeftActive = false;
-                touchRightActive = false;
-                player1.isTouching = false;
-                player2.isTouching = false;
+            const rect = canvas.getBoundingClientRect();
+            const midX = rect.left + rect.width / 2;
+            let leftActive = false, rightActive = false;
+            for (const touch of e.touches) {
+                if (touch.clientX < midX) leftActive = true;
+                else rightActive = true;
             }
+            if (!leftActive) player1.isTouching = false;
+            if (!rightActive) player2.isTouching = false;
         }
 
         // === Initialization ===
@@ -996,19 +1090,47 @@
             player1.y = canvas.height / 2 - player1.height / 2;
             player2.x = canvas.width - 15 - player2.width;
             player2.y = canvas.height / 2 - player2.height / 2;
+            player1.targetY = player1.y + player1.height / 2;
+            player2.targetY = player2.y + player2.height / 2;
+            paused = false;
+            lastFrameTime = 0;
+            simAccumulator = 0;
 
             resetBall();
+        }
+
+        // Viewport-Resize OHNE Rally-/Ball-Reset: Nur Canvas-Dimensionen,
+        // Paddle-X und Bounds nachführen (Adressleisten-Ein-/Ausblenden etc.).
+        function handleResize() {
+            const newWidth = canvas.offsetWidth;
+            const newHeight = canvas.offsetHeight;
+            if (newWidth > 0 && newHeight > 0 && (Math.abs(canvas.width - newWidth) > 1 || Math.abs(canvas.height - newHeight) > 1)) {
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+            }
+            player1.x = 15;
+            player2.x = canvas.width - 15 - player2.width;
+            player1.y = Math.max(0, Math.min(canvas.height - player1.height, player1.y));
+            player2.y = Math.max(0, Math.min(canvas.height - player2.height, player2.y));
+            ball.x = Math.max(ball.size / 2, Math.min(canvas.width - ball.size / 2, ball.x));
+            ball.y = Math.max(ball.size / 2, Math.min(canvas.height - ball.size / 2, ball.y));
+        }
+        let resizeTimer = null;
+        function debouncedResize() {
+            if (resizeTimer) clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => { resizeTimer = null; handleResize(); }, 150);
         }
 
         // === Event Listeners ===
         canvas.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('keydown', handleKeyDown);
         document.addEventListener('keyup', handleKeyUp);
-        canvas.addEventListener('touchstart', handleTouchStart);
-        canvas.addEventListener('touchmove', handleTouchMove);
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
         canvas.addEventListener('touchend', handleTouchEnd);
 
-        window.addEventListener('resize', init);
+        window.addEventListener('resize', debouncedResize);
+        window.addEventListener('orientationchange', debouncedResize);
         init();
     </script>
 </body>

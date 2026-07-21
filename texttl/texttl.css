@@ -168,7 +168,6 @@ header.site-header .subtitle {
     justify-content: center;
     font-size: clamp(1.4rem, 8vw, 2rem);
     font-weight: 700;
-    text-transform: uppercase;
     border: 2px solid var(--tile-border);
     border-radius: var(--radius);
     background: var(--tile-empty);
@@ -245,7 +244,6 @@ header.site-header .subtitle {
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
-    text-transform: uppercase;
     padding: 0;
     transition: background 0.12s ease, transform 0.05s ease;
     display: flex;

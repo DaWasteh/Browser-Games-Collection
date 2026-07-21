@@ -2,7 +2,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const cards = [];
-let selected = null, history = [], moves = 0, started = 0, status = 'playing', hintIds = [], timerId, lastPlan = [];
+let selected = null, history = [], moves = 0, elapsed = 0, activeSince = Date.now(), status = 'playing', hintIds = [], timerId, lastPlan = [];
 function rand(n){ return Math.floor(Math.random()*n); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=rand(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function makeSlots(){
@@ -79,19 +79,22 @@ function deal(){
   const plan=buildPairPlan(ids);
   if(!plan || !verifyPairPlan(plan,ids)) throw new Error('Kein gültiger Paarplan für dieses Layout.');
   assignPlan(plan,pairFaces()); lastPlan=plan.map(pair=>pair.slice());
-  selected=null; hintIds=[]; history=[]; moves=0; status='playing'; started=Date.now();
-  $('result').hidden=true; render(); announce('Neues Spiel: Wähle einen freien Stein.');
+  selected=null; hintIds=[]; history=[]; moves=0; status='playing'; elapsed=0; activeSince=Date.now();
+  teardownResultDialog(); render(); announce('Neues Spiel: Wähle einen freien Stein.');
 }
 function snapshot(){ return {faces:cards.map(c=>c.face),removed:cards.map(c=>c.removed),moves,status}; }
-function restore(s){ cards.forEach((c,i)=>{c.face=s.faces[i];c.removed=s.removed[i];}); moves=s.moves;status=s.status==='blocked'?'playing':s.status;lastPlan=[];selected=null;hintIds=[];$('result').hidden=true;render(); }
+function currentElapsed(){return elapsed+(activeSince===null?0:(Date.now()-activeSince)/1000);}
+function pauseClock(){elapsed=currentElapsed();activeSince=null;}
+function resumeClock(){if(activeSince===null)activeSince=Date.now();}
+function restore(s){ cards.forEach((c,i)=>{c.face=s.faces[i];c.removed=s.removed[i];}); moves=s.moves;status=s.status==='blocked'?'playing':s.status;lastPlan=[];selected=null;hintIds=[];$('result').hidden=true;resumeClock();render(); }
 function announce(t){ $('message').textContent=t; }
-function format(t){ return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; }
+function format(t){t=Math.floor(t);return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`; }
 function findHint(){ const free=cards.filter(isFree); for(let i=0;i<free.length;i++)for(let j=i+1;j<free.length;j++)if(isMatch(free[i],free[j]))return [free[i].id,free[j].id]; return null; }
 function render(){
   const board=$('board');
   if(board.children.length!==cards.length){ board.replaceChildren(); cards.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='tile';b.addEventListener('click',()=>choose(c.id));board.append(b);}); }
   cards.forEach(c=>{const b=board.children[c.id];b.style.left=`calc(${(c.x+1)*7.2}% + ${c.z*3}px)`;b.style.top=`calc(${(c.y+1)*12.5}% - ${c.z*5}px)`;b.style.zIndex=String(c.z*200+c.y*10+c.x);b.className=`tile ${c.face.className}${c.removed?' removed':''}${isFree(c)?' free':''}${selected===c.id||hintIds.includes(c.id)?' selected':''}`;b.disabled=c.removed||!isFree(c)||status!=='playing';b.textContent=c.removed?'':c.face.label;b.setAttribute('aria-label',c.removed?'entfernt':`${c.face.label}, ${isFree(c)?'frei':'verdeckt'}`);b.title=b.getAttribute('aria-label');});
-  $('remaining').textContent=String(cards.filter(c=>!c.removed).length);$('moves').textContent=String(moves);$('undo').disabled=!history.length||status==='won';$('shuffle').disabled=status==='won'||cards.every(c=>c.removed);$('hint').disabled=status==='won';$('time').textContent=format(Math.floor((Date.now()-started)/1000));
+  $('remaining').textContent=String(cards.filter(c=>!c.removed).length);$('moves').textContent=String(moves);$('undo').disabled=!history.length||status==='won';$('shuffle').disabled=status==='won'||cards.every(c=>c.removed);$('hint').disabled=status==='won';$('time').textContent=format(currentElapsed());
 }
 function choose(id){
   if(status!=='playing') return; const c=cards[id]; if(!isFree(c)) return;
@@ -101,21 +104,26 @@ function choose(id){
   if(isMatch(a,c)){history.push(snapshot());a.removed=true;c.removed=true;selected=null;hintIds=[];moves++;render();announce('Paar entfernt.');checkEnd();}
   else{selected=id;announce('Diese Steine passen nicht zusammen.');render();}
 }
-function hint(){ const h=findHint(); hintIds=h||[]; if(h){status='playing';announce('Hinweis: Die markierten Steine bilden ein freies Paar.');}else{status='blocked';announce('Kein freies Paar – nutze Rückgängig oder Mischen.');} render(); }
+function hint(){ if(status==='won')return; const h=findHint(); hintIds=h||[]; if(h){status='playing';resumeClock();announce('Hinweis: Die markierten Steine bilden ein freies Paar.');}else{pauseClock();status='blocked';announce('Kein freies Paar – nutze Rückgängig oder Mischen.');} render(); }
 function doShuffle(){
   if(status==='won') return;
   const live=cards.filter(c=>!c.removed), ids=new Set(live.map(c=>c.id));
   const plan=buildPairPlan(ids);
-  if(!plan || !verifyPairPlan(plan,ids)){status='blocked';announce('Die Geometrie hat keine sichere Fortsetzung. Rückgängig macht den letzten Zug möglich.');render();return;}
+  if(!plan || !verifyPairPlan(plan,ids)){pauseClock();status='blocked';announce('Die Geometrie hat keine sichere Fortsetzung. Rückgängig macht den letzten Zug möglich.');render();return;}
   const pool=live.map(c=>c.face), groups={};
   pool.forEach(f=>(groups[f.group==='normal'?f.id:f.group]??=[]).push(f));
   const pairs=[];Object.values(groups).forEach(g=>{shuffle(g);while(g.length>1)pairs.push([g.pop(),g.pop()]);});
   if(pairs.length*2!==live.length){announce('Mischen nicht möglich: Reststeine sind nicht paarweise.');return;}
-  history.push(snapshot()); assignPlan(plan,pairs); lastPlan=plan.map(pair=>pair.slice()); moves++; selected=null;hintIds=[];status='playing'; render(); announce('Restliche Steine wurden in eine nachweisbar lösbare Fortsetzung gemischt.');
+  history.push(snapshot()); assignPlan(plan,pairs); lastPlan=plan.map(pair=>pair.slice()); moves++; selected=null;hintIds=[];status='playing';resumeClock();render(); announce('Restliche Steine wurden in eine nachweisbar lösbare Fortsetzung gemischt.');
 }
 function undo(){ if(!history.length||status==='won')return; restore(history.pop()); announce('Letzten Zug rückgängig gemacht.'); }
-function checkEnd(){ if(cards.every(c=>c.removed)){status='won';render();finish('Geschafft! Alle 144 Steine entfernt.');return;} if(!findHint()){status='blocked';render();announce('Kein freies Paar – nutze Rückgängig oder Mischen.');} }
-function finish(text){$('result-title').textContent='Pahjong gewonnen!';$('result-text').textContent=`${text} Züge: ${moves} · Zeit: ${format(Math.floor((Date.now()-started)/1000))}.`;$('result').hidden=false;$('result-button').focus();}
+function checkEnd(){ if(cards.every(c=>c.removed)){pauseClock();status='won';render();finish('Geschafft! Alle 144 Steine entfernt.');return;} if(!findHint()){pauseClock();status='blocked';render();announce('Kein freies Paar – nutze Rückgängig oder Mischen.');} }
+function setBackgroundInert(inert){const dialog=$('result');const parent=dialog.parentNode;const seen=new Set();for(const el of document.body.children){if(el!==parent&&el!==dialog)seen.add(el);}for(const el of parent.children){if(el!==dialog)seen.add(el);}seen.forEach(el=>{try{el.inert=inert;}catch(_){ /* inert evtl. nicht unterstützt */ }});}
+function resultFocusables(){const dialog=$('result');if(!dialog)return[];return Array.from(dialog.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'));}
+let resultKeyListener=null;
+function teardownResultDialog(){const dialog=$('result');if(dialog.hidden)return;dialog.hidden=true;setBackgroundInert(false);if(resultKeyListener){document.removeEventListener('keydown',resultKeyListener);resultKeyListener=null;}}
+function openResultDialog(){const dialog=$('result');setBackgroundInert(true);dialog.hidden=false;resultKeyListener=function(e){if(dialog.hidden)return;if(e.key==='Escape'){e.preventDefault();teardownResultDialog();const ng=$('new-game');if(ng)ng.focus();}else if(e.key==='Tab'){const f=resultFocusables();if(!f.length){e.preventDefault();return;}const first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};document.addEventListener('keydown',resultKeyListener);const btn=$('result-button');if(btn)btn.focus();}
+function finish(text){$('result-title').textContent='Pahjong gewonnen!';$('result-text').textContent=`${text} Züge: ${moves} · Zeit: ${format(currentElapsed())}.`;openResultDialog();}
 function newGame(){deal();}
 function testPlan(rounds=25){
   const original=cards.map(c=>({...c})), ok=[];
@@ -123,8 +131,8 @@ function testPlan(rounds=25){
   cards.splice(0,cards.length,...original); render(); return {rounds,passed:ok.filter(Boolean).length,allPassed:ok.every(Boolean)};
 }
 $('hint').addEventListener('click',hint);$('shuffle').addEventListener('click',doShuffle);$('undo').addEventListener('click',undo);$('new-game').addEventListener('click',newGame);$('result-button').addEventListener('click',newGame);
-document.addEventListener('keydown',e=>{if(e.target.matches('button,a,summary'))return;const k=e.key.toLowerCase();if(k==='h'){e.preventDefault();hint();}if(k==='m'){e.preventDefault();doShuffle();}if(k==='u'){e.preventDefault();undo();}if(k==='n'){e.preventDefault();newGame();}});
-timerId=setInterval(()=>{if(status==='playing'||status==='blocked')render();},1000);
+document.addEventListener('keydown',e=>{const tag=(e.target&&e.target.tagName)||'';if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;const k=e.key.toLowerCase();if(k==='h'){e.preventDefault();hint();}else if(k==='m'){e.preventDefault();doShuffle();}else if(k==='u'){e.preventDefault();undo();}else if(k==='n'){e.preventDefault();newGame();}});
+timerId=setInterval(()=>{if(status==='playing')$('time').textContent=format(currentElapsed());},250);
 window.Pahjong={isFree,isMatch,findHint,getState:()=>({count:cards.length,remaining:cards.filter(c=>!c.removed).length,moves,status}),newGame,shuffleRemaining:doShuffle,getSolutionPlan:()=>lastPlan.map(pair=>pair.slice()),buildPairPlan:(ids=cards.filter(c=>!c.removed).map(c=>c.id))=>buildPairPlan(new Set(ids)),verifyPairPlan:(plan,ids=cards.filter(c=>!c.removed).map(c=>c.id))=>verifyPairPlan(plan,new Set(ids)),testPlan};
 deal();
 })();

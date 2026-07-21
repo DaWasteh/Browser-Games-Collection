@@ -6435,8 +6435,9 @@ function resize() {
     }
   }
   
-  // Initialisiere Spatial Hash Grid
-  spatialHashInit();
+  // Spatial-Hash-Strukturen werden (derzeit) nicht abgefragt
+  // (spatialHashQuery/CountInRadius sind ungenutzt) – die Initialisierung
+  // würde pro Resize nur ungenutzte Puffer allokieren und ist daher entfernt.
   
   // Copy old data to new grid
   if (oldGrid && oldGrid.length > 0) {
@@ -6932,6 +6933,17 @@ function initInput() {
   window.addEventListener("blur", () => { isDrawing = false; isErasing = false; });
   
   canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+  // Viewport-/Orientierungsänderungen debounced nachführen, damit das Raster
+  // bei Adressleisten-Ein-/Ausblenden oder Drehung das korrekte
+  // Seitenverhältnis behält (resize() übernimmt Daten-Erhaltung).
+  let resizeTimer = null;
+  function scheduleResize() {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { resizeTimer = null; resize(); }, 200);
+  }
+  window.addEventListener("resize", scheduleResize);
+  window.addEventListener("orientationchange", scheduleResize);
 }
 
 function setOutput(id, value) {
@@ -7134,6 +7146,8 @@ function initUI() {
     const lowerKey = key.toLowerCase();
     
     if (key === " ") {
+      const ae = document.activeElement;
+      if (ae && /^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
       e.preventDefault();
       paused = !paused;
       document.getElementById("pauseBtn").textContent = paused ? "Fortsetzen" : "Pause";
@@ -7157,6 +7171,12 @@ function initUI() {
 }
 
 // Main Loop
+// Festschritt-Akkumulator: Die Simulationsrate ist unabhängig vom
+// Display-Refresh. Bei 60 Hz entspricht die Tick-Anzahl exakt der alten
+// »Ticks/Frame«-Semantics (min(spd,8) Ticks/Frame); auf 120/144 Hz läuft
+// die Simulation nicht schneller. dt wird geclampt (Tab-Wechsel/Stalls).
+let simLastTime = null, simAccum = 0;
+const FIXED_HZ = 60;
 function loop(timestamp) {
   requestAnimationFrame(loop);
   
@@ -7169,11 +7189,23 @@ function loop(timestamp) {
   }
 
   if (!paused) {
-    // Performance-Optimierung: Begrenze die Anzahl der Simulations-Ticks basierend auf FPS
-    const maxTicks = Math.min(spd, 8); // Maximal 8 Ticks pro Frame für bessere Performance
-    for (let s = 0; s < maxTicks; s++) {
+    // Festschritt-Akkumulator: Ticks/Sekunde = min(spd,8)*60 (entspricht bei
+    // 60 Hz exakt min(spd,8) Ticks/Frame). dt clamen verhindert Catch-up-Bursts.
+    if (simLastTime === null) simLastTime = timestamp;
+    let dt = timestamp - simLastTime;
+    simLastTime = timestamp;
+    if (dt > 200) dt = 200; // catch-up clamp (Tab-Wechsel / lange Frames)
+    const tps = Math.min(spd, 8) * FIXED_HZ;
+    simAccum += (dt / 1000) * tps;
+    let ticks = Math.floor(simAccum + 1e-9);
+    if (ticks > 200) ticks = 200; // harte Sicherheitsgrenze pro Frame
+    simAccum -= ticks;
+    for (let s = 0; s < ticks; s++) {
       simulate();
     }
+  } else {
+    simLastTime = timestamp;
+    simAccum = 0; // beim Pausieren/Resume keinen Burst aufstauen
   }
   
   render();

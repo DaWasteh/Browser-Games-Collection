@@ -569,7 +569,14 @@
             datasetVersion: datasetVersion, generatorVersion: GENERATOR_VERSION
         };
         if (pool.length < 3) {
-            return buildPuzzle(pool.slice(), meta);
+            // Für winzige Pools entsteht kein kreuzendes Rätsel. Wir geben ein
+            // wohlgeformtes (ggf. leeres oder einzelnes Ankerwort-) Puzzle
+            // zurück, das nicht wirft und das der Validator sicher prüfen kann.
+            var tinySpecs = [];
+            if (pool.length >= 1) tinySpecs.push({ entry: pool[0], row: 0, col: 0, dir: 'across' });
+            var tinyPuzzle = buildPuzzle(tinySpecs, meta);
+            tinyPuzzle.metrics = computeMetrics(tinyPuzzle);
+            return tinyPuzzle;
         }
 
         var bestPlacements = null;
@@ -776,8 +783,17 @@
                 if (!coverage[ky]) coverage[ky] = [];
                 coverage[ky].push(i);
             }
-            if (entries && p.entryId && !idToEntry[p.entryId]) {
-                errors.push(ctx + ': entryId nicht in Datenbank.');
+            if (entries && p.entryId) {
+                var sourceEntry = idToEntry[p.entryId];
+                if (!sourceEntry) {
+                    errors.push(ctx + ': entryId nicht in Datenbank.');
+                } else {
+                    var expectedAnswer = sourceEntry.gridAnswer || normalizeGridAnswer(sourceEntry.displayAnswer);
+                    if (p.gridAnswer !== expectedAnswer) errors.push(ctx + ': gridAnswer passt nicht zur entryId.');
+                    if (p.clue !== sourceEntry.clue) errors.push(ctx + ': clue passt nicht zur entryId.');
+                    if (p.displayAnswer !== sourceEntry.displayAnswer) errors.push(ctx + ': displayAnswer passt nicht zur entryId.');
+                    if (p.length !== graphemes(expectedAnswer).length) errors.push(ctx + ': length passt nicht zur entryId.');
+                }
             }
         }
 

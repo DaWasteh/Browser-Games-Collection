@@ -69,12 +69,13 @@
         if (saved.status !== 'playing' && saved.status !== 'won' && saved.status !== 'lost') return null;
         var guesses = L.sanitizeGuesses(saved.guesses, solution);
         if (!guesses) return null;
-        if (saved.status === 'playing' && guesses.length >= MAX_ROWS) return null;
+        var solvedAt = guesses.indexOf(solution);
+        if (saved.status === 'playing' && (guesses.length >= MAX_ROWS || solvedAt !== -1)) return null;
         if (saved.status === 'won') {
-            if (guesses.length < 1 || guesses[guesses.length - 1] !== solution) return null;
+            if (guesses.length < 1 || guesses.length > MAX_ROWS || solvedAt !== guesses.length - 1) return null;
         }
         if (saved.status === 'lost') {
-            if (guesses.length !== MAX_ROWS || L.isWin(L.evaluate(guesses[guesses.length - 1], solution))) return null;
+            if (guesses.length !== MAX_ROWS || solvedAt !== -1) return null;
         }
         return { key: key, puzzleNumber: saved.puzzleNumber, solution: solution, guesses: guesses, status: saved.status };
     }
@@ -96,6 +97,7 @@
         accepting: true             // Eingaben erlaubt?
     };
     var lastGame = null;            // {mode,puzzleNumber,won,attempts,rows,solution} für Teilen
+    var overlayReturnFocus = null;
     var toastTimer = null;
     var gameVersion = 0;            // invalidiert ausstehende Animations-Timer bei Neustart/Moduswechsel
 
@@ -461,6 +463,7 @@
         resultBodyEl.appendChild(buildStatGrid(stats));
         resultBodyEl.appendChild(buildDistribution(stats, won ? (state.guesses.length - 1) : -1));
 
+        overlayReturnFocus = document.activeElement;
         shareBtn.hidden = false;
         resultNextBtn.hidden = false;
         resultNextBtn.textContent = (state.mode === 'daily') ? 'Neues Zufallsspiel' : 'Neues Wort';
@@ -483,8 +486,9 @@
         resultBodyEl.appendChild(buildStatGrid(stats));
         resultBodyEl.appendChild(buildDistribution(stats, -1));
 
-        // Nur „Schließen"; kein Neustart aus der reinen Statistik-Anzeige
-        shareBtn.hidden = true;
+        // Abgeschlossene, wiederhergestellte Tagesergebnisse bleiben teilbar.
+        overlayReturnFocus = document.activeElement;
+        shareBtn.hidden = !(lastGame && state.status !== 'playing');
         resultNextBtn.hidden = true;
         resultCloseBtn.hidden = false;
         resultCloseBtn.textContent = 'Schließen';
@@ -542,6 +546,10 @@
 
     function hideOverlay() {
         overlayEl.hidden = true;
+        if (overlayReturnFocus && overlayReturnFocus.isConnected) {
+            overlayReturnFocus.focus({ preventScroll: true });
+        }
+        overlayReturnFocus = null;
     }
 
     // ============================================================

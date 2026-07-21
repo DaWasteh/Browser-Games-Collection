@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SNAKE ULTIMATE</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@400;700&family=Press+Start+2P&family=Varela+Round&display=swap" rel="stylesheet">
     <style>
@@ -797,7 +797,7 @@
                 width: 80px;
             }
         }
-        .game-collection-link { position: fixed; left: 12px; bottom: 12px; z-index: 10000; padding: 8px 12px; border: 1px solid var(--primary-color); border-radius: 999px; background: rgba(0,0,0,.88); color: #fff; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,.45); }
+        .game-collection-link { position: fixed; left: 12px; bottom: 12px; z-index: 10000; padding: 8px 12px; border: 1px solid #00ff88; border-radius: 999px; background: rgba(0,0,0,.88); color: #fff; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,.45); }
         .game-collection-link:hover { filter: brightness(1.35); }
         .game-collection-link:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     </style>
@@ -849,7 +849,7 @@
             <canvas id="gameCanvas" width="800" height="600"></canvas>
 
             <!-- Main Menu -->
-            <div class="overlay" id="mainMenu">
+            <div class="overlay" id="mainMenu" role="dialog" aria-modal="true" aria-label="Hauptmenü">
                 <h2>SNAKE ULTIMATE</h2>
 
                 <div class="mode-toggle">
@@ -916,7 +916,7 @@
             </div>
 
             <!-- Game Over -->
-            <div class="overlay" id="gameOver">
+            <div class="overlay" id="gameOver" role="dialog" aria-modal="true" aria-label="Spiel zu Ende">
                 <h2 id="winnerText" style="color: #ff3333;">GAME OVER</h2>
                 <h3 id="finalScore" style="margin-bottom: 6px;">Score: 0</h3>
                 <div class="hs-banner" id="hsBanner">🏆 BEST: 0</div>
@@ -930,7 +930,7 @@
             </div>
 
             <!-- Pause Overlay -->
-            <div class="overlay" id="pauseOverlay">
+            <div class="overlay" id="pauseOverlay" role="dialog" aria-modal="true" aria-label="Pause">
                 <h2>⏸ PAUSE</h2>
                 <button class="action-btn" style="opacity:1; margin-top:10px;" onclick="resumeGame()">▶ WEITER</button>
                 <p class="legend" id="pauseLegend" style="margin-top:10px;">
@@ -1023,30 +1023,43 @@
         }
 
         function loadSavedVolumes() {
-            const savedSfx   = localStorage.getItem('snake_sfx_volume');
-            const savedMusic = localStorage.getItem('snake_music_volume');
-            if (savedSfx !== null) {
-                sfxVolume = parseFloat(savedSfx);
-                setSFXVolume(Math.round(sfxVolume * 100));
-            }
-            if (savedMusic !== null) {
-                musicVolume = parseFloat(savedMusic);
-                setMusicVolume(Math.round(musicVolume * 100));
-            }
+            try {
+                const savedSfx = localStorage.getItem('snake_sfx_volume');
+                const savedMusic = localStorage.getItem('snake_music_volume');
+                const parsedSfx = Number.parseFloat(savedSfx);
+                const parsedMusic = Number.parseFloat(savedMusic);
+                if (savedSfx !== null && Number.isFinite(parsedSfx)) {
+                    sfxVolume = Math.max(0, Math.min(1, parsedSfx));
+                    setSFXVolume(Math.round(sfxVolume * 100));
+                }
+                if (savedMusic !== null && Number.isFinite(parsedMusic)) {
+                    musicVolume = Math.max(0, Math.min(1, parsedMusic));
+                    setMusicVolume(Math.round(musicVolume * 100));
+                }
+            } catch (e) { /* localStorage kann blockiert sein */ }
         }
 
         function saveVolumes() {
-            localStorage.setItem('snake_sfx_volume', sfxVolume.toFixed(2));
-            localStorage.setItem('snake_music_volume', musicVolume.toFixed(2));
+            try {
+                localStorage.setItem('snake_sfx_volume', sfxVolume.toFixed(2));
+                localStorage.setItem('snake_music_volume', musicVolume.toFixed(2));
+            } catch (e) { /* Einstellungen bleiben für diese Sitzung aktiv */ }
         }
         
         // 8-Bit Synth Helper Functions
         function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                if (!audioCtx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (!AC) return Promise.resolve();
+                    audioCtx = new AC();
+                }
+                // Gibt Promise zurück – resolved wenn Context wirklich läuft
+                return audioCtx.resume().catch(() => {});
+            } catch (e) {
+                audioCtx = null;
+                return Promise.resolve();
             }
-            // Gibt Promise zurück – resolved wenn Context wirklich läuft
-            return audioCtx.resume();
         }
 
         // 8-Bit Square Wave (NES-style) - Normal Mode
@@ -1492,27 +1505,31 @@
 
         // Lade gespeicherte Audio-Einstellungen beim Start
         function loadAudioSettings() {
-            const savedMusic = localStorage.getItem('snake_music_enabled');
-            const savedSfx = localStorage.getItem('snake_sfx_enabled');
-            const savedMuted = localStorage.getItem('snake_is_muted');
-            
-            if (savedMusic !== null) musicEnabled = savedMusic === 'true';
-            if (savedSfx !== null) sfxEnabled = savedSfx === 'true';
-            if (savedMuted !== null) isMuted = savedMuted === 'true';
-            
+            try {
+                const savedMusic = localStorage.getItem('snake_music_enabled');
+                const savedSfx = localStorage.getItem('snake_sfx_enabled');
+                const savedMuted = localStorage.getItem('snake_is_muted');
+                if (savedMusic !== null) musicEnabled = savedMusic === 'true';
+                if (savedSfx !== null) sfxEnabled = savedSfx === 'true';
+                if (savedMuted !== null) isMuted = savedMuted === 'true';
+            } catch (e) { /* sichere Standardwerte beibehalten */ }
             updateSoundButtons();
         }
 
         // Speichere Audio-Einstellungen beim Verlassen des Menüs
         function saveAudioSettings() {
-            localStorage.setItem('snake_music_enabled', musicEnabled);
-            localStorage.setItem('snake_sfx_enabled', sfxEnabled);
-            localStorage.setItem('snake_is_muted', isMuted);
+            try {
+                localStorage.setItem('snake_music_enabled', musicEnabled);
+                localStorage.setItem('snake_sfx_enabled', sfxEnabled);
+                localStorage.setItem('snake_is_muted', isMuted);
+            } catch (e) { /* Einstellungen bleiben für diese Sitzung aktiv */ }
             saveVolumes();
         }
 
         // Toggle Mute/SFX/Music via keyboard
         document.addEventListener('keydown', (event) => {
+            const active = document.activeElement;
+            if (active && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) return;
             const key = event.key.toLowerCase();
 
             // [M] toggles mute
@@ -1592,7 +1609,10 @@
         let graceTicks  = 0;
 
         // ── HIGHSCORE ─────────────────────────────────────────────────────
-        let highscore = parseInt(localStorage.getItem('snakeUltimate_hs') || '0');
+        let highscore = (() => {
+            try { return parseInt(localStorage.getItem('snakeUltimate_hs') || '0') || 0; }
+            catch (e) { return 0; }
+        })();
         let isNewRecord = false;
         function updateHighscoreDisplay() {
             document.getElementById('hsBestVal').textContent = highscore;
@@ -1600,7 +1620,7 @@
         function checkAndSaveHighscore(score) {
             if (score > highscore) {
                 highscore = score;
-                localStorage.setItem('snakeUltimate_hs', highscore);
+                try { localStorage.setItem('snakeUltimate_hs', highscore); } catch (e) {}
                 updateHighscoreDisplay();
                 return true;
             }
@@ -1789,7 +1809,53 @@
         }
 
         // ── GAME FLOW ─────────────────────────────────────────────────────
+        let activeSnakeModal = null;
+        let snakeModalReturnFocus = null;
+        let snakeModalInerted = [];
+
+        function closeSnakeModal(restoreFocus) {
+            snakeModalInerted.forEach(element => { element.inert = false; });
+            snakeModalInerted = [];
+            activeSnakeModal = null;
+            if (restoreFocus && snakeModalReturnFocus && snakeModalReturnFocus.isConnected) {
+                snakeModalReturnFocus.focus({ preventScroll: true });
+            }
+            snakeModalReturnFocus = null;
+        }
+
+        function openSnakeModal(id) {
+            closeSnakeModal(false);
+            const dialog = document.getElementById(id);
+            if (!dialog) return;
+            activeSnakeModal = dialog;
+            snakeModalReturnFocus = document.activeElement;
+            let branch = dialog;
+            while (branch.parentElement) {
+                const parent = branch.parentElement;
+                Array.from(parent.children).forEach(sibling => {
+                    if (sibling !== branch) {
+                        sibling.inert = true;
+                        snakeModalInerted.push(sibling);
+                    }
+                });
+                if (parent === document.body) break;
+                branch = parent;
+            }
+            const focusable = dialog.querySelector('button:not([disabled]),select:not([disabled]),input:not([disabled]),[href],[tabindex]:not([tabindex="-1"])');
+            if (focusable) focusable.focus({ preventScroll: true });
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (!activeSnakeModal || event.key !== 'Tab') return;
+            const focusables = Array.from(activeSnakeModal.querySelectorAll('button:not([disabled]):not([hidden]),select:not([disabled]):not([hidden]),input:not([disabled]):not([hidden]),[href],[tabindex]:not([tabindex="-1"])'));
+            if (!focusables.length) { event.preventDefault(); activeSnakeModal.focus(); return; }
+            const first = focusables[0], last = focusables[focusables.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }, true);
+
         function startGame() {
+            closeSnakeModal(false);
             document.getElementById('mainMenu').style.display    = 'none';
             document.getElementById('gameOver').style.display    = 'none';
             document.getElementById('pauseOverlay').style.display = 'none';
@@ -1856,6 +1922,7 @@
             document.getElementById('gameOver').style.display    = 'none';
             document.getElementById('pauseOverlay').style.display = 'none';
             document.getElementById('mainMenu').style.display    = 'flex';
+            openSnakeModal('mainMenu');
             updateSoundButtons(); // Update button states for menu display
             updateMenuSelection();
             updateDpad();
@@ -1867,17 +1934,21 @@
             if (gameState !== 'PLAYING') return;
             gameState = 'PAUSED';
             stopLoop();
+            stopMusic();
             playSoundPause();
             document.getElementById('pauseOverlay').style.display = 'flex';
+            openSnakeModal('pauseOverlay');
             draw(); // render frozen frame
         }
 
         function resumeGame() {
             if (gameState !== 'PAUSED') return;
             playSoundResume();
+            closeSnakeModal(true);
             document.getElementById('pauseOverlay').style.display = 'none';
             gameState     = 'PLAYING';
             lastFrameTime = 0;
+            startMusic(); // Musik passend zum aktiven Audio-Setting fortsetzen
             rafId = requestAnimationFrame(runLoop);
         }
 
@@ -2071,6 +2142,7 @@
 
         function endGame(titleText, scoreText) {
             stopLoop();
+            stopMusic();
             // Nightmare mode: use darker game over sound
             if (currentDifficulty === 'nightmare') {
                 playSoundGameOverNightmare();
@@ -2091,6 +2163,7 @@
             banner.textContent = isNewRecord ? '🏆 NEUER REKORD: ' + highscore + '!' : '🏆 BEST: ' + highscore;
             banner.className   = 'hs-banner' + (isNewRecord ? ' new-record' : '');
             document.getElementById('gameOver').style.display = 'flex';
+            openSnakeModal('gameOver');
             updateDpad();
         }
 
@@ -2900,6 +2973,10 @@
         ═══════════════════════════════════════════════════════════════ */
         document.addEventListener('keydown', (event) => {
             const key = event.key;
+            // Formularelemente (z. B. Theme-/Modus-Select) nicht captieren:
+            // Pfeiltasten sollen das Dropdown navigieren, nicht die Schwierigkeit ändern.
+            const ae = document.activeElement;
+            if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
             if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(key)) event.preventDefault();
 
             // ── PAUSE state: any resume key ──
@@ -2962,17 +3039,19 @@
         updateHighscoreDisplay();
         loadAudioSettings();
         loadSavedVolumes();
+        openSnakeModal('mainMenu');
 
         // ── CONTROLLER SUPPORT (PC & Mobile) ───────────────────────────────
-        let gamepadIndex = null;
-        let lastGamepadDir = null;
+        const gamepadStartState = new Map();
 
         window.addEventListener('gamepadconnected', (e) => {
             console.log('Controller connected:', e.gamepad.id);
+            startGamepadPolling(); // Loop (wieder) aufnehmen
             playSoundStart(); // Feedback beim Verbinden
         });
 
         window.addEventListener('gamepaddisconnected', (e) => {
+            gamepadStartState.delete(e.gamepad.index);
             console.log('Controller disconnected');
         });
 
@@ -3003,22 +3082,43 @@
                 else if (axisY2 >  DEAD_ZONE) pushInput(p2, 'DOWN');
             }
 
-            // Start (Button 9) = Spiel starten / Pause
-            if (gameState === 'MENU'   && gamepad.buttons[9]?.pressed) startGame();
-            if (gameState === 'PLAYING' && gamepad.buttons[9]?.pressed) pauseGame();
-            if (gameState === 'PAUSED' && gamepad.buttons[9]?.pressed) resumeGame();
+            // Start (Button 9) = Spiel starten / Pause; nur auf der
+            // Tastendruck-Flanke reagieren, nicht in jedem Polling-Frame.
+            const startPressed = !!gamepad.buttons[9]?.pressed;
+            const startWasPressed = gamepadStartState.get(gamepad.index) || false;
+            if (startPressed && !startWasPressed) {
+                if (gameState === 'MENU') startGame();
+                else if (gameState === 'PLAYING') pauseGame();
+                else if (gameState === 'PAUSED') resumeGame();
+            }
+            gamepadStartState.set(gamepad.index, startPressed);
         }
 
         function gamepadLoop() {
             const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+            let anyConnected = false;
             for (let i = 0; i < gamepads.length; i++) {
-                if (gamepads[i]) handleGamepadInput(gamepads[i]);
+                if (gamepads[i]) { anyConnected = true; handleGamepadInput(gamepads[i]); }
             }
+            if (anyConnected) {
+                requestAnimationFrame(gamepadLoop);
+            } else {
+                gamepadPolling = false; // Loop pausiert im Idle (kein Controller)
+            }
+        }
+        let gamepadPolling = false;
+        function startGamepadPolling() {
+            if (gamepadPolling) return;
+            gamepadPolling = true;
             requestAnimationFrame(gamepadLoop);
         }
 
-        // Start Gamepad Loop
-        gamepadLoop();
+        // Start Gamepad Loop (läuft nur, solange ein Controller verbunden ist)
+        startGamepadPolling();
+
+        // D-Pad bei Viewport-/Orientierungsänderung neu positionieren.
+        window.addEventListener('resize', updateDpad);
+        window.addEventListener('orientationchange', updateDpad);
     </script>
 </body>
 </html>

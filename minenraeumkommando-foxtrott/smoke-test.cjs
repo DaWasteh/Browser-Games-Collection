@@ -281,6 +281,9 @@ const uiJs = fs.readFileSync(path.join(__dirname, 'minesweeper.js'), 'utf8');
 assert.match(uiJs, /osc\.onended =/, 'Sound-Cleanup-Konvention');
 assert.match(uiJs, /preventDefault/, 'Kontextmenü/Touch unterdrückt');
 assert.match(uiJs, /localStorage/, 'Bestzeiten via localStorage');
+assert.match(uiJs, /function visibleModal\(\)/, 'Modaler Tab-Fokus wird eingefangen');
+assert.match(uiJs, /longPressFired bis touchend gesetzt lassen/, 'Contextmenu löscht den Long-Press-Schutz nicht vor touchend');
+assert.match(uiJs, /case 'F':[\s\S]*?initAudio\(\);[\s\S]*?doFlag/, 'Tastatur-Flag initialisiert Audio');
 assert.doesNotMatch(uiJs, /\.innerHTML\s*=/, 'kein innerHTML im UI-Code');
 
 // Datei-Existenz-Prüfungen

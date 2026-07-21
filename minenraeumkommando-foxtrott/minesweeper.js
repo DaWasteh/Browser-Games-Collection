@@ -16,6 +16,37 @@
     var smileyEl = document.getElementById('smiley');
     var menuOverlay = document.getElementById('menu-overlay');
     var resultOverlay = document.getElementById('result-overlay');
+    var gameEl = document.getElementById('game');
+    // Focus-Containment für Modale: Hintergrund inert setzen, damit
+    // Tastatur-/Screenreader-Nutzer nicht ins dahinterliegende Spiel tabben.
+    function setGameInert(inert) {
+        var background = [gameEl, document.querySelector('.back-link'), soundToggle];
+        background.forEach(function (element) {
+            if (!element) return;
+            try { element.inert = inert; } catch (e) { /* inert evtl. nicht unterstützt */ }
+        });
+    }
+    function focusFirstIn(overlay) {
+        var f = overlay.querySelector('button, [href], input, select, textarea');
+        if (f) f.focus();
+    }
+    function visibleModal() {
+        if (resultOverlay.classList.contains('show')) return resultOverlay;
+        if (window.getComputedStyle(menuOverlay).display !== 'none') return menuOverlay;
+        return null;
+    }
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab') return;
+        var overlay = visibleModal();
+        if (!overlay) return;
+        var focusables = Array.prototype.slice.call(overlay.querySelectorAll(
+            'button:not([disabled]):not([hidden]), [href], input:not([disabled]):not([hidden]), select:not([disabled]):not([hidden]), textarea:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])'
+        )).filter(function (element) { return !element.closest('[hidden]'); });
+        if (!focusables.length) { e.preventDefault(); return; }
+        var first = focusables[0], last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }, true);
     var resultTitle = document.getElementById('result-title');
     var resultText = document.getElementById('result-text');
     var resultReplay = document.getElementById('result-replay');
@@ -401,6 +432,7 @@
             announce('Niederlage. Mine ausgelöst nach ' + seconds + ' Sekunden.');
         }
         renderBestTimes();
+        setGameInert(true); // Hintergrund inert, solange das Ergebnis-Modal offen ist
         // Fokus auf Replay-Button für Tastatur-Nutzer
         window.setTimeout(function () { resultReplay.focus(); }, 50);
     }
@@ -431,8 +463,17 @@
     });
 
     // Rechtsklick = Flagge (Kontextmenü unterdrücken)
+    // Auf Mobilgeräten feuert ein Lang-Druck zusätzlich das contextmenu-Ereignis
+    // (touchstart ist passive und kann es nicht unterdrücken). Daher hier mit dem
+    // Long-Press-Flag koordinieren, damit nicht doppelt geflaggt wird.
     boardEl.addEventListener('contextmenu', function (e) {
         e.preventDefault();
+        if (longPressTimer) { window.clearTimeout(longPressTimer); longPressTimer = null; }
+        if (longPressFired || Date.now() < suppressContextMenuUntil) {
+            // longPressFired bis touchend gesetzt lassen, damit diese Geste
+            // keinesfalls zusätzlich als Tap/Reveal verarbeitet wird.
+            return;
+        }
         var btn = e.target.closest ? e.target.closest('.cell') : null;
         if (!btn) return;
         initAudio();
@@ -444,6 +485,7 @@
     // Touch: Tap = Reveal, Long-Press (~500ms) = Flagge
     var longPressTimer = null;
     var longPressFired = false;
+    var suppressContextMenuUntil = 0;
     var touchStartPos = null;
 
     boardEl.addEventListener('touchstart', function (e) {
@@ -457,6 +499,7 @@
         touchStartPos = { x: t.clientX, y: t.clientY };
         longPressTimer = window.setTimeout(function () {
             longPressFired = true;
+            suppressContextMenuUntil = Date.now() + 1200;
             doFlag(r, c);
             if (navigator.vibrate) navigator.vibrate(15);
         }, 500);
@@ -521,6 +564,7 @@
             case 'f':
             case 'F':
                 e.preventDefault();
+                initAudio();
                 doFlag(r, c);
                 break;
             case 'c':
@@ -561,6 +605,7 @@
         setStatus('Bereit');
         resultOverlay.className = '';
         menuOverlay.style.display = 'none';
+        setGameInert(false);
         buildBoardDom();
         updateMineCounter();
         renderBestTimes();
@@ -608,6 +653,8 @@
         resultOverlay.className = '';
         menuOverlay.style.display = 'flex';
         renderBestTimes();
+        setGameInert(true);
+        focusFirstIn(menuOverlay);
     }
 
     // --- Event-Bindings (Buttons) ---
@@ -676,4 +723,6 @@
     // --- Initialisierung ---
     renderBestTimes();
     menuOverlay.style.display = 'flex';
+    setGameInert(true);
+    focusFirstIn(menuOverlay);
 })();

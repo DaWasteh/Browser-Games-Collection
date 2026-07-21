@@ -115,7 +115,8 @@
     if (!count) announce('Kein sicherer Auto-Move verfügbar.'); else announce(`${count} sichere Foundation-Züge ausgeführt.`);
   }
   function sourceFor(id) { for (let i = 0; i < 4; i++) if (state.free[i] === id) return { zone: 'free', index: i }; for (let i = 0; i < 8; i++) { const index = state.tableau[i].indexOf(id); if (index >= 0) return { zone: 'tableau', index: i, cardIndex: index }; } return null; }
-  function doubleClick(id) { if (state.status !== 'playing' || !isSafeFoundation(id)) { announce('Nur sichere Foundation-Züge werden automatisch ausgeführt.'); return; } state.selected = sourceFor(id); moveToFoundation(id, state.cards.get(id).suit); }
+  function isAccessible(id) { const source = sourceFor(id); if (!source) return false; if (source.zone === 'free') return true; return source.cardIndex === state.tableau[source.index].length - 1; }
+  function doubleClick(id) { if (state.status !== 'playing' || !isAccessible(id) || !isSafeFoundation(id)) { announce('Nur die oberste, freie Karte lässt sich per Doppelklick auf die Foundation legen.'); return; } state.selected = sourceFor(id); moveToFoundation(id, state.cards.get(id).suit); }
   function win() { state.status = 'won'; state.elapsed = currentElapsed(); state.startedAt = 0; render(); $('result-title').textContent = 'PandaCell gewonnen!'; $('result-text').textContent = `Deal ${state.deal} geschafft – ${state.moves} Züge in ${formatTime(state.elapsed)}.`; $('result').hidden = false; $('result-new').focus(); }
   function cardText(id) { const card = state.cards.get(id); return `${NAMES[card.rank]}${SUITS[card.suit]}`; }
   function formatTime(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
@@ -195,6 +196,11 @@
   $('undo').addEventListener('click', undo); $('restart').addEventListener('click', () => reset(state.deal)); $('new-game').addEventListener('click', nextDeal); $('auto').addEventListener('click', autoMove); $('result-new').addEventListener('click', nextDeal); $('deal-number').addEventListener('change', event => reset(event.target.value));
   document.addEventListener('keydown', event => { if (event.target.matches('input,textarea') && event.key !== 'Escape') return; const key = event.key.toLowerCase(); if (key === 'u') { event.preventDefault(); undo(); } else if (key === 'n') { event.preventDefault(); reset(state.deal); } else if (key === 'd') { event.preventDefault(); nextDeal(); } else if (key === 'a') { event.preventDefault(); autoMove(); } else if (event.key === 'escape') { state.selected = null; render(); announce('Auswahl aufgehoben.'); } });
   setInterval(() => { if (state.status === 'playing') { $('time').textContent = formatTime(currentElapsed()); } }, 1000);
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(render, 120);
+  });
   window.PandaCell = { supermoveLimit, canFollow, isSequence, getState: () => ({ deal: state.deal, tableau: state.tableau.map(c => c.slice()), free: state.free.slice(), foundations: state.foundations.slice(), moves: state.moves, status: state.status }), newGame: reset, undo, autoMove };
   reset(1);
 })();

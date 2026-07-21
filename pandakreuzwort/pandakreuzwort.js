@@ -281,6 +281,7 @@
         syncWordInput();
         render();
         checkWin();
+        scheduleSave();
     }
 
     function advance() {
@@ -321,6 +322,7 @@
         }
         syncWordInput();
         render();
+        scheduleSave();
     }
 
     function moveBy(dr, dc) {
@@ -359,6 +361,7 @@
         }
         render();
         checkWin();
+        scheduleSave();
     }
 
     function syncWordInput() {
@@ -405,6 +408,7 @@
         syncWordInput();
         render();
         focusSelected();
+        saveGame();
         announce('Hinweis eingesetzt. Noch ' + hintsLeft + ' übrig.');
     }
 
@@ -488,6 +492,12 @@
                     seed: seed, language: language, difficulty: difficulty,
                     entries: DATA.entries, datasetVersion: DATA.datasetVersion
                 });
+                v = L.validatePuzzle(p, DATA.entries);
+                if (!v.ok) {
+                    // Beide Versuche ungültig → sicher scheitern, kein kaputtes Rätsel zeigen.
+                    announce('Rätselgenerierung fehlgeschlagen. Bitte „Neues Spiel“ starten.');
+                    return;
+                }
             }
             puzzle = p;
             board = {}; errors = {}; hinted = {};
@@ -531,6 +541,7 @@
                 seed: seed, language: language, difficulty: difficulty,
                 board: board, errors: errors, hinted: hinted,
                 hintsLeft: hintsLeft, hintsUsed: hintsUsed, mistakes: mistakes,
+                status: status,
                 elapsed: getElapsed(),
                 puzzleSeed: puzzle.seed, puzzleLanguage: puzzle.language,
                 puzzleDifficulty: puzzle.difficulty,
@@ -540,6 +551,17 @@
             };
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         } catch (_e) { /* Storage kann unavailable sein */ }
+    }
+
+    var saveTimer = null;
+    function scheduleSave() {
+        // Entprellt häufige Tastatureingaben; pagehide/visibilitychange leeren den Timer sofort.
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () { saveTimer = null; saveGame(); }, 300);
+    }
+    function flushSave() {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        saveGame();
     }
 
     function loadGame() {
@@ -561,8 +583,12 @@
             hintsUsed = data.hintsUsed || 0;
             mistakes = data.mistakes || 0;
             elapsed = data.elapsed || 0;
-            runningSince = Date.now();
-            status = 'playing';
+            var complete = true;
+            for (var cellKey in puzzle.cells) {
+                if (board[cellKey] !== puzzle.cells[cellKey].letter) { complete = false; break; }
+            }
+            status = (data.status === 'won' && complete) ? 'won' : 'playing';
+            runningSince = (status === 'playing') ? Date.now() : null;
             return true;
         } catch (_e) { return false; }
     }
@@ -678,6 +704,13 @@
         });
 
         timerId = setInterval(function () { if (status === 'playing') updateTimer(); }, 1000);
+
+        // Bei Schließen/Verbergen der Seite den Entprell-Timer sofort leeren,
+        // damit jede Eingabe sicher persistiert ist (auch beim mobileen Hintergrund).
+        window.addEventListener('pagehide', flushSave);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') flushSave();
+        });
     }
 
     // ============================================================

@@ -17,7 +17,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | ⏳ **Sand Game Pro** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Physik, Chemie und WebGL2-Rendering |
 | 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat, interaktiv auf Canvas |
 | 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Lemmings-inspiriertes Puzzle mit Pandas |
-| 🃏 **Pandataire** | [`pandataire/`](pandataire/) | TriPeaks-Solitaire mit Kartenserien und Undo |
+| 🃏 **Pandataire** | [`pandataire/`](pandataire/) | Solitaire-Sammelband: TriPeaks, Golf und Pyramid mit lösbaren Deals und Undo |
 | 🕷️ **Panda Spider** | [`panda-spider/`](panda-spider/) | Spider-Solitaire mit einer, zwei oder vier Farben |
 | ♠️ **Panndike** | [`panndike/`](panndike/) | Klondike-Solitaire mit Zieh-1/3 und Foundations |
 | ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit Deal-Nummern und Supermoves |
@@ -41,16 +41,32 @@ git clone https://github.com/DaWasteh/Browser-Games-Collection.git
 
 ## ✅ Tests
 
-Der browserbasierte Smoke-Test benötigt **Node.js 22 oder neuer** sowie eine lokale
-Installation von Chrome, Edge oder Chromium. Er prüft die sechs Panda-/Rätselspiele
-bei 320, 375 und 414 Pixel Breite in allen drei Ansichten, außerdem Navigation,
-Kontrast, Tastaturfokus und kritische Neustart-Rennen.
+Die browserbasierten Smoke-Tests benötigen **Node.js 22 oder neuer** sowie eine lokale
+Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 16 Spiele bei
+320, 375 und 414 Pixel Breite sowie im Querformat: Boot, Laufzeitfehler, Navigation,
+Kontrast, Tastatur-/Touch-Bedienung, Dialogfokus und kritische Zustandswechsel.
+Zusätzliche Logiktests stressen Generatoren, lösbare Deals, Unicode und Rennbedingungen.
 
 ```bash
 node browser-smoke-test.mjs
+node classic-games-smoke.mjs
+node pandataire/smoke-test.cjs
+node pahjong/smoke-test.cjs
+node panndike/smoke-test.cjs
+node panda-lemmings/smoke-test.cjs
+node tetris/smoke-test.cjs
+node minenraeumkommando-foxtrott/smoke-test.cjs
 node texttl/smoke-test.cjs
 node pandakreuzwort/smoke-test.cjs
+node maulkorbraupen-das-spiel/smoke-test.cjs
 ```
+
+## ✨ Neu in v1.4
+
+- Pandataire enthält jetzt **TriPeaks, Golf und Pyramid** als auswählbare, lösbare Modi.
+- Alle 16 Spiele erhielten intensive Logik-, Browser-, Mobil- und Barrierefreiheitstests.
+- Behobene Schwerpunkte: Frame-Raten-Unabhängigkeit, Touch-/Tastatursteuerung,
+  Dialogfokus, sichere Speicherung, Kartenregeln und deutsche ß/ẞ-Darstellung.
 
 ## 📜 Historie
 

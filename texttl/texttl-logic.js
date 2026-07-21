@@ -51,7 +51,7 @@
         if (ch == null) return false;
         var arr = graphemes(ch);
         if (arr.length !== 1) return false;
-        return /^[A-ZÄÖÜß]$/.test(arr[0]);
+        return /^[A-ZÄÖÜßẞ]$/.test(arr[0]);
     }
 
     // ============================================================
@@ -356,10 +356,10 @@
     function cloneStats(prev) {
         var s = emptyStats();
         var p = prev || emptyStats();
-        s.played = p.played | 0;
-        s.won = p.won | 0;
-        s.currentStreak = p.currentStreak | 0;
-        s.maxStreak = p.maxStreak | 0;
+        s.played = Math.max(0, p.played | 0);
+        s.won = Math.max(0, Math.min(s.played, p.won | 0));
+        s.currentStreak = Math.max(0, Math.min(s.won, p.currentStreak | 0));
+        s.maxStreak = Math.max(s.currentStreak, Math.min(s.won, Math.max(0, p.maxStreak | 0)));
         // dist defensiv auffüllen/abschneiden auf Länge 6 (teilweise Eingaben retten).
         var srcDist = (p.dist && Array.isArray(p.dist)) ? p.dist : [];
         s.dist = [];
@@ -367,8 +367,8 @@
             var v = srcDist[i];
             s.dist.push((typeof v === 'number' && v >= 0 && isFinite(v)) ? Math.floor(v) : 0);
         }
-        s.dailySolvedKey = (typeof p.dailySolvedKey === 'number') ? p.dailySolvedKey : null;
-        s.dailyWonKey = (typeof p.dailyWonKey === 'number') ? p.dailyWonKey : null;
+        s.dailySolvedKey = (typeof p.dailySolvedKey === 'number' && isFinite(p.dailySolvedKey)) ? Math.floor(p.dailySolvedKey) : null;
+        s.dailyWonKey = (typeof p.dailyWonKey === 'number' && isFinite(p.dailyWonKey)) ? Math.floor(p.dailyWonKey) : null;
         return s;
     }
 

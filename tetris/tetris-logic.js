@@ -97,7 +97,7 @@
 
     function lineScore(cleared, level) {
         const points = [0, 100, 300, 500, 800];
-        return (points[cleared] || 800) * level;
+        return (points[cleared] ?? 800) * level;
     }
 
     function dropSpeedForLevel(difficultyKey, level) {

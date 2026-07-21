@@ -1,73 +1,390 @@
-(() => {
-'use strict';
-const $ = id => document.getElementById(id);
-const suits = ['♠','♥','♦','♣'];
-const names = ['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-const positions = [
-  [1,0],[5,0],[9,0], [0,1],[2,1],[4,1],[6,1],[8,1],[10,1],
-  [0,2],[1,2],[2,2],[4,2],[5,2],[6,2],[8,2],[9,2],[10,2],
-  [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3]
-];
-const blockers = [
-  [3,4],[5,6],[7,8], [9,10],[10,11],[12,13],[13,14],[15,16],[16,17],
-  [18,19],[19,20],[20,21],[21,22],[22,23],[23,24],[24,25],[25,26],[26,27],
-  [],[],[],[],[],[],[],[],[],[]
-];
-const removalOrder = [18,19,20,21,22,23,24,25,26,27,9,10,11,12,13,14,15,16,17,3,4,5,6,7,8,0,1,2];
-let cards = [], talon = [], waste = null, initialDeal = null, history = [], moves = 0, streak = 0, started = 0, status = 'playing', timer = 0;
-const rankPath = [1,2,3,4,5,6,7,8,9,10,11,12,13,12,11,10,9,8,7,6,5,4,3,2,1,2,3,4];
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function legal(a,b){return Math.abs(a-b)===1 || (a===1&&b===13) || (a===13&&b===1);}
-function snapshot(){return {removed:cards.map(c=>c.removed),talon:talon.slice(),waste,moves,streak,status};}
-function restore(s){cards.forEach((c,i)=>{c.removed=s.removed[i];});talon=s.talon.slice();waste=s.waste;moves=s.moves;streak=s.streak;status=s.status;render();}
-function makeDeck(){const d=[];for(let r=1;r<=13;r++)for(let s=0;s<4;s++)d.push({rank:r,suit:s});return d;}
-function deal(){
-  const deck=shuffle(makeDeck());
-  // The tableau is assigned along a legal bottom-to-top removal path: every fresh round is solvable.
-  const wanted=rankPath.slice(); if(Math.random()<.5) wanted.reverse();
-  const byRank=Array.from({length:14},()=>[]); deck.forEach(c=>byRank[c.rank].push(c));
-  cards=positions.map((p,id)=>({id,x:p[0],y:p[1],removed:false,rank:0,suit:'',blockers:blockers[id]}));
-  const tableauDeckCards=[];
-  removalOrder.forEach((id,i)=>{const c=byRank[wanted[i]].pop();tableauDeckCards.push(c);cards[id].rank=c.rank;cards[id].suit=suits[c.suit];});
-  // Keep the waste as a real 52-card-deck card: 28 tableau + 1 waste + 23 talon.
-  const remaining=deck.filter(c=>!tableauDeckCards.includes(c));
-  const wasteIndex=remaining.findIndex(c=>legal(c.rank,wanted[0]));
-  if(wasteIndex<0) throw new Error('Kein legaler Start-Waste im Restdeck');
-  const wasteCard=remaining.splice(wasteIndex,1)[0];
-  talon=remaining.map(c=>({rank:c.rank,suit:suits[c.suit]}));
-  shuffle(talon); waste={rank:wasteCard.rank,suit:suits[wasteCard.suit]};
-}
-function cloneCards(source){return source.map(c=>({...c,blockers:c.blockers.slice()}));}
-function saveInitialDeal(){initialDeal={cards:cloneCards(cards),talon:talon.map(c=>({...c})),waste:{...waste}};}
-function resetCounters(){history=[];moves=0;streak=0;timer=0;status='playing';started=Date.now();$('time').textContent='00:00';}
-function setup(){
-  deal(); saveInitialDeal(); resetCounters(); render(); announce('Neue Runde: Wähle eine freie Karte.');
-}
-function restartRound(){
-  if(!initialDeal){setup();return;}
-  cards=cloneCards(initialDeal.cards);talon=initialDeal.talon.map(c=>({...c}));waste={...initialDeal.waste};resetCounters();$('result').hidden=true;render();announce('Runde neu gestartet – gleiche Austeilung.');
-}
-function free(c){return !c.removed && c.blockers.every(i=>cards[i].removed);}
-function hasMove(){return cards.some(c=>free(c)&&legal(c.rank,waste.rank));}
-function cardLabel(c){return `${names[c.rank]}${c.suit}${free(c)?' – frei':' – verdeckt'}`;}
-function render(){
-  const tableau=$('tableau');
-  if(tableau.children.length!==cards.length){tableau.replaceChildren();cards.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='card';b.dataset.id=String(c.id);b.addEventListener('click',()=>play(c.id));tableau.append(b);});}
-  cards.forEach(c=>{const b=tableau.children[c.id];b.style.left=`${(c.x+0.5)*8.9}%`;b.style.top=`${c.y*25+1}%`;b.className='card'+(c.suit==='♥'||c.suit==='♦'?' red':'')+(c.removed?' removed':'')+(!c.removed&&!free(c)?' covered':'');b.disabled=c.removed||!free(c)||status!=='playing';b.setAttribute('aria-label',cardLabel(c));b.setAttribute('aria-pressed','false');b.replaceChildren();if(!c.removed){const r=document.createElement('span');r.className='rank';r.textContent=names[c.rank];const s=document.createElement('span');s.className='suit';s.textContent=c.suit;b.append(r,s);}});
-  const w=$('waste');w.replaceChildren();const wr=document.createElement('span');wr.className='rank';wr.textContent=names[waste.rank];const ws=document.createElement('span');ws.className='suit';ws.textContent=waste.suit;w.append(wr,ws);w.className='pile waste'+(waste.suit==='♥'||waste.suit==='♦'?' red':'');w.setAttribute('aria-label',`Ablage: ${names[waste.rank]}${waste.suit}`);
-  $('talon-count').textContent=String(talon.length);$('talon').disabled=talon.length===0||status!=='playing';$('moves').textContent=String(moves);$('streak').textContent=String(streak);$('remaining').textContent=String(cards.filter(c=>!c.removed).length);$('undo').disabled=history.length===0;
-}
-function announce(text){$('message').textContent=text;}
-function play(id){if(status!=='playing')return;const c=cards[id];if(!free(c))return;if(!legal(c.rank,waste.rank)){announce(`${names[c.rank]} passt nicht auf ${names[waste.rank]}.`);return;}history.push(snapshot());c.removed=true;waste={rank:c.rank,suit:c.suit};moves++;streak++;render();announce(streak>1?`Serie ${streak}! Weiter so.`:'Guter Zug.');checkEnd();}
-function draw(){if(status!=='playing'||!talon.length)return;history.push(snapshot());waste=talon.pop();moves++;streak=0;render();announce(`Gezogen: ${names[waste.rank]}${waste.suit}.`);checkEnd();}
-function undo(){if(!history.length)return;$('result').hidden=true;restore(history.pop());announce('Letzten Zug rückgängig gemacht.');}
-function checkEnd(){if(cards.every(c=>c.removed)){status='won';render();finish('Geschafft! Alle 28 Karten sind abgeräumt.');return;}if(talon.length===0&&!hasMove()){status='lost';render();finish('Keine passenden freien Karten mehr – der Talon ist leer.');}}
-function finish(text){$('result-title').textContent=status==='won'?'TriPeaks geschafft!':'Runde beendet';$('result-text').textContent=`${text} Züge: ${moves} · Zeit: ${formatTime(timer)}.`;$('result').hidden=false;$('result-button').focus();}
-function formatTime(sec){return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;}
-function newRound(){ $('result').hidden=true;setup(); }
-$('talon').addEventListener('click',draw);$('undo').addEventListener('click',undo);$('restart').addEventListener('click',restartRound);$('new-game').addEventListener('click',newRound);$('result-undo').addEventListener('click',undo);$('result-button').addEventListener('click',newRound);
-document.addEventListener('keydown',e=>{if(e.target.matches('button,a,summary')&&(e.key===' '||e.key==='Enter'))return;const key=e.key.toLowerCase();if(key==='u'){e.preventDefault();undo();}else if(key==='r'){e.preventDefault();restartRound();}else if(key==='n'){e.preventDefault();newRound();}else if(key==='d'){e.preventDefault();draw();}else if(e.key==='escape'&&!$('result').hidden){$('result').hidden=true;}});
-setInterval(()=>{if(status==='playing'){timer=Math.floor((Date.now()-started)/1000);$('time').textContent=formatTime(timer);}},1000);
-setup();
-window.Pandataire={legal,free,play,draw,undo,setup,getState:()=>({cards,talon,waste,moves,streak,status})};
+/* === Pandataire — Controller & Ansicht ===
+   Verbindet die DOM-freie Engine (PandataireEngine) mit den Regelsätzen
+   (PandataireRulesets): Moduswahl, Rendering, Eingabe (Maus/Touch/Tastatur),
+   Undo, Neustart, Timer und HUD. Framework-frei, semantisch, touch-freundlich. */
+(function () {
+  'use strict';
+  var E = window.PandataireEngine;
+  var R = window.PandataireRulesets;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var SUITS = E.SUITS;
+  var NAMES = E.NAMES;
+  var MODE_KEY = 'pandataire-mode';
+  var MODES = R.order; // ['tripeaks','golf','pyramid']
+
+  var mode = readMode();
+  var ruleset = R.get(mode);
+  var seed = 0;
+  var state = null;
+  var initialDeal = null;
+  var history = [];
+  var timer = 0;
+  var started = 0;
+  var intervalId = 0;
+
+  function readMode() {
+    try {
+      var saved = window.localStorage.getItem(MODE_KEY);
+      if (saved && R.all[saved]) return saved;
+    } catch (_e) { /* Speicher nicht verfügbar */ }
+    return 'tripeaks';
+  }
+
+  function persistMode() {
+    try { window.localStorage.setItem(MODE_KEY, mode); } catch (_e) { /* Speicher nicht verfügbar */ }
+  }
+
+  function randomSeed() {
+    return (Math.floor(Math.random() * 0x10000000)) + 1;
+  }
+
+  function newGame(modeOpt, seedOpt) {
+    if (modeOpt && R.all[modeOpt] && modeOpt !== mode) {
+      mode = modeOpt;
+      ruleset = R.get(mode);
+      persistMode();
+      syncModeButtons();
+    }
+    seed = (typeof seedOpt === 'number' && seedOpt > 0) ? (seedOpt >>> 0) : randomSeed();
+    var deal = ruleset.deal(E.rng(seed));
+    initialDeal = deal;
+    state = E.createState(mode, seed, deal);
+    history = [];
+    timer = 0;
+    started = Date.now();
+    setStatus('playing');
+    hideResult();
+    render();
+    announce(modeIntro());
+  }
+
+  function restart() {
+    if (!initialDeal) { newGame(); return; }
+    state = E.createState(mode, seed, initialDeal);
+    history = [];
+    timer = 0;
+    started = Date.now();
+    setStatus('playing');
+    hideResult();
+    render();
+    announce('Runde neu gestartet – gleiche Austeilung.');
+  }
+
+  function setStatus(value) { state.status = value; }
+
+  function pushHistory() { history.push(E.snapshot(state)); }
+
+  function undo() {
+    if (!history.length) return;
+    var snap = history.pop();
+    E.restore(state, snap);
+    hideResult();
+    render();
+    announce('Letzten Zug rückgängig gemacht.');
+  }
+
+  // --- Eingabe: einzelne Karte -------------------------------------------
+  function cardClick(id) {
+    if (state.status !== 'playing') return;
+    var card = state.cards[id];
+    if (!E.isFree(state, ruleset, id)) return;
+    if (ruleset.playStyle === 'single') {
+      var top = E.wasteTop(state);
+      if (!top) return;
+      if (!E.legal(card.rank, top.rank)) {
+        announce(NAMES[card.rank] + ' passt nicht auf ' + NAMES[top.rank] + '.');
+        return;
+      }
+      pushHistory();
+      E.applyMove(state, ruleset, { type: 'play', id: id });
+      announce(state.streak > 1 ? 'Serie ' + state.streak + '! Weiter so.' : 'Guter Zug.');
+      render();
+      checkEnd();
+      return;
+    }
+    // Pyramid: Paar-Auswahl
+    if (card.rank === 13) {
+      pushHistory();
+      E.applyMove(state, ruleset, { type: 'king', id: id });
+      announce('König allein entfernt.');
+      render();
+      checkEnd();
+      return;
+    }
+    if (state.selectedId === null) {
+      state.selectedId = id;
+      render();
+      announce(NAMES[card.rank] + ' gewählt. Wähle eine Karte mit Summe 13.');
+      return;
+    }
+    if (state.selectedId === id) {
+      state.selectedId = null;
+      render();
+      announce('Auswahl aufgehoben.');
+      return;
+    }
+    var other = state.cards[state.selectedId];
+    if (E.sumsTo13(other.rank, card.rank)) {
+      pushHistory();
+      var sel = state.selectedId;
+      E.applyMove(state, ruleset, { type: 'pairCards', a: sel, b: id });
+      announce('Paar entfernt.');
+      render();
+      checkEnd();
+      return;
+    }
+    // keine gültige Paarung -> neu wählen
+    state.selectedId = id;
+    render();
+    announce(NAMES[card.rank] + ' gewählt. Summe mit ' + NAMES[other.rank] + ' ist nicht 13.');
+  }
+
+  function wasteClick() {
+    if (state.status !== 'playing' || ruleset.playStyle !== 'pair') return;
+    if (state.selectedId === null) return;
+    var top = E.wasteTop(state);
+    if (!top) return;
+    var card = state.cards[state.selectedId];
+    if (!E.isFree(state, ruleset, state.selectedId)) { state.selectedId = null; render(); return; }
+    if (!E.sumsTo13(card.rank, top.rank)) {
+      announce(NAMES[card.rank] + ' und Ablage ' + NAMES[top.rank] + ' summieren nicht auf 13.');
+      return;
+    }
+    pushHistory();
+    var sel = state.selectedId;
+    E.applyMove(state, ruleset, { type: 'pairWaste', id: sel });
+    announce('Paar mit Ablage entfernt.');
+    render();
+    checkEnd();
+  }
+
+  function stockClick() {
+    if (state.status !== 'playing') return;
+    if (state.stock.length) {
+      pushHistory();
+      E.applyMove(state, ruleset, { type: 'draw' });
+      render();
+      announce('Gezogen: ' + NAMES[E.wasteTop(state).rank] + '.');
+      checkEnd();
+      return;
+    }
+    if (ruleset.maxRecycles > 0 && state.recyclesUsed < ruleset.maxRecycles && state.waste.length) {
+      pushHistory();
+      E.applyMove(state, ruleset, { type: 'recycle' });
+      render();
+      announce('Ablage zurück in den Talon umgelagert.');
+      checkEnd();
+    }
+  }
+
+  function checkEnd() {
+    if (E.isSolved(state)) {
+      setStatus('won');
+      render();
+      finish();
+      return;
+    }
+    if (E.isLost(state, ruleset)) {
+      setStatus('lost');
+      render();
+      finish();
+    }
+  }
+
+  // --- Rendering ----------------------------------------------------------
+  function cardLabel(card) {
+    var free = E.isFree(state, ruleset, card.id);
+    return NAMES[card.rank] + SUITS[card.suit] + (card.removed ? ' – entfernt' : (free ? ' – frei' : ' – verdeckt'));
+  }
+
+  function render() {
+    var tableau = $('tableau');
+    if (tableau.children.length !== state.cards.length) {
+      tableau.replaceChildren();
+      state.cards.forEach(function (card) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'card';
+        btn.dataset.id = String(card.id);
+        btn.addEventListener('click', function () { cardClick(card.id); });
+        tableau.append(btn);
+      });
+    }
+    state.cards.forEach(function (card) {
+      var btn = tableau.children[card.id];
+      var pos = ruleset.layout(card.id);
+      btn.style.left = pos.left + '%';
+      btn.style.top = pos.top + '%';
+      var red = card.suit === 1 || card.suit === 2;
+      var cls = 'card' + (red ? ' red' : '') + (card.removed ? ' removed' : '') +
+        (!card.removed && !E.isFree(state, ruleset, card.id) ? ' covered' : '') +
+        (state.selectedId === card.id ? ' selected' : '');
+      btn.className = cls;
+      btn.disabled = card.removed || !E.isFree(state, ruleset, card.id) || state.status !== 'playing';
+      btn.setAttribute('aria-label', cardLabel(card));
+      btn.setAttribute('aria-pressed', state.selectedId === card.id ? 'true' : 'false');
+      btn.replaceChildren();
+      if (!card.removed) {
+        var r = document.createElement('span');
+        r.className = 'rank';
+        r.textContent = NAMES[card.rank];
+        var s = document.createElement('span');
+        s.className = 'suit';
+        s.textContent = SUITS[card.suit];
+        btn.append(r, s);
+      }
+    });
+
+    var w = $('waste');
+    w.replaceChildren();
+    var top = E.wasteTop(state);
+    var pyramid = ruleset.playStyle === 'pair';
+    if (top) {
+      var wr = document.createElement('span');
+      wr.className = 'rank';
+      wr.textContent = NAMES[top.rank];
+      var ws = document.createElement('span');
+      ws.className = 'suit';
+      ws.textContent = SUITS[top.suit];
+      w.append(wr, ws);
+      w.className = 'pile waste' + ((top.suit === 1 || top.suit === 2) ? ' red' : '');
+      w.setAttribute('aria-label', 'Ablage: ' + NAMES[top.rank] + SUITS[top.suit] +
+        (pyramid && state.selectedId !== null ? ' – antippen zum Paaren' : ''));
+    } else {
+      w.className = 'pile waste empty';
+      w.setAttribute('aria-label', 'Ablage leer');
+    }
+    w.disabled = !pyramid || !top || state.status !== 'playing';
+
+    var stockBtn = $('talon');
+    var canRecycle = pyramid && !state.stock.length && state.recyclesUsed < ruleset.maxRecycles && state.waste.length;
+    $('talon-count').textContent = canRecycle ? '↻' : String(state.stock.length);
+    stockBtn.disabled = !state.stock.length && !canRecycle || state.status !== 'playing';
+    stockBtn.setAttribute('aria-label',
+      state.stock.length ? 'Nächste Karte vom Talon ziehen' :
+      (canRecycle ? 'Ablage zurück in den Talon umlagern' : 'Talon leer'));
+
+    $('moves').textContent = String(state.moves);
+    $('streak').textContent = String(state.streak);
+    $('remaining').textContent = String(state.cards.filter(function (c) { return !c.removed; }).length);
+    $('undo').disabled = history.length === 0;
+    updateRecycleLabel();
+  }
+
+  function updateRecycleLabel() {
+    var cell = $('recycle-cell');
+    if (!cell) return;
+    if (ruleset.maxRecycles > 0) {
+      cell.style.display = '';
+      $('recycle').textContent = state.recyclesUsed + '/' + ruleset.maxRecycles;
+    } else {
+      cell.style.display = 'none';
+    }
+  }
+
+  function announce(text) { $('message').textContent = text; }
+
+  function modeIntro() {
+    if (mode === 'tripeaks') return 'TriPeaks: Räume die drei Gipfel ab – eine freie Karte mit Rang ±1.';
+    if (mode === 'golf') return 'Golf: Spiele die freien Spaltenböden – Rang ±1, Ass und König benachbart.';
+    return 'Pyramid: Entferne Paare mit Rangsumme 13 (König allein).';
+  }
+
+  function finish() {
+    $('result-title').textContent = state.status === 'won' ? ruleset.name + ' geschafft!' : 'Runde beendet';
+    $('result-text').textContent =
+      (state.status === 'won' ? 'Alle Karten sind abgeräumt.' : 'Kein gültiger Zug mehr möglich.') +
+      ' Züge: ' + state.moves + ' · Zeit: ' + formatTime(timer) + '.';
+    showResult();
+  }
+
+  function showResult() {
+    $('result').hidden = false;
+    window.setTimeout(function () { $('result-button').focus({ preventScroll: true }); }, 0);
+  }
+  function hideResult() { $('result').hidden = true; }
+
+  function formatTime(sec) {
+    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+  }
+
+  function syncModeButtons() {
+    MODES.forEach(function (m) {
+      var btn = $('mode-' + m);
+      if (btn) {
+        btn.setAttribute('aria-pressed', m === mode ? 'true' : 'false');
+        btn.className = 'mode-btn' + (m === mode ? ' active' : '');
+      }
+    });
+  }
+
+  function setMode(next) {
+    if (!R.all[next] || next === mode) return;
+    newGame(next);
+  }
+
+  // --- Event-Wiring -------------------------------------------------------
+  MODES.forEach(function (m) {
+    var btn = $('mode-' + m);
+    if (btn) btn.addEventListener('click', function () { setMode(m); });
+  });
+  $('talon').addEventListener('click', stockClick);
+  $('waste').addEventListener('click', wasteClick);
+  $('undo').addEventListener('click', undo);
+  $('restart').addEventListener('click', restart);
+  $('new-game').addEventListener('click', function () { newGame(); });
+  $('result-undo').addEventListener('click', undo);
+  $('result-button').addEventListener('click', function () { newGame(); });
+
+  document.addEventListener('keydown', function (e) {
+    var target = e.target;
+    if (target && typeof target.matches === 'function') {
+      if (target.matches('input,select,textarea')) return;
+      if (target.matches('button,a,summary') && (e.key === ' ' || e.key === 'Enter')) return;
+    }
+    var key = e.key.toLowerCase();
+    if (key === 'u') { e.preventDefault(); undo(); }
+    else if (key === 'r') { e.preventDefault(); restart(); }
+    else if (key === 'n') { e.preventDefault(); newGame(); }
+    else if (key === 'd') { e.preventDefault(); stockClick(); }
+    else if (key === '1') { e.preventDefault(); setMode('tripeaks'); }
+    else if (key === '2') { e.preventDefault(); setMode('golf'); }
+    else if (key === '3') { e.preventDefault(); setMode('pyramid'); }
+  });
+
+  intervalId = window.setInterval(function () {
+    if (state && state.status === 'playing') {
+      timer = Math.floor((Date.now() - started) / 1000);
+      $('time').textContent = formatTime(timer);
+    }
+  }, 1000);
+
+  newGame();
+  syncModeButtons();
+
+  window.Pandataire = {
+    MODES: MODES,
+    getMode: function () { return mode; },
+    getState: function () {
+      return {
+        mode: mode,
+        seed: seed,
+        cards: state.cards.map(function (c) { return { id: c.id, rank: c.rank, suit: c.suit, removed: c.removed }; }),
+        stock: state.stock.map(function (c) { return { rank: c.rank, suit: c.suit }; }),
+        waste: state.waste.map(function (c) { return { rank: c.rank, suit: c.suit }; }),
+        moves: state.moves,
+        streak: state.streak,
+        status: state.status,
+        selectedId: state.selectedId,
+        recyclesUsed: state.recyclesUsed
+      };
+    },
+    setMode: setMode,
+    newGame: newGame,
+    restart: restart,
+    undo: undo,
+    draw: stockClick,
+    selectCard: cardClick
+  };
 })();

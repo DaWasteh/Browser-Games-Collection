@@ -111,6 +111,9 @@ select:focus-visible{outline:2px solid var(--bamboo)}
 }
 @media (prefers-reduced-motion:reduce){ *{transition:none !important; animation:none !important} }
 .game-collection-link{position:fixed;left:12px;bottom:12px;z-index:10000;padding:8px 12px;border:1px solid var(--bamboo);border-radius:999px;background:rgba(14,20,28,.94);color:var(--paper);text-decoration:none;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.45)}.game-collection-link:hover{filter:brightness(1.25)}.game-collection-link:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
+@media (max-width:760px), (max-height:500px){
+  .game-collection-link{position:static;align-self:flex-start;flex:0 0 auto;margin:6px 8px;padding:6px 10px;z-index:auto}
+}
 </style>
 </head>
 <body>
@@ -119,7 +122,7 @@ select:focus-visible{outline:2px solid var(--bamboo)}
 <div id="topbar">
   <div id="logo"><span class="paw">🐼</span> PANDA&nbsp;LEMMINGS</div>
   <div id="level-name">Level 1</div>
-  <div id="stats">
+  <div id="stats" aria-live="polite" role="status">
     <div class="stat"><span class="lbl">Draußen</span><b id="st-out">0</b></div>
     <div class="stat"><span class="lbl">Pandas</span><b id="st-spawn" class="amber">0/20</b></div>
     <div class="stat"><span class="lbl">Gerettet</span><b id="st-saved" class="green">0</b></div>
@@ -129,7 +132,7 @@ select:focus-visible{outline:2px solid var(--bamboo)}
 </div>
 
 <div id="stage">
-  <canvas id="gameCanvas" width="960" height="540"></canvas>
+  <canvas id="gameCanvas" width="960" height="540" role="img" aria-label="Panda-Lemmings Spielfeld"></canvas>
 
   <div id="intro-overlay" class="overlay show">
     <div class="card">
@@ -187,7 +190,7 @@ select:focus-visible{outline:2px solid var(--bamboo)}
 /* ============================================================
    PANDA LEMMINGS — kompletter Rewrite
    Logik (Terrain/Panda/World) ist DOM-frei und wird von
-   tests/run_tests.js headless durchgespielt.
+   smoke-test.cjs headless durchgespielt.
    ============================================================ */
 
 // ---------- Konstanten ----------
@@ -665,7 +668,7 @@ class World {
   }
 }
 
-// Export fuer den Headless-Test (tests/run_tests.js)
+// Export fuer den Headless-Smoke-Test (smoke-test.cjs)
 if (typeof module==='object' && module && module.exports){
   module.exports={ W,H,C,GW,GH,TICK,T,PW,PH,SKILLS,LEVELS,Terrain,Panda,World };
 }
@@ -1011,6 +1014,7 @@ class Game {
     this.parts=[]; this.shake=0;
     this.level=0; this.completed=new Set();
     this.totalSaved=0; this.totalLost=0;
+    this.levelSaved=new Map(); this.levelLost=new Map();
     this.selected='builder';
     this.paused=false; this.speed=1; this.nukeArm=0;
     this.mouse={x:-99,y:-99,in:false};
@@ -1049,6 +1053,7 @@ class Game {
     $('btn-next').addEventListener('click',()=>this.loadLevel(Math.min(LEVELS.length-1,this.level+1),true));
     $('btn-again').addEventListener('click',()=>{
       this.totalSaved=0; this.totalLost=0; this.completed.clear();
+      this.levelSaved=new Map(); this.levelLost=new Map();
       this.refreshLevelSelect(); this.loadLevel(0,true);
     });
     $('btn-pause').addEventListener('click',()=>this.togglePause());
@@ -1157,7 +1162,7 @@ class Game {
       case 'boom':   this.sfx.play('boom'); burst(P,d.x,d.y,26,['#ffd27a','#f0a63c','#e0492a','#fff'],150,2,.7,180); this.shake=7; break;
       case 'void':   this.shake=Math.max(this.shake,2); break;
       case 'nuke':   this.sfx.play('nuke'); break;
-      case 'end':    setTimeout(()=>this.showResult(d.won),500); break;
+      case 'end':    { const w=this.world; setTimeout(()=>{ if(this.world===w) this.showResult(d.won); },500); break; }
     }
   }
 
@@ -1166,7 +1171,14 @@ class Game {
     if(overlayOpen()) return;
     this.sfx.play(won?'win':'lose');
     if(won) this.completed.add(this.level);
-    this.totalSaved+=w.saved; this.totalLost+=w.dead;
+    // Aggregate-Statistik: je Level nur den aktuellen Stand zählen, damit
+    // Replay/Versuch die Gesamtsumme nicht aufbläht.
+    const prevSaved=this.levelSaved.get(this.level)||0;
+    const prevLost=this.levelLost.get(this.level)||0;
+    this.totalSaved+=w.saved-prevSaved;
+    this.totalLost+=w.dead-prevLost;
+    this.levelSaved.set(this.level,w.saved);
+    this.levelLost.set(this.level,w.dead);
     this.refreshLevelSelect();
     if(won && this.level===LEVELS.length-1){
       $('fin-detail').textContent=`Insgesamt gerettet: ${this.totalSaved} Pandas · verloren: ${this.totalLost}`;

@@ -66,7 +66,7 @@
     </div>
   </section>
   <div id="canvasWrap">
-      <canvas id="life"></canvas>
+      <canvas id="life" role="img" aria-label="Game-of-Life-Spielfeld"></canvas>
       <div class="hint">Leertaste Start/Pause · F Fullscreen · R Random · +/- Zoom · Klick/Ziehen zeichnet · S Save · L Load</div>
   </div>
 </div>
@@ -214,16 +214,20 @@
     aliveEl.textContent = alive.toLocaleString("de-DE");
   }
 
-  function key() {
-    let s = "";
-    const chunk = 8192;
-    for(let i=0;i<grid.length;i+=chunk)
-      s += String.fromCharCode(...grid.subarray(i,i+chunk));
-    return s;
+  function gridHash() {
+    let h1 = 0x811c9dc5 >>> 0, h2 = 0 >>> 0;
+    const g = grid;
+    for(let i=0;i<g.length;i++) {
+      const b = g[i];
+      h1 ^= b;
+      h1 = Math.imul(h1, 0x01000193) >>> 0;
+      h2 = ((h2 << 5) + h2 + b) >>> 0;
+    }
+    return (h1 >>> 0) + "_" + (h2 >>> 0);
   }
 
   function checkCycle() {
-    const k = key();
+    const k = gridHash();
     if(patternHistory.has(k)) {
       const firstSeen = patternHistory.get(k);
       const period = generation - firstSeen;
@@ -258,9 +262,14 @@
   function loop(t) {
     if(!running) return;
     const frame = 1000/Number(fps.value);
-    if(t - last >= frame) {
+    // Mehr als ein Generationsschritt pro Display-Frame erlauben (z. B. 120 FPS
+    // auf einem 60-Hz-Display), aber Catch-up nach Hintergrundpausen begrenzen.
+    if(t - last > frame * 8) last = t - frame * 8;
+    let steps = 0;
+    while(running && t - last >= frame && steps < 8) {
       step();
-      last = t;
+      last += frame;
+      steps++;
     }
     raf = requestAnimationFrame(loop);
   }
@@ -319,9 +328,17 @@
       ratio: ratio.value,
       zoomMode: zoomMode.checked,
       zoom: zoom.value,
-      torus: torus.checked
+      torus: torus.checked,
+      fps: fps.value,
+      density: density.value,
+      cycleCheck: cycleCheck.checked
     };
-    localStorage.setItem('gameOfLifeSave', JSON.stringify(data));
+    try {
+      localStorage.setItem('gameOfLifeSave', JSON.stringify(data));
+    } catch(e) {
+      statusEl.textContent = "Speichern fehlgeschlagen";
+      return;
+    }
     statusEl.textContent = "Gespeichert!";
     setTimeout(() => {
       if(statusEl.textContent === "Gespeichert!") {
@@ -331,7 +348,9 @@
   }
 
   function load() {
-    const saved = localStorage.getItem('gameOfLifeSave');
+    let saved = null;
+    try { saved = localStorage.getItem('gameOfLifeSave'); }
+    catch(e) { statusEl.textContent = "Laden fehlgeschlagen"; return; }
     if(!saved) {
       statusEl.textContent = "Keine gespeicherten Daten";
       return;
@@ -339,22 +358,38 @@
     try {
       const data = JSON.parse(saved);
       stop(false);
-      if(data.cols === cols && data.rows === rows) {
-        grid.set(data.grid);
-        generation = data.generation || 0;
-        ratio.value = data.ratio || "3";
-        zoomMode.checked = data.zoomMode || false;
-        zoom.value = data.zoom || "1";
-        torus.checked = data.torus !== undefined ? data.torus : true;
-        patternHistory.clear();
-        statusEl.textContent = "Geladen!";
-        render();
-        setTimeout(() => {
-          if(statusEl.textContent === "Geladen!") statusEl.textContent = "bereit";
-        }, 2000);
-      } else {
-        statusEl.textContent = "Grid-Größe stimmt nicht überein";
+      const validDimensions = Number.isInteger(data.cols) && data.cols > 0 &&
+        Number.isInteger(data.rows) && data.rows > 0 && data.cols * data.rows <= 4000000;
+      if(!validDimensions || !Array.isArray(data.grid) || data.grid.length !== data.cols * data.rows) {
+        throw new Error("Ungültige Grid-Daten");
       }
+      // Exakte gespeicherte Dimensionen wiederherstellen. Dadurch bleibt ein Save
+      // auch nach einer zwischenzeitlichen Ratio-Änderung ladbar.
+      ratio.value = data.ratio || "3";
+      cols = data.cols;
+      rows = data.rows;
+      canvas.width = cols;
+      canvas.height = rows;
+      grid = Uint8Array.from(data.grid, value => value ? ALIVE : DEAD);
+      next = new Uint8Array(cols * rows);
+      imageData = ctx.createImageData(cols, rows);
+      pixels = imageData.data;
+      generation = data.generation || 0;
+      zoomMode.checked = data.zoomMode || false;
+      zoom.value = data.zoom || "1";
+      torus.checked = data.torus !== undefined ? data.torus : true;
+      if(data.fps != null) { fps.value = data.fps; fpsLabel.textContent = fps.value; }
+      if(data.density != null) { density.value = data.density; densityLabel.textContent = density.value; }
+      if(data.cycleCheck != null) cycleCheck.checked = data.cycleCheck;
+      gridSize.textContent = cols+" × "+rows;
+      cellCount.textContent = (cols*rows).toLocaleString("de-DE");
+      syncCanvasCss();
+      patternHistory.clear();
+      statusEl.textContent = "Geladen!";
+      render();
+      setTimeout(() => {
+        if(statusEl.textContent === "Geladen!") statusEl.textContent = "bereit";
+      }, 2000);
     } catch(e) {
       statusEl.textContent = "Fehler beim Laden";
     }
@@ -444,7 +479,12 @@
     setTimeout(resize, 0);
   });
   window.addEventListener("keydown", e => {
-    if(e.code === "Space") { e.preventDefault(); running ? stop() : start(); }
+    if(e.code === "Space") {
+      const t = document.activeElement;
+      if(t && /^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+      e.preventDefault();
+      running ? stop() : start();
+    }
     else if(e.key.toLowerCase() === "r") randomize();
     else if(e.key.toLowerCase() === "f") toggleFullscreen();
     else if(e.key === "+" || e.key === "=") {

@@ -3,31 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pandataire – TriPeaks Solitaire</title>
+  <title>Pandataire – TriPeaks · Golf · Pyramid Solitaire</title>
+  <meta name="description" content="Pandataire – drei Solitaire-Varianten (TriPeaks, Golf, Pyramid) in einem Spiel: lösbare Deals, Undo und Touch-Steuerung.">
   <script src="../shared/game-shell.js"></script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="../shared/game-shell.css">
+  <script src="engine.js"></script>
+  <script src="rulesets.js"></script>
   <script src="game.js" defer></script>
 </head>
 <body>
   <header class="site-header">
     <a href="../index.html" class="back-link">← Spieleübersicht</a>
     <h1>🐼 Pandataire</h1>
-    <p>TriPeaks Solitaire – räume die drei Gipfel ab.</p>
+    <p>Drei Solitaire-Varianten: TriPeaks, Golf und Pyramid.</p>
   </header>
   <main>
+    <section class="mode-picker" aria-label="Spielmodus wählen">
+      <div class="mode-group" role="group" aria-label="Modus">
+        <button id="mode-tripeaks" class="mode-btn active" type="button" aria-pressed="true">TriPeaks</button>
+        <button id="mode-golf" class="mode-btn" type="button" aria-pressed="false">Golf</button>
+        <button id="mode-pyramid" class="mode-btn" type="button" aria-pressed="false">Pyramid</button>
+      </div>
+    </section>
     <section class="hud" aria-label="Spielstand">
       <div><span>Züge</span><strong id="moves">0</strong></div>
       <div><span>Serie</span><strong id="streak">0</strong></div>
+      <div id="recycle-cell"><span>Umlauf</span><strong id="recycle">0/0</strong></div>
       <div><span>Zeit</span><strong id="time">00:00</strong></div>
       <div><span>Übrig</span><strong id="remaining">28</strong></div>
     </section>
     <p id="message" class="message" role="status" aria-live="polite">Wähle eine freie Karte, die um eins höher oder niedriger ist.</p>
-    <section class="table-area" aria-label="TriPeaks-Tisch">
-      <div id="tableau" class="tableau" aria-label="28 Karten im Tableau"></div>
+    <section class="table-area" aria-label="Spieltisch">
+      <div id="tableau" class="tableau" aria-label="Tableau-Karten"></div>
       <div class="piles">
-        <div class="pile-wrap"><h2>Ablage</h2><div id="waste" class="pile waste" aria-label="Oberste Ablagekarte"></div></div>
-        <div class="pile-wrap"><h2>Talon</h2><button id="talon" class="pile talon" type="button" aria-label="Nächste Karte vom Talon ziehen"><span id="talon-count">23</span></button></div>
+        <div class="pile-wrap"><h2>Ablage</h2><button id="waste" class="pile waste" type="button" aria-label="Oberste Ablagekarte"></button></div>
+        <div class="pile-wrap"><h2>Talon</h2><button id="talon" class="pile talon" type="button" aria-label="Nächste Karte vom Talon ziehen"><span id="talon-count">0</span></button></div>
       </div>
     </section>
     <section class="controls" aria-label="Spielaktionen">
@@ -37,8 +48,14 @@
     </section>
     <details class="rules">
       <summary>Regeln &amp; Steuerung</summary>
-      <p>Entferne alle 28 Tableau-Karten. Eine freie Karte darf auf die Ablage gelegt werden, wenn ihr Rang genau eins höher oder niedriger als der Ablagerang ist. Ass zählt sowohl vor der 2 als auch nach dem König. Du darfst jederzeit eine Karte vom Talon ziehen; prüfe vorher, ob noch eine passende freie Karte liegt. Der Talon ist begrenzt; bei leerem Talon und keinem Zug verlierst du.</p>
-      <ul><li>Maus/Touch: Karte oder Talon antippen.</li><li>Tastatur: <kbd>Tab</kbd> zu Karten, <kbd>Enter</kbd>/<kbd>Leertaste</kbd> auswählen; <kbd>U</kbd> macht rückgängig, <kbd>R</kbd> startet dieselbe Runde neu, <kbd>N</kbd> startet eine neue Runde.</li></ul>
+      <p><strong>TriPeaks:</strong> Entferne alle 28 Tableau-Karten der drei Gipfel. Eine freie Karte (keine Karte liegt auf ihr) darf auf die Ablage, wenn ihr Rang genau eins höher oder niedriger ist – Ass und König sind benachbart.</p>
+      <p><strong>Golf:</strong> 35 Karten in sieben Spalten. Nur der jeweils freie Spaltenboden ist spielbar, ebenfalls mit Rang ±1 (Ass und König benachbart). 16 Talon-Karten helfen über.</p>
+      <p><strong>Pyramid:</strong> Entferne Paare freier Karten, deren Rangsumme 13 ergibt (6+7, 5+8 … J+2, Q+A). Ein König (13) geht allein raus. Eine freie Karte lässt sich auch mit der Ablagespitze paaren. Der Talon kann einmal umgelagert werden.</p>
+      <ul>
+        <li>Maus/Touch: Karte oder Talon antippen; bei Pyramid eine zweite Karte (oder die Ablage) zum Paaren wählen.</li>
+        <li>Tastatur: <kbd>Tab</kbd> zu Karten, <kbd>Enter</kbd>/<kbd>Leertaste</kbd> auswählen; <kbd>U</kbd> Rückgängig, <kbd>R</kbd> gleiche Runde neu, <kbd>N</kbd> neue Runde, <kbd>D</kbd> Talon ziehen, <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Modus.</li>
+      </ul>
+      <p>Jede neue Runde wird aus einem kontrollierten, legalen Lösungspfad erzeugt und ist daher lösbar; Farben und Talon-Reihenfolge variieren.</p>
     </details>
     <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
       <div class="result-card"><h2 id="result-title">Runde beendet</h2><p id="result-text"></p><div class="result-actions"><button id="result-undo" type="button">↶ Letzten Zug zurück</button><button id="result-button" type="button">Neue Runde</button></div></div>
