@@ -2,6 +2,12 @@
 
 Panda Spider ist ein vollständig offline spielbarer Spider-Solitaire-Klon ohne Frameworks oder externe Assets. Öffne `index.html` direkt im Browser.
 
+## Neu in v1.5
+
+- Die Tableauhöhe wächst mit der längsten realen Spalte; auch nach allen fünf Stock-Runden überdecken Karten nicht mehr Stock oder Regeln.
+- Rückgängig nach Sieg beziehungsweise Sackgasse setzt die aktive Zeit sauber fort, ohne die Wartezeit auf dem Endzustand mitzuzählen.
+- Tastaturereignisse von Dokument und Formularfeldern werden defensiver getrennt.
+
 ## Spielregeln
 
 - Gespielt wird mit zwei Kartenspielen (104 Karten): 54 Karten liegen in zehn Tableau-Spalten, 50 Karten bilden den Stock.

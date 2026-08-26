@@ -8,6 +8,12 @@ Errate das geheime deutsche Fünf-Buchstaben-Wort in bis zu sechs Versuchen.
 Nach jedem Versuch färben sich die Kacheln und zeigen, welche Buchstaben
 stimmen.
 
+## Neu in v1.5
+
+- Ein mit Enter bestätigter Versuch wird vor der Flip-Animation atomar übernommen und im Tagesmodus gespeichert.
+- Schließen oder Neuladen während der rund 1,4 Sekunden langen Animation verliert keinen bereits abgegebenen Versuch mehr.
+- Gewinn/Verlust erhält beim Commit sofort den korrekten Save-Status; ein Reload ergänzt eine noch nicht geschriebene Tagesstatistik idempotent.
+
 ## Spielmodi
 
 - **Tagesrätsel:** Allen Spielerinnen und Spielern wird am selben

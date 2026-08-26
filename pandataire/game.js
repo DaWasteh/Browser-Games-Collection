@@ -19,9 +19,19 @@
   var state = null;
   var initialDeal = null;
   var history = [];
-  var timer = 0;
-  var started = 0;
+  var timer = 0; // bisher aktiv gespielte Sekunden
+  var started = 0; // Start des aktuellen aktiven Abschnitts
   var intervalId = 0;
+
+  function currentTimer() {
+    return started ? timer + Math.floor((Date.now() - started) / 1000) : timer;
+  }
+  function pauseClock() {
+    if (started) { timer = currentTimer(); started = 0; }
+  }
+  function resumeClock() {
+    if (state && state.status === 'playing' && !started && !document.hidden) started = Date.now();
+  }
 
   function readMode() {
     try {
@@ -73,13 +83,17 @@
 
   function setStatus(value) { state.status = value; }
 
-  function pushHistory() { history.push(E.snapshot(state)); }
+  function pushHistory() { history.push({ state: E.snapshot(state), timer: currentTimer() }); }
 
   function undo() {
     if (!history.length) return;
+    pauseClock();
     var snap = history.pop();
-    E.restore(state, snap);
+    E.restore(state, snap.state);
+    timer = snap.timer;
+    started = 0;
     hideResult();
+    resumeClock();
     render();
     announce('Letzten Zug rückgängig gemacht.');
   }
@@ -181,12 +195,14 @@
   function checkEnd() {
     if (E.isSolved(state)) {
       setStatus('won');
+      pauseClock();
       render();
       finish();
       return;
     }
     if (E.isLost(state, ruleset)) {
       setStatus('lost');
+      pauseClock();
       render();
       finish();
     }
@@ -195,7 +211,9 @@
   // --- Rendering ----------------------------------------------------------
   function cardLabel(card) {
     var free = E.isFree(state, ruleset, card.id);
-    return NAMES[card.rank] + SUITS[card.suit] + (card.removed ? ' – entfernt' : (free ? ' – frei' : ' – verdeckt'));
+    if (card.removed) return 'Entfernte Karte';
+    if (mode === 'tripeaks' && !free) return 'Verdeckte TriPeaks-Karte';
+    return NAMES[card.rank] + SUITS[card.suit] + (free ? ' – frei' : ' – blockiert');
   }
 
   function render() {
@@ -217,15 +235,17 @@
       btn.style.left = pos.left + '%';
       btn.style.top = pos.top + '%';
       var red = card.suit === 1 || card.suit === 2;
+      var free = E.isFree(state, ruleset, card.id);
+      var faceDown = mode === 'tripeaks' && !card.removed && !free;
       var cls = 'card' + (red ? ' red' : '') + (card.removed ? ' removed' : '') +
-        (!card.removed && !E.isFree(state, ruleset, card.id) ? ' covered' : '') +
+        (!card.removed && !free ? ' covered' : '') + (faceDown ? ' face-down' : '') +
         (state.selectedId === card.id ? ' selected' : '');
       btn.className = cls;
-      btn.disabled = card.removed || !E.isFree(state, ruleset, card.id) || state.status !== 'playing';
+      btn.disabled = card.removed || !free || state.status !== 'playing';
       btn.setAttribute('aria-label', cardLabel(card));
       btn.setAttribute('aria-pressed', state.selectedId === card.id ? 'true' : 'false');
       btn.replaceChildren();
-      if (!card.removed) {
+      if (!card.removed && !faceDown) {
         var r = document.createElement('span');
         r.className = 'rank';
         r.textContent = NAMES[card.rank];
@@ -353,11 +373,15 @@
     else if (key === '3') { e.preventDefault(); setMode('pyramid'); }
   });
 
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) pauseClock();
+    else resumeClock();
+  });
+  window.addEventListener('pagehide', pauseClock);
+  window.addEventListener('pageshow', resumeClock);
+
   intervalId = window.setInterval(function () {
-    if (state && state.status === 'playing') {
-      timer = Math.floor((Date.now() - started) / 1000);
-      $('time').textContent = formatTime(timer);
-    }
+    if (state && state.status === 'playing') $('time').textContent = formatTime(currentTimer());
   }, 1000);
 
   newGame();
@@ -377,7 +401,8 @@
         streak: state.streak,
         status: state.status,
         selectedId: state.selectedId,
-        recyclesUsed: state.recyclesUsed
+        recyclesUsed: state.recyclesUsed,
+        elapsed: currentTimer()
       };
     },
     setMode: setMode,

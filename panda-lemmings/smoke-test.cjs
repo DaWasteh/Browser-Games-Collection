@@ -8,10 +8,16 @@ const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, 'panda_lemmings.html'), 'utf8');
 
 // HTML-Konventionen
-assert.match(html, /role="img" aria-label="Panda-Lemmings Spielfeld"/, 'Canvas-Barrierefreiheit');
+assert.match(html, /role="application" tabindex="0" aria-label="Interaktives Panda-Lemmings-Spielfeld"/, 'interaktive Canvas-Barrierefreiheit');
+assert.match(html, /id="canvas-help"[\s\S]*Pfeiltasten wählen einen aktiven Panda/, 'Canvas-Tastaturanleitung');
 assert.match(html, /id="stats" aria-live="polite"/, 'Stats aria-live');
 assert.match(html, /if\(this\.world===w\) this\.showResult/, 'showResult-Stale-Guard vorhanden');
 assert.match(html, /\.game-collection-link\{position:static;[^}]*align-self:flex-start/, 'Back-Link-Überlappungsschutz im mobilen CSS');
+assert.match(html, /cyclePanda\(step\)/, 'Panda-Auswahl per Tastatur');
+assert.match(html, /assignKeyboardPanda\(\)/, 'Fähigkeitszuweisung per Tastatur');
+assert.match(html, /22\*W\/Math\.max\(1,rect\.width\)/, 'physisches Touchziel skaliert auf ca. 44 CSS-Pixel');
+assert.match(html, /panda-lemmings-progress-v1/, 'versionierte Kampagnenpersistenz');
+assert.doesNotMatch(html, /else if\(k==='Enter'\)/, 'kein global synthetisierter Enter-Klick');
 assert.doesNotMatch(html, /tests\/run_tests\.js/, 'kein veralteter Test-Kommentar mehr');
 
 // --- Logik extrahieren (DOM-frei, bis zum Export) ---

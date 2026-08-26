@@ -281,6 +281,11 @@ assert.match(uiJs, /var solvedAt = guesses\.indexOf\(solution\)/, 'Save-Status w
 assert.match(uiJs, /shareBtn\.hidden = !\(lastGame && state\.status !== 'playing'\)/, 'wiederhergestellte Ergebnisse bleiben teilbar');
 assert.match(uiJs, /sanitizeGuesses/, 'gespeicherte Versuche werden defensiv geprüft');
 assert.match(uiJs, /saveDaily\(\{[\s\S]*guesses: \[\],[\s\S]*status: 'playing'/, 'Neustart persistiert frischen Tageszustand');
+const submitSource = uiJs.slice(uiJs.indexOf('function submitGuess()'), uiJs.indexOf('function animateRow('));
+assert.ok(submitSource.indexOf('state.guesses.push(guess)') < submitSource.indexOf('animateRow('), 'bestätigter Versuch wird vor der Animation committed');
+assert.ok(submitSource.indexOf('saveDaily({') < submitSource.indexOf('animateRow('), 'bestätigter Tagesversuch wird vor der Animation gespeichert');
+assert.match(submitSource, /committedStatus = L\.isWin\(grades\) \? 'won'/, 'terminaler Commit erhält sofort korrekten Status');
+assert.match(uiJs, /Reload während der letzten Flip-Animation/, 'Reload stellt terminale Statistik idempotent wieder her');
 
 // ============================================================
 // 12) Datei-Existenz & Back-Link-Ziel

@@ -145,8 +145,9 @@ let selected = -1, noteMode = false, hintsLeft = 3, mistakes = 0;
 let history = [], redoStack = [];
 let status = 'playing';                 // 'playing' | 'paused' | 'won'
 let difficulty = 'mittel';
-let elapsed = 0, runningSince = null;   // timer
+let elapsed = 0, runningSince = null;   // aktive Millisekunden + Abschnittsstart
 let genToken = 0;                        // guards overlapping generations
+const STORAGE_KEY = 'pandadoku-save-v1';
 
 /* ============================================================
    DOM BUILD  (no innerHTML anywhere)
@@ -205,6 +206,78 @@ function pushHistory() {
   history.push(snapshot());
   redoStack = [];
   if (history.length > 300) history.shift();
+}
+
+/* ============================================================
+   DEFENSIVE PERSISTENCE
+   ============================================================ */
+function encodeSnapshot(s) {
+  return { board: s.board, notes: s.notes.map(set => [...set]), errors: s.errors, hintsLeft: s.hintsLeft, mistakes: s.mistakes };
+}
+function decodeSnapshot(raw, fixed) {
+  if (!raw || !Array.isArray(raw.board) || raw.board.length !== 81 || !Array.isArray(raw.notes) || raw.notes.length !== 81 || !Array.isArray(raw.errors) || raw.errors.length !== 81) return null;
+  const snapBoard = raw.board.map(Number);
+  if (snapBoard.some((value, i) => !Number.isInteger(value) || value < 0 || value > 9 || (fixed[i] && value !== puzzle[i]))) return null;
+  const snapNotes = raw.notes.map((values, i) => {
+    if (!Array.isArray(values) || fixed[i] || snapBoard[i]) return new Set();
+    return new Set(values.filter(value => Number.isInteger(value) && value >= 1 && value <= 9));
+  });
+  return {
+    board: snapBoard,
+    notes: snapNotes,
+    errors: raw.errors.map((value, i) => value === true && !fixed[i] && snapBoard[i] !== 0),
+    hintsLeft: Number.isInteger(raw.hintsLeft) ? Math.max(0, Math.min(3, raw.hintsLeft)) : 3,
+    mistakes: Number.isInteger(raw.mistakes) ? Math.max(0, Math.min(1000000, raw.mistakes)) : 0
+  };
+}
+
+let saveTimer = 0;
+function saveGame() {
+  if (!puzzle || !board || !solution) return;
+  const payload = {
+    version: 1, difficulty, puzzle, solution, board,
+    notes: notes.map(set => [...set]), errors,
+    selected, noteMode, hintsLeft, mistakes, status,
+    elapsedMs: getElapsedMs(),
+    history: history.slice(-100).map(encodeSnapshot),
+    redo: redoStack.slice(-100).map(encodeSnapshot)
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch (_error) { /* optional */ }
+}
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveTimer = 0; saveGame(); }, 220);
+}
+function flushSave() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = 0; }
+  saveGame();
+}
+function loadGame() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (!data || data.version !== 1 || !DIFFICULTY[data.difficulty]) return false;
+    if (!Array.isArray(data.puzzle) || data.puzzle.length !== 81 || !Array.isArray(data.solution) || data.solution.length !== 81) return false;
+    const loadedPuzzle = data.puzzle.map(Number), loadedSolution = data.solution.map(Number);
+    if (loadedPuzzle.some(v => !Number.isInteger(v) || v < 0 || v > 9) || loadedSolution.some(v => !Number.isInteger(v) || v < 1 || v > 9)) return false;
+    if (countSolutions(loadedPuzzle, 2) !== 1) return false;
+    const solved = solveGrid(loadedPuzzle);
+    if (!solved || solved.some((value, i) => value !== loadedSolution[i])) return false;
+    puzzle = loadedPuzzle; solution = loadedSolution; givens = puzzle.map(v => v !== 0);
+    const current = decodeSnapshot({ board: data.board, notes: data.notes, errors: data.errors, hintsLeft: data.hintsLeft, mistakes: data.mistakes }, givens);
+    if (!current) return false;
+    board = current.board; notes = current.notes; errors = current.errors;
+    hintsLeft = current.hintsLeft; mistakes = current.mistakes;
+    difficulty = data.difficulty;
+    selected = Number.isInteger(data.selected) && data.selected >= -1 && data.selected < 81 ? data.selected : -1;
+    noteMode = data.noteMode === true;
+    const complete = board.every((value, i) => value === solution[i]);
+    status = data.status === 'won' && complete ? 'won' : data.status === 'paused' ? 'paused' : 'playing';
+    elapsed = Number.isFinite(data.elapsedMs) ? Math.max(0, Math.min(31536000000, data.elapsedMs)) : 0;
+    runningSince = status === 'playing' ? Date.now() : null;
+    history = Array.isArray(data.history) ? data.history.map(item => decodeSnapshot(item, givens)).filter(Boolean).slice(-100) : [];
+    redoStack = Array.isArray(data.redo) ? data.redo.map(item => decodeSnapshot(item, givens)).filter(Boolean).slice(-100) : [];
+    return true;
+  } catch (_error) { return false; }
 }
 
 /* ============================================================
@@ -398,12 +471,13 @@ function checkWin() {
   render();
 }
 
-function getElapsed() {
-  return runningSince != null ? elapsed + Math.floor((Date.now() - runningSince) / 1000) : elapsed;
+function getElapsedMs() {
+  return runningSince != null ? elapsed + (Date.now() - runningSince) : elapsed;
 }
+function getElapsed() { return Math.floor(getElapsedMs() / 1000); }
 function pauseTimer() {
   if (runningSince != null) {
-    elapsed += Math.floor((Date.now() - runningSince) / 1000);
+    elapsed += Date.now() - runningSince;
     runningSince = null;
   }
 }
@@ -481,6 +555,7 @@ function render() {
   for (const d of ['leicht', 'mittel', 'schwer']) {
     $('diff-' + d).setAttribute('aria-pressed', String(difficulty === d));
   }
+  scheduleSave();
 }
 
 /* ============================================================
@@ -545,7 +620,25 @@ document.addEventListener('keydown', (e) => {
 /* ============================================================
    BOOT + PUBLIC API (for smoke tests)
    ============================================================ */
-newGame('mittel');
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (status === 'playing') pauseTimer(); flushSave(); }
+  else if (status === 'playing' && runningSince == null) runningSince = Date.now();
+});
+window.addEventListener('pagehide', () => { if (status === 'playing') pauseTimer(); flushSave(); });
+window.addEventListener('pageshow', () => { if (status === 'playing' && runningSince == null) runningSince = Date.now(); });
+
+if (loadGame()) {
+  $('pause-overlay').hidden = status !== 'paused';
+  $('pause-btn').textContent = status === 'paused' ? '▶ Weiter' : '⏸ Pause';
+  $('result').hidden = status !== 'won';
+  if (status === 'won') {
+    $('result-title').textContent = 'Pandadoku gelöst! 🎉';
+    $('result-text').textContent = 'Zeit: ' + formatTime(getElapsed()) + ' · Fehler: ' + mistakes + ' · Benutzte Hinweise: ' + (3 - hintsLeft) + '.';
+  }
+  updateTimerDisplay();
+  render();
+  announce(status === 'paused' ? 'Pausiertes Rätsel wiederhergestellt.' : 'Gespeichertes Rätsel wiederhergestellt.');
+} else newGame('mittel');
 
 window.PandaDoku = {
   // pure engine
@@ -564,7 +657,9 @@ window.PandaDoku = {
     errors: errors ? errors.slice() : null,
     notes: notes ? notes.map(s => [...s]) : null,
     status, difficulty, selected, noteMode, hintsLeft, mistakes,
-    elapsed: getElapsed()
-  })
+    elapsed: getElapsed(), elapsedMs: getElapsedMs(),
+    historyLength: history.length, redoLength: redoStack.length
+  }),
+  save: flushSave
 };
 })();

@@ -90,18 +90,21 @@
         catch (e) { return false; }
     }
 
-    function bestTimeKey(diffKey) { return 'best_' + diffKey; }
+    function bestTimeKey(diffKey, config) {
+        if (diffKey === 'custom' && config) return 'best_custom_' + config.rows + 'x' + config.cols + 'x' + config.mines;
+        return 'best_' + diffKey;
+    }
 
-    function getBestTime(diffKey) {
-        var raw = lsGet(bestTimeKey(diffKey));
+    function getBestTime(diffKey, config) {
+        var raw = lsGet(bestTimeKey(diffKey, config));
         var n = Number(raw);
         if (!Number.isFinite(n) || n <= 0) return null;
         return Math.floor(n);
     }
-    function recordBestTime(diffKey, seconds) {
-        var prev = getBestTime(diffKey);
+    function recordBestTime(diffKey, seconds, config) {
+        var prev = getBestTime(diffKey, config);
         if (prev === null || seconds < prev) {
-            lsSet(bestTimeKey(diffKey), String(seconds));
+            lsSet(bestTimeKey(diffKey, config), String(seconds));
             return true;
         }
         return false;
@@ -122,12 +125,14 @@
             li.appendChild(val);
             bestTimesList.appendChild(li);
         });
-        // Benutzerdefiniert nur anzeigen, falls eine Zeit existiert
-        var customBest = getBestTime('custom');
+        // Benutzerdefiniert nur für die aktuell gewählte, exakt vergleichbare
+        // Zeilen×Spalten×Minen-Konfiguration anzeigen.
+        var customConfig = state.config && state.config.key === 'custom' ? state.config : null;
+        var customBest = customConfig ? getBestTime('custom', customConfig) : null;
         if (customBest !== null) {
             var liC = document.createElement('li');
             var nameC = document.createElement('span');
-            nameC.textContent = 'Benutzer';
+            nameC.textContent = customConfig.rows + '×' + customConfig.cols + ' · ' + customConfig.mines + ' Minen';
             var valC = document.createElement('span');
             valC.className = 'bt-val';
             valC.textContent = customBest + 's';
@@ -405,7 +410,7 @@
             setSmiley('😎');
             setStatus('Sieg!');
             sndWin();
-            var isNew = recordBestTime(state.config.key, seconds);
+            var isNew = recordBestTime(state.config.key, seconds, state.config);
             resultOverlay.className = 'show win';
             resultTitle.textContent = 'Sieg!';
             resultText.textContent = isNew
@@ -487,12 +492,14 @@
     var longPressFired = false;
     var suppressContextMenuUntil = 0;
     var touchStartPos = null;
+    var touchMoved = false;
 
     boardEl.addEventListener('touchstart', function (e) {
         var btn = e.target.closest ? e.target.closest('.cell') : null;
         if (!btn) return;
         initAudio();
         longPressFired = false;
+        touchMoved = false;
         var r = Number(btn.dataset.r);
         var c = Number(btn.dataset.c);
         var t = e.touches[0];
@@ -511,7 +518,8 @@
         var dx = t.clientX - touchStartPos.x;
         var dy = t.clientY - touchStartPos.y;
         if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
-            // Scroll/Geste → Long-Press abbrechen
+            // Scroll/Geste → Long-Press und spätere Tap-Aktion abbrechen.
+            touchMoved = true;
             if (longPressTimer) { window.clearTimeout(longPressTimer); longPressTimer = null; }
         }
     }, { passive: true });
@@ -522,6 +530,13 @@
             // Long-Press hat bereits geflaggt → kein zusätzliches Reveal
             e.preventDefault();
             longPressFired = false;
+            touchStartPos = null;
+            return;
+        }
+        if (touchMoved) {
+            // Die Geste diente dem Scrollen eines breiten Felds.
+            touchMoved = false;
+            touchStartPos = null;
             return;
         }
         var btn = e.target.closest ? e.target.closest('.cell') : null;
@@ -534,12 +549,15 @@
         } else {
             doReveal(r, c);
         }
+        touchStartPos = null;
         e.preventDefault();
     });
 
     boardEl.addEventListener('touchcancel', function () {
         if (longPressTimer) { window.clearTimeout(longPressTimer); longPressTimer = null; }
         longPressFired = false;
+        touchMoved = false;
+        touchStartPos = null;
     });
 
     // Tastatur: Pfeile bewegen, Enter/Space = Reveal, F = Flag, C = Chord

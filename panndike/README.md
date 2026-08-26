@@ -1,30 +1,63 @@
-# Panndike
+# Panndike Solitär
 
-Panndike ist ein vollständiger, offline spielbarer Klondike-Solitaire-Klon ohne Frameworks oder externe Assets. Öffne `index.html` direkt im Browser.
+Panndike ist ein vollständig offline spielbares Klondike-Solitär im klaren,
+zeitungsartigen Stil. Es benötigt weder Frameworks noch externe Assets und läuft
+mit Maus, Tastatur, Touch und Stift.
+
+## Neu in v1.5
+
+- redaktionell ruhige, responsive Oberfläche statt eines horizontal verschobenen
+  Mobil-Spielfelds
+- reproduzierbare Deal-Codes, **Partie neu starten** und gemeinsamer **Tagesdeal**
+- festes Regelwerk pro Partie: Zieh 1 oder Zieh 3 kann nicht mehr mitten im Deal
+  gewechselt werden
+- Hinweise, sichere Fundament-Züge, Doppelklick-Auto-Move sowie Pointer-Drag mit
+  der weiterhin verfügbaren Antippen-und-Ziel-wählen-Bedienung
+- Punkte, aktive Spielzeit, lokale Bestwerte und Tagesdeal-Serie
+- laufende Partie wird lokal gespeichert und nach einem Reload defensiv
+  wiederhergestellt
+- dynamische Spaltenhöhe, damit lange Folgen niemals Bedienelemente überdecken
+- Ergebnis- und Abbruchdialoge mit Fokusführung; ein Siegzug kann rückgängig
+  gemacht werden
 
 ## Regeln
 
-- Sieben Tableau-Spalten werden klassisch mit 1 bis 7 Karten ausgeteilt; nur die oberste Karte ist offen.
-- Im Tableau wird absteigend mit wechselnden Farben gebaut. Eine leere Spalte nimmt nur einen König auf.
-- Die vier Foundations werden je Farbe von Ass bis König aufgebaut.
-- Der Stock unterstützt **Zieh 1** und **Zieh 3**. Ist er leer, wird die Waste umgedreht und recycelt.
-- Ungültige Züge werden verhindert. Verdeckte Karten werden nach dem Entfernen der offenen Karte automatisch aufgedeckt.
-- Die oberste Foundation-Karte kann konservativ zurück auf ein gültiges Tableau gelegt werden; darunterliegende Foundation-Karten bleiben geschützt.
+- Sieben Tableau-Spalten werden klassisch mit 1 bis 7 Karten ausgeteilt; nur die
+  jeweils oberste Karte ist offen.
+- Im Tableau wird absteigend und abwechselnd rot/schwarz gebaut.
+- Eine leere Spalte nimmt nur einen König oder eine mit König beginnende Folge auf.
+- Die vier Fundamente werden je Farbe vom Ass bis zum König aufgebaut.
+- Die oberste Fundamentkarte darf auf ein gültiges Tableau zurückgelegt werden.
+- Je nach zu Beginn gewählter Regel werden eine oder drei Karten vom Talon auf die
+  Ablage gelegt. Ein leerer Talon recycelt die Ablage.
+- Nicht jeder zufällige Klondike-Deal ist zwangsläufig lösbar; Rückgängig, Hinweis
+  und derselbe neu startbare Deal unterstützen beim Ausprobieren anderer Wege.
 
 ## Bedienung
 
-Karte oder gültige Sequenz anklicken bzw. antippen, anschließend Tableau/Foundation als Ziel wählen. Die oberste Karte einer Foundation kann ebenfalls ausgewählt und auf ein passendes Tableau zurückgelegt werden. Buttons sind vollständig per Tab/Enter erreichbar. `U` macht rückgängig, `N` startet ein neues Spiel und `A` führt sichere Foundation-Züge aus. Die Anzeige führt Züge, Zeit und Foundation-Fortschritt.
+- **Maus/Touch:** Karte oder Folge antippen, danach ein markiertes Ziel antippen.
+- **Maus/Stift:** Karten und Folgen können zusätzlich direkt gezogen werden.
+- **Doppelklick:** eine passende Einzelkarte automatisch aufs Fundament legen.
+- **Tastatur:** Tab und Enter/Leertaste für alle Ziele; Pfeiltasten bewegen den
+  Fokus zwischen Tableau-Karten.
+- Kurzbefehle: `U` Rückgängig, `H` Hinweis, `A` sichere Fundament-Züge,
+  `R` dieselbe Partie neu, `N` neue Partie, `D` ziehen, `Esc` Auswahl aufheben.
 
-## Dateien
+## Architektur
 
-- `index.html` – semantische Spieloberfläche mit Navigation zu `../index.html`
-- `styles.css` – responsive Desktop-/Touch-Darstellung mit sichtbarem Fokus
-- `game.js` – Deal, Klondike-Regeln, Undo, Zeit, Auto-Finish und Siegzustand
+- `engine.js` – DOM-freie, deterministische Klondike-Engine und Zustandsvalidator
+- `game.js` – Darstellung, Eingabe, Timer, Speicherung, Dialoge und Statistik
+- `index.html` – semantische Spieloberfläche und echte Kurzanleitung
+- `styles.css` – responsive Karten-/Tableau-Darstellung
+- `smoke-test.cjs` – Regel-, Seed-, Hinweis-, Speicher- und Shell-Tests
 
 ## Prüfung
 
 ```bash
-node --check game.js
+node --check panndike/engine.js
+node --check panndike/game.js
+node panndike/smoke-test.cjs
+node browser-smoke-test.mjs
 ```
 
-Das Spiel benötigt keinen Server und speichert keine persönlichen Daten.
+Der Spielstand und die Statistik bleiben ausschließlich im lokalen Browser.

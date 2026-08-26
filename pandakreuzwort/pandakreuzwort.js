@@ -17,7 +17,7 @@
         ['BACK', 'Y', 'X', 'C', 'V', 'B', 'N', 'M', 'DIR']
     ];
 
-    var STORAGE_KEY = 'pandakreuzwort-save-v2';
+    var STORAGE_KEY = 'pandakreuzwort-save-v3';
 
     // Spielzustand
     var puzzle = null;
@@ -56,18 +56,20 @@
     // Zeit
     // ============================================================
     function getElapsed() {
-        return runningSince != null ? elapsed + Math.floor((Date.now() - runningSince) / 1000) : elapsed;
+        var milliseconds = runningSince != null ? elapsed + (Date.now() - runningSince) : elapsed;
+        return Math.floor(milliseconds / 1000);
     }
     function pauseTimer() {
         if (runningSince != null) {
-            elapsed += Math.floor((Date.now() - runningSince) / 1000);
+            elapsed += Date.now() - runningSince;
             runningSince = null;
         }
     }
     function formatTime(sec) {
-        var m = Math.floor(sec / 60) % 60, s = sec % 60;
+        var total = Math.max(0, Math.floor(sec));
+        var h = Math.floor(total / 3600), m = Math.floor(total / 60) % 60, s = total % 60;
         var p = function (n) { return String(n).padStart(2, '0'); };
-        return p(m) + ':' + p(s);
+        return h ? (p(h) + ':' + p(m) + ':' + p(s)) : (p(Math.floor(total / 60)) + ':' + p(s));
     }
     function updateTimer() { $('time').textContent = formatTime(getElapsed()); }
 
@@ -109,6 +111,9 @@
         cellMap = {};
         boardEl.style.gridTemplateColumns = 'repeat(' + puzzle.cols + ', 1fr)';
         boardEl.style.gridTemplateRows = 'repeat(' + puzzle.rows + ', 1fr)';
+        boardEl.style.minWidth = Math.max(0, puzzle.cols * 30 + (puzzle.cols - 1) * 2 + 4) + 'px';
+        boardEl.setAttribute('aria-rowcount', String(puzzle.rows));
+        boardEl.setAttribute('aria-colcount', String(puzzle.cols));
         for (var r = 0; r < puzzle.rows; r++) {
             for (var c = 0; c < puzzle.cols; c++) {
                 var k = r + ',' + c;
@@ -139,6 +144,15 @@
                 cellMap[k] = { btn: btn, letter: letter, num: num, across: info.across, down: info.down };
             }
         }
+        requestAnimationFrame(updateScrollHint);
+    }
+
+    function updateScrollHint() {
+        var scroller = $('board-scroll');
+        var hint = $('scroll-hint');
+        if (!scroller || !hint) return;
+        var scrollable = scroller.scrollWidth > scroller.clientWidth + 1 || scroller.scrollHeight > scroller.clientHeight + 1;
+        hint.hidden = !scrollable;
     }
 
     function buildClues() {
@@ -248,7 +262,10 @@
     function focusSelected() {
         if (!selected) return;
         var info = cellMap[selected.r + ',' + selected.c];
-        if (info) info.btn.focus({ preventScroll: true });
+        if (info) {
+            info.btn.focus({ preventScroll: true });
+            info.btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
     }
 
     function toggleDirection() {
@@ -270,17 +287,22 @@
         if (status !== 'playing' || !selected) return;
         var letters = L.graphemes(ch);
         if (!letters.length) return;
+        var reachedEnd = false;
         for (var i = 0; i < letters.length; i++) {
             if (!L.isGridLetter(letters[i]) || !selected) continue;
             var k = selected.r + ',' + selected.c;
             board[k] = letters[i];
             delete errors[k];
             var moved = advance();
-            if (!moved && i + 1 < letters.length) break;
+            if (!moved) {
+                reachedEnd = true;
+                if (i + 1 < letters.length) break;
+            }
         }
         syncWordInput();
         render();
         checkWin();
+        if (status === 'playing' && reachedEnd) selectNextUnsolvedPlacement();
         scheduleSave();
     }
 
@@ -295,6 +317,31 @@
                     return true;
                 }
                 return false;
+            }
+        }
+        return false;
+    }
+
+    function selectNextUnsolvedPlacement() {
+        var current = activePlacement();
+        var start = current ? puzzle.placements.indexOf(current) : -1;
+        for (var offset = 0; offset < puzzle.placements.length; offset++) {
+            var index = ((start < 0 ? 0 : start) + offset) % puzzle.placements.length;
+            var candidate = puzzle.placements[index];
+            var cells = placementCells(candidate);
+            var target = null;
+            for (var i = 0; i < cells.length; i++) {
+                var k = cells[i].r + ',' + cells[i].c;
+                if (board[k] !== puzzle.cells[k].letter) { target = cells[i]; break; }
+            }
+            if (target) {
+                direction = candidate.dir;
+                selected = { r: target.r, c: target.c };
+                syncWordInput();
+                render();
+                focusSelected();
+                announce('Weiter mit ' + candidate.number + ' ' + (candidate.dir === 'across' ? 'waagrecht' : 'senkrecht') + '.');
+                return true;
             }
         }
         return false;
@@ -344,21 +391,39 @@
         }
     }
 
+    function parseWordDraft(value, length) {
+        var slots = [];
+        var chars = Array.from(String(value || '').normalize('NFC'));
+        for (var i = 0; i < chars.length && slots.length < length; i++) {
+            if (chars[i] === '·' || chars[i] === '_' || chars[i] === '.') {
+                slots.push(null);
+                continue;
+            }
+            // Natürliche Leerzeichen/Bindestriche werden bei komplett
+            // eingegebenen Antworten ignoriert; sichtbare Lücken sind ·.
+            if (/^[\s\-'’]$/.test(chars[i])) continue;
+            var mapped = L.graphemes(chars[i]);
+            for (var j = 0; j < mapped.length && slots.length < length; j++) {
+                if (L.isGridLetter(mapped[j])) slots.push(mapped[j]);
+            }
+        }
+        while (slots.length < length) slots.push(null);
+        return slots;
+    }
+
     function onWordInput() {
         if (status !== 'playing') return;
         var pl = activePlacement();
         if (!pl) return;
         var cells = placementCells(pl);
-        var letters = L.graphemes(wordInput.value);
+        var letters = parseWordDraft(wordInput.value, cells.length);
         for (var i = 0; i < cells.length; i++) {
             var k = cells[i].r + ',' + cells[i].c;
-            if (i < letters.length && L.isGridLetter(letters[i])) {
-                board[k] = letters[i];
-            } else {
-                delete board[k];
-            }
+            if (letters[i]) board[k] = letters[i];
+            else delete board[k];
             delete errors[k];
         }
+        syncWordInput();
         render();
         checkWin();
         scheduleSave();
@@ -366,15 +431,13 @@
 
     function syncWordInput() {
         var pl = activePlacement();
-        if (!pl) { wordInput.value = ''; wordLabel.textContent = 'Aktuelles Wort'; return; }
+        if (!pl) { wordInput.value = ''; wordInput.removeAttribute('maxlength'); wordLabel.textContent = 'Aktuelles Wort vollständig eingeben'; return; }
         var cells = placementCells(pl);
-        var s = '';
-        for (var i = 0; i < cells.length; i++) {
-            var v = board[cells[i].r + ',' + cells[i].c];
-            if (v) s += v;
-        }
-        wordInput.value = s;
-        var label = pl.number + ' ' + (pl.dir === 'across' ? 'waagrecht' : 'senkrecht') + ' (' + pl.length + ')';
+        var slots = [];
+        for (var i = 0; i < cells.length; i++) slots.push(board[cells[i].r + ',' + cells[i].c] || '·');
+        wordInput.value = slots.join('');
+        wordInput.maxLength = Math.max(pl.length * 2, pl.length + 4); // ß/Um­laute dürfen beim Einfügen expandieren.
+        var label = pl.number + ' ' + (pl.dir === 'across' ? 'waagrecht' : 'senkrecht') + ' (' + pl.length + ' Buchstaben)';
         if (pl.region) label += ' · ' + pl.region;
         wordLabel.textContent = label;
     }
@@ -485,7 +548,7 @@
                 entries: DATA.entries, datasetVersion: DATA.datasetVersion
             });
             var v = L.validatePuzzle(p, DATA.entries);
-            if (!v.ok) {
+            if (!v.ok || !p.qualityPassed) {
                 // Sicherheitsnetz: sollte nie passieren; Fallback mit anderem Seed.
                 seed = generateSeed();
                 p = L.generatePuzzle({
@@ -493,7 +556,7 @@
                     entries: DATA.entries, datasetVersion: DATA.datasetVersion
                 });
                 v = L.validatePuzzle(p, DATA.entries);
-                if (!v.ok) {
+                if (!v.ok || !p.qualityPassed) {
                     // Beide Versuche ungültig → sicher scheitern, kein kaputtes Rätsel zeigen.
                     announce('Rätselgenerierung fehlgeschlagen. Bitte „Neues Spiel“ starten.');
                     return;
@@ -512,7 +575,7 @@
             updateTimer();
             saveGame();
             render();
-            announce('Neues Rätsel: ' + language + ', ' + difficulty + ', ' + p.placements.length + ' Wörter, Seed ' + seed + '.');
+            announce('Neues Rätsel: ' + (language === 'de' ? 'Deutsch' : 'Bairisch') + ', ' + difficulty + ', ' + p.placements.length + ' Wörter · ' + Math.round(p.metrics.density * 100) + ' % Gitterdichte.');
         }, 20);
     }
 
@@ -538,16 +601,15 @@
         if (!puzzle) return;
         try {
             var data = {
+                saveVersion: 3,
                 seed: seed, language: language, difficulty: difficulty,
+                datasetVersion: DATA.datasetVersion, generatorVersion: L.GENERATOR_VERSION,
                 board: board, errors: errors, hinted: hinted,
+                selected: selected ? { r: selected.r, c: selected.c } : null,
+                direction: direction,
                 hintsLeft: hintsLeft, hintsUsed: hintsUsed, mistakes: mistakes,
                 status: status,
-                elapsed: getElapsed(),
-                puzzleSeed: puzzle.seed, puzzleLanguage: puzzle.language,
-                puzzleDifficulty: puzzle.difficulty,
-                datasetVersion: puzzle.datasetVersion, generatorVersion: puzzle.generatorVersion,
-                placements: puzzle.placements, cells: puzzle.cells,
-                rows: puzzle.rows, cols: puzzle.cols, clues: puzzle.clues
+                elapsed: getElapsed()
             };
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         } catch (_e) { /* Storage kann unavailable sein */ }
@@ -569,26 +631,44 @@
             var raw = window.localStorage.getItem(STORAGE_KEY);
             if (!raw) return false;
             var data = JSON.parse(raw);
-            if (!data || !data.placements) return false;
-            var restored = L.sanitizeSavedPuzzle(data, DATA.entries);
-            if (!restored) return false;
-            puzzle = restored;
-            seed = data.seed || generateSeed();
-            language = (data.language === 'bar') ? 'bar' : 'de';
-            difficulty = L.PROFILES[data.difficulty] ? data.difficulty : 'mittel';
-            board = data.board || {};
-            errors = data.errors || {};
-            hinted = data.hinted || {};
-            hintsLeft = (typeof data.hintsLeft === 'number') ? data.hintsLeft : L.PROFILES[difficulty].hints;
-            hintsUsed = data.hintsUsed || 0;
-            mistakes = data.mistakes || 0;
-            elapsed = data.elapsed || 0;
+            if (!data || data.saveVersion !== 3 || data.datasetVersion !== DATA.datasetVersion || data.generatorVersion !== L.GENERATOR_VERSION) return false;
+            if (typeof data.seed !== 'string' || !data.seed || data.seed.length > 128) return false;
+            language = data.language === 'bar' ? 'bar' : data.language === 'de' ? 'de' : '';
+            difficulty = L.PROFILES[data.difficulty] ? data.difficulty : '';
+            if (!language || !difficulty) return false;
+            seed = data.seed;
+            puzzle = L.generatePuzzle({
+                seed: seed, language: language, difficulty: difficulty,
+                entries: DATA.entries, datasetVersion: DATA.datasetVersion
+            });
+            var validation = L.validatePuzzle(puzzle, DATA.entries);
+            if (!validation.ok || !puzzle.qualityPassed) return false;
+
+            board = {}; errors = {}; hinted = {};
+            var savedBoard = data.board && typeof data.board === 'object' ? data.board : {};
+            var savedErrors = data.errors && typeof data.errors === 'object' ? data.errors : {};
+            var savedHinted = data.hinted && typeof data.hinted === 'object' ? data.hinted : {};
+            for (var key in puzzle.cells) {
+                if (L.isGridLetter(savedBoard[key])) board[key] = savedBoard[key];
+                if (savedErrors[key] === true && board[key]) errors[key] = true;
+                if (savedHinted[key] === true && board[key] === puzzle.cells[key].letter) hinted[key] = true;
+            }
+            var profileHints = L.PROFILES[difficulty].hints;
+            hintsLeft = Number.isInteger(data.hintsLeft) ? Math.max(0, Math.min(profileHints, data.hintsLeft)) : profileHints;
+            hintsUsed = Number.isInteger(data.hintsUsed) ? Math.max(0, Math.min(profileHints, data.hintsUsed)) : 0;
+            mistakes = Number.isInteger(data.mistakes) ? Math.max(0, Math.min(1000000, data.mistakes)) : 0;
+            elapsed = Number.isFinite(data.elapsed) ? Math.max(0, Math.min(604800, data.elapsed)) * 1000 : 0;
+            direction = data.direction === 'down' ? 'down' : 'across';
+            selected = null;
+            if (data.selected && Number.isInteger(data.selected.r) && Number.isInteger(data.selected.c) && puzzle.cells[data.selected.r + ',' + data.selected.c]) {
+                selected = { r: data.selected.r, c: data.selected.c };
+            }
             var complete = true;
             for (var cellKey in puzzle.cells) {
                 if (board[cellKey] !== puzzle.cells[cellKey].letter) { complete = false; break; }
             }
-            status = (data.status === 'won' && complete) ? 'won' : 'playing';
-            runningSince = (status === 'playing') ? Date.now() : null;
+            status = data.status === 'won' && complete ? 'won' : 'playing';
+            runningSince = status === 'playing' ? Date.now() : null;
             return true;
         } catch (_e) { return false; }
     }
@@ -647,8 +727,21 @@
         markClues(clueButtons.across, 'across');
         markClues(clueButtons.down, 'down');
 
+        if (active) {
+            $('active-clue-label').textContent = active.number + ' ' + (active.dir === 'across' ? 'waagrecht' : 'senkrecht') + ' · ' + active.length + ' Buchstaben';
+            var activeText = active.clue;
+            if (active.standardGerman) activeText += ' · Hochdeutsch: ' + active.standardGerman;
+            $('active-clue-text').textContent = activeText;
+        } else {
+            $('active-clue-label').textContent = 'Aktueller Hinweis';
+            $('active-clue-text').textContent = status === 'won' ? 'Rätsel vollständig gelöst.' : 'Wähle ein weißes Feld oder einen Hinweis.';
+        }
+
+        var filledCount = 0, totalCount = 0;
+        for (var progressKey in puzzle.cells) { totalCount++; if (board[progressKey]) filledCount++; }
         $('mistakes').textContent = String(mistakes);
         $('hints-left').textContent = String(hintsLeft);
+        $('progress').textContent = (totalCount ? Math.round(filledCount / totalCount * 100) : 0) + ' %';
         $('status').textContent = status === 'playing' ? 'Läuft' : status === 'won' ? 'Gelöst' : '';
         $('hint-btn').disabled = hintsLeft <= 0 || status !== 'playing';
         $('check-btn').disabled = status !== 'playing';
@@ -678,7 +771,7 @@
         $('result-new-btn').addEventListener('click', function () { newGame(); });
         $('result-close-btn').addEventListener('click', function () { $('result').hidden = true; });
         wordInput.addEventListener('input', onWordInput);
-        wordInput.addEventListener('focus', syncWordInput);
+        wordInput.addEventListener('focus', function () { syncWordInput(); wordInput.select(); });
 
         document.addEventListener('keydown', function (e) {
             var tag = (e.target && e.target.tagName) || '';
@@ -707,10 +800,13 @@
 
         // Bei Schließen/Verbergen der Seite den Entprell-Timer sofort leeren,
         // damit jede Eingabe sicher persistiert ist (auch beim mobileen Hintergrund).
-        window.addEventListener('pagehide', flushSave);
+        window.addEventListener('pagehide', function () { pauseTimer(); flushSave(); });
+        window.addEventListener('pageshow', function () { if (status === 'playing' && runningSince == null) runningSince = Date.now(); });
         document.addEventListener('visibilitychange', function () {
-            if (document.visibilityState === 'hidden') flushSave();
+            if (document.visibilityState === 'hidden') { pauseTimer(); flushSave(); }
+            else if (status === 'playing' && runningSince == null) runningSince = Date.now();
         });
+        window.addEventListener('resize', updateScrollHint);
     }
 
     // ============================================================
@@ -731,9 +827,17 @@
             buildGrid();
             buildClues();
             var first = firstCell();
-            if (first) selectCell(first.r, first.c, false);
+            if (selected && cellMap[selected.r + ',' + selected.c]) {
+                normalizeDirection();
+                syncWordInput();
+                render();
+            } else if (first) selectCell(first.r, first.c, false);
             updateTimer();
             render();
+            if (status === 'won') {
+                $('result-text').textContent = 'Zeit: ' + formatTime(getElapsed()) + ' · Fehler: ' + mistakes + ' · Hinweise: ' + hintsUsed + '.';
+                $('result').hidden = false;
+            }
             announce('Gespeichertes Rätsel geladen (Seed ' + seed + ').');
         } else {
             seed = generateSeed();
@@ -757,6 +861,9 @@
         toggleDirection: toggleDirection,
         generatePuzzle: function (opts) { return L.generatePuzzle(opts); },
         validatePuzzle: function (p) { return L.validatePuzzle(p, DATA.entries); },
+        getPuzzle: function () { return puzzle ? JSON.parse(JSON.stringify(puzzle)) : null; },
+        getBoard: function () { return Object.assign({}, board); },
+        parseWordDraft: parseWordDraft,
         getState: function () {
             return {
                 status: status,
@@ -771,6 +878,8 @@
                 wordCount: puzzle ? puzzle.placements.length : 0,
                 rows: puzzle ? puzzle.rows : 0,
                 cols: puzzle ? puzzle.cols : 0,
+                metrics: puzzle ? Object.assign({}, puzzle.metrics) : null,
+                datasetSize: DATA.entries.length,
                 elapsed: getElapsed()
             };
         }

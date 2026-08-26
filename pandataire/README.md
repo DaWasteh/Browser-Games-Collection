@@ -2,6 +2,13 @@
 
 Eigenständiger, offline spielbarer Solitaire-Sammelband für die Browser-Games-Collection – drei Varianten in einem Spiel: **TriPeaks**, **Golf** und **Pyramid**.
 
+## Neu in v1.5
+
+- Blockierte TriPeaks-Karten zeigen weder visuell noch im Accessibility-Text Rang oder Farbe; sie werden erst beim Freilegen aufgedeckt.
+- TriPeaks und Golf erzeugen deckverträgliche zufällige ±1-Rangpfade statt nur eines festen Musters und seiner Umkehrung.
+- Wartezeit auf einem Gewinn-/Verlustdialog wird nach Rückgängig nicht mehr zur aktiven Spielzeit addiert.
+- Seeds bleiben deterministisch; 100 Stichproben liefern mindestens 90 verschiedene Tableau-Rangsignaturen je Einzelkartenmodus.
+
 ## Spielen
 
 `index.html` direkt im Browser öffnen. Die Navigation **← Spieleübersicht** führt zurück zu `../index.html`.

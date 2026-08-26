@@ -1,21 +1,136 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Panndike – Klondike Solitaire</title><meta name="description" content="Offline Klondike Solitaire mit Zieh-1 und Zieh-3.">
-<script src="../shared/game-shell.js"></script><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="../shared/game-shell.css"><script src="game.js" defer></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f1e8">
+  <title>Panndike – Klondike Solitär</title>
+  <meta name="description" content="Modernes Klondike-Solitär mit Tagesdeal, Hinweisen, Zieh-1/3, Undo, Drag-and-drop und Touch-Bedienung.">
+  <script src="../shared/game-shell.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/game-shell.css">
+  <script src="engine.js"></script>
+  <script src="game.js" defer></script>
 </head>
 <body>
-<header class="top"><a class="back" href="../index.html">← Spieleübersicht</a><h1>♠ Panndike</h1><p>Klondike Solitaire – räume das Tableau und baue vier Foundations.</p></header>
-<main>
-<section class="hud" aria-label="Spielstand"><div><span>Züge</span><strong id="moves">0</strong></div><div><span>Zeit</span><strong id="time">00:00</strong></div><div><span>Foundations</span><strong id="foundation-count">0 / 52</strong></div><div><span>Ziehmodus</span><strong id="draw-label">1</strong></div></section>
-<p id="message" class="message" role="status" aria-live="polite">Wähle eine Karte und danach ihr Ziel.</p>
-<section class="game-table" aria-label="Klondike Spielfeld">
-<div class="top-piles"><div class="pile-group"><h2>Stock</h2><button id="stock" class="pile stock" type="button" aria-label="Karte vom Stock ziehen"><span id="stock-count"></span></button></div><div class="pile-group"><h2>Waste</h2><button id="waste" class="pile empty" type="button" aria-label="Oberste Waste-Karte"></button></div><div class="spacer"></div><div class="pile-group"><h2>Foundations</h2><div id="foundations" class="foundations" aria-label="Vier Foundations"></div></div></div>
-<div id="tableau" class="tableau" aria-label="Sieben Tableau-Spalten"></div>
-</section>
-<section class="controls" aria-label="Spielaktionen"><fieldset><legend>Ziehmodus</legend><label><input type="radio" name="draw" value="1" checked> Zieh 1</label><label><input type="radio" name="draw" value="3"> Zieh 3</label></fieldset><button id="undo" type="button">↶ Rückgängig</button><button id="new-game" type="button">↻ Neues Spiel</button><button id="auto" type="button">⤴ Sichere Foundation-Züge</button></section>
-<details class="rules"><summary>Regeln &amp; Steuerung</summary><p>Baue im Tableau absteigend mit wechselnden Farben. Eine leere Spalte darf nur mit einem König gefüllt werden. Foundations werden je Farbe aufsteigend von Ass bis König gebaut; die oberste Foundation-Karte kann zurück auf ein gültiges Tableau. Ziehe Karten aus dem Stock; ein leerer Stock recycelt die Waste.</p><ul><li>Maus/Touch: Karte antippen, dann Ziel antippen. Sequenzen lassen sich als Block verschieben.</li><li>Tastatur: Tab und Enter bedienen alle Karten; <kbd>U</kbd> macht rückgängig, <kbd>N</kbd> startet neu, <kbd>A</kbd> führt sichere Foundation-Züge aus.</li></ul></details>
-<div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title"><div class="result-card"><h2 id="result-title">Gewonnen!</h2><p id="result-text"></p><button id="result-new" type="button">Neues Spiel</button></div></div>
-</main><footer><small>Offline-Spiel ohne externe Abhängigkeiten.</small></footer>
-</body></html>
+  <header class="top">
+    <a class="back" href="../index.html">← Spieleübersicht</a>
+    <div class="title-row">
+      <div>
+        <p class="eyebrow">KLASSISCHE PATIENCE</p>
+        <h1>Panndike Solitär</h1>
+      </div>
+      <span class="brand-mark" aria-hidden="true">♠</span>
+    </div>
+    <p>Klondike im klaren Zeitungsstil – zufällige Partien oder ein gemeinsamer Tagesdeal.</p>
+  </header>
+
+  <main>
+    <section class="scorebar" aria-label="Spielstand">
+      <div><span>Zeit</span><strong id="time">00:00</strong></div>
+      <div><span>Punkte</span><strong id="score">0</strong></div>
+      <div><span>Züge</span><strong id="moves">0</strong></div>
+      <div><span>Fundament</span><strong id="foundation-count">0 / 52</strong></div>
+      <div><span>Partie</span><strong id="deal-code">–</strong></div>
+      <div><span>Regel</span><strong id="draw-label">Zieh 1</strong></div>
+    </section>
+
+    <p id="message" class="message" role="status" aria-live="polite">Wähle eine offene Karte oder ziehe vom Talon.</p>
+
+    <section class="actionbar" aria-label="Spielaktionen">
+      <label class="draw-control" for="draw-mode">
+        <span>Ziehmodus</span>
+        <select id="draw-mode" aria-describedby="draw-help">
+          <option value="1">1 Karte</option>
+          <option value="3">3 Karten</option>
+        </select>
+      </label>
+      <span id="draw-help" class="visually-hidden">Der Ziehmodus gilt für die gesamte Partie und kann nur beim Neustart geändert werden.</span>
+      <button id="undo" type="button">↶ Rückgängig</button>
+      <button id="hint" type="button">💡 Hinweis</button>
+      <button id="auto" type="button">⤴ Sichere Züge</button>
+      <button id="restart" type="button">↻ Partie neu</button>
+      <button id="new-game" type="button" class="primary">＋ Neue Partie</button>
+      <button id="daily" type="button">☀ Tagesdeal</button>
+    </section>
+
+    <section class="game-table" aria-label="Klondike-Spielfeld" aria-describedby="board-help">
+      <p id="board-help" class="visually-hidden">Karten antippen und danach ein Ziel wählen. Auf Geräten mit Zeiger können Kartenfolgen auch gezogen werden.</p>
+      <div class="top-piles">
+        <div class="pile-group stock-group">
+          <h2>Talon</h2>
+          <button id="stock" class="pile stock" type="button" aria-label="Vom Talon ziehen">
+            <span class="card-back-mark" aria-hidden="true">P</span>
+            <span id="stock-count" class="pile-count">24</span>
+          </button>
+        </div>
+        <div class="pile-group waste-group">
+          <h2>Ablage</h2>
+          <button id="waste" class="pile waste empty" type="button" aria-label="Ablage ist leer"></button>
+        </div>
+        <div class="top-spacer" aria-hidden="true"></div>
+        <div class="pile-group foundation-group">
+          <h2>Fundamente</h2>
+          <div id="foundations" class="foundations" aria-label="Vier Fundamente"></div>
+        </div>
+      </div>
+      <div id="tableau" class="tableau" role="group" aria-label="Sieben Tableau-Spalten"></div>
+    </section>
+
+    <section class="guide" aria-labelledby="guide-title">
+      <div>
+        <p class="guide-kicker">KURZANLEITUNG</p>
+        <h2 id="guide-title">So spielst du</h2>
+      </div>
+      <ol>
+        <li><strong>Sortiere im Tableau</strong><span>Absteigend und immer abwechselnd rot/schwarz. Auf eine leere Spalte passt nur ein König.</span></li>
+        <li><strong>Decke Karten auf</strong><span>Verschiebe offene Karten oder ganze korrekte Folgen. Freigelegte Karten drehen sich automatisch um.</span></li>
+        <li><strong>Baue die Fundamente</strong><span>Je Farbe vom Ass bis zum König. Doppelklick schickt eine mögliche Karte direkt nach oben.</span></li>
+      </ol>
+      <p class="guide-note"><strong>Tipp:</strong> „Hinweis“ zeigt einen sinnvollen nächsten Zug. <kbd>U</kbd> macht rückgängig, <kbd>H</kbd> hilft, <kbd>R</kbd> startet dieselbe Partie neu und <kbd>N</kbd> mischt neu.</p>
+    </section>
+
+    <details class="rules">
+      <summary>Vollständige Regeln &amp; Bedienung</summary>
+      <div class="rules-grid">
+        <div><h3>Tableau</h3><p>Sieben Spalten werden mit einer bis sieben Karten ausgeteilt. Nur offene Folgen in absteigender Reihenfolge und wechselnder Farbe dürfen bewegt werden.</p></div>
+        <div><h3>Talon &amp; Ablage</h3><p>Je nach gewählter Regel werden eine oder drei Karten aufgedeckt. Ist der Talon leer, wird die Ablage wieder umgedreht. Die Regel bleibt während der Partie fest.</p></div>
+        <div><h3>Fundamente</h3><p>Jedes Fundament gehört zu einer Farbe und wächst von Ass bis König. Eine oberste Fundamentkarte darf bei Bedarf zurück ins Tableau.</p></div>
+        <div><h3>Eingabe</h3><p>Maus/Touch: Quelle und Ziel antippen; mit Maus oder Stift auch ziehen. Tastatur: Tab, Enter/Leertaste sowie <kbd>U</kbd>, <kbd>H</kbd>, <kbd>A</kbd>, <kbd>R</kbd>, <kbd>N</kbd> und <kbd>Esc</kbd>.</p></div>
+      </div>
+    </details>
+
+    <div id="confirm" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <div class="dialog-card">
+        <p class="dialog-kicker">PARTIE VERLASSEN?</p>
+        <h2 id="confirm-title">Fortschritt verwerfen</h2>
+        <p id="confirm-text">Die laufende Partie ist noch nicht beendet.</p>
+        <div class="dialog-actions">
+          <button id="confirm-cancel" type="button">Weiterspielen</button>
+          <button id="confirm-ok" type="button" class="primary">Trotzdem fortfahren</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="result" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="dialog-card result-card">
+        <p class="dialog-kicker">GESCHAFFT</p>
+        <h2 id="result-title">Solitär gelöst!</h2>
+        <p id="result-text"></p>
+        <dl class="result-stats">
+          <div><dt>Bestwert</dt><dd id="best-score">0</dd></div>
+          <div><dt>Siege</dt><dd id="wins">0</dd></div>
+          <div><dt>Tages-Serie</dt><dd id="streak">0</dd></div>
+        </dl>
+        <div class="dialog-actions">
+          <button id="result-new" type="button" class="primary">Neue Partie</button>
+          <button id="result-daily" type="button">Tagesdeal</button>
+          <button id="result-undo" type="button">Letzten Zug zurück</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer><small>Komplett offline, ohne externe Assets. Spielstand und lokale Statistik bleiben nur in diesem Browser.</small></footer>
+</body>
+</html>

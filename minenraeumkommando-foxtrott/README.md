@@ -3,6 +3,11 @@
 💣 Ein klassisches Minesweeper-Spiel ohne Server, Frameworks oder Build-Prozess.
 Komplett offline im Browser spielbar — nur eine HTML-Datei öffnen und loslegen.
 
+## Neu in v1.5
+
+- Eine Touch-Geste, die ein breites Minenfeld scrollt, deckt beim Loslassen kein versehentliches Feld mehr auf.
+- Benutzerdefinierte Bestzeiten sind nach `Zeilen × Spalten × Minen` getrennt; unterschiedlich große Custom-Felder überschreiben einander nicht mehr.
+
 ## Spiel starten
 
 Lokal: `index.html` im Browser öffnen (per Doppelklick oder Drag & Drop).

@@ -36,7 +36,8 @@
       <div class="message" id="message" role="status" aria-live="polite">Wähle eine offene Karte oder eine gleichfarbige Folge.</div>
     </section>
 
-    <section class="tableau-area" aria-labelledby="tableau-title">
+    <section class="tableau-area" tabindex="0" aria-labelledby="tableau-title" aria-describedby="tableau-scroll-help">
+      <p id="tableau-scroll-help" class="mobile-scroll-help">↔ Auf kleinen Bildschirmen das Spielfeld seitlich verschieben.</p>
       <h2 id="tableau-title" class="visually-hidden">Spielfeld mit zehn Spalten</h2>
       <div id="tableau" class="tableau" role="group" aria-label="Zehn Tableau-Spalten"></div>
       <div class="stock-row">

@@ -1,4 +1,4 @@
-# Sand Game Pro · Advanced Simulation v2.1
+# Sand Game Pro · Advanced Simulation v2.2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Pages-Live-success.svg)](https://dawasteh.github.io/SandGame/)
@@ -22,6 +22,41 @@ Ein interaktives **Zellulares Automaten-Spiel** mit physikalisch, chemisch und b
 | **Chemie** | Salz, Kalk, Kohle, Metall, Glas |
 | **Kunststoffe** | Kunststoff (PLASTIC) |
 | **Spezial** | Eier, Beton, Isolator, Sensor, Strahlung |
+
+### ⚡ Performance, Hardware und Robustheit (v2.2 / Collection v1.5)
+
+- **WebGL2-Fallback funktioniert tatsächlich:** Scheitern Shader-Kompilierung oder
+  Linking nach dem Anfordern eines WebGL-Kontexts, wird der sichtbare Canvas
+  ersetzt und sauber als Canvas2D neu initialisiert. Auch ein später verlorener
+  WebGL-Kontext wechselt ohne Absturz auf CPU-Rendering.
+- **Pausierte und unveränderte Szenen sind render-dirty-gesteuert:** Es gibt dann
+  keine fortlaufenden Vollscans, Texture-Packs oder GPU-Uploads mehr. Eingabe,
+  Resize und Zustandsänderungen markieren das Bild gezielt als schmutzig.
+- **Wind verarbeitet die aktive Zellliste** statt bei jedem Tick das komplette
+  Raster zu besuchen. Verschobene Partikel erhalten einen Tick-Stempel und werden
+  in derselben Windphase nicht doppelt bewegt.
+- **Wake-Scans laufen auf großen aktiven Welten seltener**; normale Mutationen und
+  Eingaben wecken ihre Nachbarn weiterhin sofort.
+- **Maximal acht Simulationsticks pro Browser-Callback:** Nach einem Stall wird
+  überschüssige Catch-up-Zeit bewusst verworfen, statt bis zu 96 Ticks in einem
+  einzigen Frame und anschließend eine Überlastspirale auszuführen.
+- **Auflösungsregler ist entprellt:** Während des Ziehens werden nicht mehr dutzende
+  30–40-MiB-Weltspeicher unmittelbar hintereinander allokiert.
+- **Resize erhält die Welt unten und horizontal zentriert.** Reine Änderungen der
+  mobilen Browserleisten reallokieren das logische Raster nicht mehr.
+- **Zellzustand wird zentral zurückgesetzt:** Salz, Strahlung, Impuls, Elektrik,
+  Pflanzen- und Nährstoffdaten können nach Löschen/Übermalen nicht in ein neues
+  Material durchsickern. Frisch erzeugte Erde erhält echte N-P-K-Werte.
+- **Bildimport bleibt auf `W × H` begrenzt:** Extrem schmale/breite Bilder werden
+  per Quellrechteck gecroppt. Ein quantisierter 32.768-Farben-Cache ersetzt bis zu
+  rund 59 Millionen allokierende Farbabstandsvergleiche.
+- **Pointer-Lebenszyklus vollständig:** genau ein aktiver `pointerId`, Capture sowie
+  Abbruch bei `pointercancel`, `lostpointercapture` und Fensterfokusverlust.
+- Mobile Schaltflächen besitzen mindestens 44 CSS-Pixel Höhe.
+
+Die Browser-Smokes prüfen Tickbudgets bei 60/120 Hz und nach einem Stall,
+Zellreset, Extremformat-Cropping, WebGL→CPU-Fallback, Pointer-Abbruch,
+Renderstillstand im Pausemodus, Resize-Anker und den aktiven Windpfad.
 
 ### 🌱 Erweitertes Biologie-System (v2.1)
 
@@ -110,9 +145,9 @@ nur die Simulations-Grids als 3 gepackte RGBA8-Texturen zur GPU hochgeladen
 (reiner Byte-Schub); die GPU berechnet alle Pixel parallel.
 
 - **Automatische Erkennung**: Ist WebGL2 verfügbar und kompiliert der Shader,
-  läuft die GPU-Variante. Schlägt beides fehl, springt das Spiel automatisch auf
-  den bewährten CPU-Renderpfad (`putImageData`) – die Farben bleiben in jedem
-  Fall korrekt.
+  läuft die GPU-Variante. Schlägt beides fehl, wird der bereits beanspruchte
+  Canvas sicher ersetzt und das Spiel wechselt auf den CPU-Renderpfad
+  (`putImageData`). Auch `webglcontextlost` wird abgefangen.
 - **GPU-Rendering-Toggle** (Werkzeugleiste): Per Checkbox an/abschaltbar. Da der
   Canvas-Kontext-Typ (WebGL2 vs. 2D) einmalig beim Laden festgelegt wird, führt
   der Wechsel ein Neuladen herbei (Einstellung wird in `localStorage` gespeichert).

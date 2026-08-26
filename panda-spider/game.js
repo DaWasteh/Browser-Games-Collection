@@ -22,7 +22,7 @@
   function cloneColumns(columns) { return columns.map(column => column.map(cloneCard)); }
   function snapshot() { return { columns: cloneColumns(state.columns), stock: state.stock.map(cloneCard), completed: state.completed, moves: state.moves, elapsed: state.elapsed, status: state.status }; }
   function saveHistory() { state.history.push(snapshot()); if (state.history.length > 100) state.history.shift(); }
-  function restore(item) { state.columns = cloneColumns(item.columns); state.stock = item.stock.map(cloneCard); state.completed = item.completed; state.moves = item.moves; state.elapsed = item.elapsed; state.status = item.status; state.selected = null; render(); }
+  function restore(item) { state.columns = cloneColumns(item.columns); state.stock = item.stock.map(cloneCard); state.completed = item.completed; state.moves = item.moves; state.elapsed = item.elapsed; state.status = item.status; state.startedAt = Date.now() - item.elapsed * 1000; state.selected = null; render(); }
 
   function buildDeck(mode) {
     const suits = MODE_SUITS[mode];
@@ -120,8 +120,8 @@
     return false;
   }
   function checkEnd() {
-    if (state.completed === 8) { state.status = 'won'; announce('Gewonnen! Alle acht Reihen sind entfernt.'); return; }
-    if (!state.stock.length && !hasAnyMove()) { state.status = 'lost'; announce('Keine Züge mehr. Starte ein neues Spiel oder gehe einen Zug zurück.'); }
+    if (state.completed === 8) { state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); state.startedAt = 0; state.status = 'won'; announce('Gewonnen! Alle acht Reihen sind entfernt.'); return; }
+    if (!state.stock.length && !hasAnyMove()) { state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); state.startedAt = 0; state.status = 'lost'; announce('Keine Züge mehr. Starte ein neues Spiel oder gehe einen Zug zurück.'); }
   }
   function announce(text) { els.message.textContent = text; }
   function formatTime(seconds) { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`; }
@@ -143,6 +143,8 @@
     const active = document.activeElement;
     const focusKey = active && els.tableau.contains(active) ? active.dataset.focusKey : '';
     els.tableau.replaceChildren();
+    const wrappers = [];
+    let maximumHeight = 30;
     state.columns.forEach((column, columnIndex) => {
       const wrapper = document.createElement('div'); wrapper.className = 'column'; wrapper.dataset.column = String(columnIndex); wrapper.dataset.focusKey = `column-${columnIndex}`; wrapper.setAttribute('role', 'group'); wrapper.setAttribute('aria-label', `Spalte ${columnIndex + 1}, ${column.length} Karten`);
       const label = document.createElement('span'); label.className = 'column-label'; label.textContent = String(columnIndex + 1); wrapper.append(label);
@@ -150,10 +152,14 @@
       if (state.selected && state.selected.column !== columnIndex && column.length === 0) wrapper.classList.add('selected-target');
       let top = 1.7;
       column.forEach((card, index) => { wrapper.append(makeCardButton(card, columnIndex, index, top)); top += card.faceUp ? 2.05 : 1.05; });
+      maximumHeight = Math.max(maximumHeight, top + 4.5);
+      wrappers.push(wrapper);
       wrapper.addEventListener('click', event => { if (event.target === wrapper && state.selected) moveTo(columnIndex); });
       wrapper.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && state.selected) { event.preventDefault(); moveTo(columnIndex); } });
       els.tableau.append(wrapper);
     });
+    els.tableau.style.minHeight = `${maximumHeight}rem`;
+    wrappers.forEach(wrapper => { wrapper.style.minHeight = `${maximumHeight - .5}rem`; });
     updateStats();
     if (focusKey) els.tableau.querySelector(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
@@ -161,6 +167,6 @@
 
   els.newGame.addEventListener('click', newGame); els.mode.addEventListener('change', newGame); els.deal.addEventListener('click', dealStock);
   els.undo.addEventListener('click', () => { const previous = state.history.pop(); if (previous) { restore(previous); announce('Letzten Zug rückgängig gemacht.'); } });
-  document.addEventListener('keydown', event => { if (event.target.matches('input, select, textarea')) return; if (event.key.toLowerCase() === 'n') newGame(); if (event.key.toLowerCase() === 'u') els.undo.click(); });
+  document.addEventListener('keydown', event => { if (event.target instanceof Element && event.target.matches('input, select, textarea')) return; if (event.key.toLowerCase() === 'n') newGame(); if (event.key.toLowerCase() === 'u') els.undo.click(); });
   timerId = window.setInterval(tick, 1000); void timerId; newGame();
 })();

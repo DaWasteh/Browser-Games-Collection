@@ -1,2 +1,107 @@
 <!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pahjong – Mahjong-Solitaire</title><link rel="stylesheet" href="styles.css"><script src="game.js" defer></script></head><body><header><nav><a href="../index.html">← Spieleauswahl</a></nav><h1>🀄 Pahjong</h1><p>Mahjong-Solitaire: Finde freie passende Paare.</p></header><main><section class="hud" aria-label="Spielstand"><div><span>Steine</span><strong id="remaining">144</strong></div><div><span>Züge</span><strong id="moves">0</strong></div><div><span>Zeit</span><strong id="time">00:00</strong></div></section><p id="message" role="status" aria-live="polite">Wähle einen freien Stein.</p><section id="board" class="board" aria-label="Mahjong-Spielbrett"></section><section class="controls" aria-label="Spielaktionen"><button id="hint" type="button">💡 Hinweis</button><button id="shuffle" type="button">🔀 Mischen</button><button id="undo" type="button">↶ Rückgängig</button><button id="new-game" type="button">↻ Neues Spiel</button></section><details><summary>Regeln &amp; Steuerung</summary><p>Ein Stein ist frei, wenn er nicht bedeckt ist und links oder rechts vollständig frei liegt. Wähle zwei freie gleiche Steine. Blumen passen untereinander, Jahreszeiten passen untereinander. Jeder Deal ist rückwärts konstruiert und daher mindestens einmal lösbar. Mischen verteilt nur die verbleibenden Steine auf eine neue lösbare Fortsetzung.</p><p>Maus/Touch: Steine anklicken. Tastatur: Tab und Enter/Leertaste; <kbd>H</kbd> Hinweis, <kbd>M</kbd> Mischen, <kbd>U</kbd> Undo, <kbd>N</kbd> neues Spiel.</p></details><div id="result" hidden role="dialog" aria-modal="true"><div><h2 id="result-title">Runde beendet</h2><p id="result-text"></p><button id="result-button" type="button">Neues Spiel</button></div></div></main><footer>Offline ohne Frameworks oder externe Assets.</footer></body></html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f1e8">
+  <title>Pahjong – Mahjong-Solitaire</title>
+  <meta name="description" content="Mahjong-Solitaire im echten 144-Stein-Turtle-Layout mit lösbaren Deals, Anleitung, Zoom, Hinweisen und Tastatursteuerung.">
+  <script src="../shared/game-shell.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/game-shell.css">
+  <script src="engine.js"></script>
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <nav aria-label="Hauptnavigation"><a class="back-link" href="../index.html">← Spieleübersicht</a></nav>
+    <div class="title-row">
+      <div>
+        <p class="eyebrow">MAHJONG-SOLITAIRE</p>
+        <h1>🀄 Pahjong</h1>
+        <p>Finde freie Paare und räume die klassische Schildkröte Schicht für Schicht ab.</p>
+      </div>
+      <span class="deal-badge">Deal <strong id="deal-code">–</strong></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hud" aria-label="Spielstand">
+      <div><span>Steine</span><strong id="remaining">144</strong></div>
+      <div><span>Freie Paare</span><strong id="pairs">0</strong></div>
+      <div><span>Züge</span><strong id="moves">0</strong></div>
+      <div><span>Mischungen</span><strong id="shuffles">0</strong></div>
+      <div><span>Zeit</span><strong id="time">00:00</strong></div>
+    </section>
+
+    <p id="message" class="message" role="status" aria-live="polite">Wähle einen freien Stein.</p>
+
+    <section class="quick-guide" aria-labelledby="quick-guide-title">
+      <div class="guide-heading">
+        <p class="eyebrow">SPIELANLEITUNG</p>
+        <h2 id="quick-guide-title">In drei Schritten</h2>
+      </div>
+      <ol>
+        <li><span class="step">1</span><div><strong>Freien Stein erkennen</strong><p>Oben liegt nichts darauf und mindestens eine lange Seite ist offen. Bedeckte Steine sind abgeblendet.</p></div></li>
+        <li><span class="step">2</span><div><strong>Passendes Paar wählen</strong><p>Zahl und Symbol müssen gleich sein. Beliebige zwei Blumen beziehungsweise Jahreszeiten passen zusammen.</p></div></li>
+        <li><span class="step">3</span><div><strong>Schildkröte leeren</strong><p>Wähle nacheinander zwei freie Partner. Dadurch öffnen sich darunterliegende Steine.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="board-card" aria-labelledby="board-title">
+      <div class="board-toolbar">
+        <div>
+          <h2 id="board-title">Turtle-Layout · 5 Ebenen</h2>
+          <p>Gesamtsicht oder hineinzoomen und verschieben.</p>
+        </div>
+        <div class="zoom-controls" role="group" aria-label="Spielfeld-Zoom">
+          <button id="zoom-out" type="button" aria-label="Verkleinern">−</button>
+          <output id="zoom-value" aria-live="polite">100 %</output>
+          <button id="zoom-in" type="button" aria-label="Vergrößern">＋</button>
+          <button id="zoom-fit" type="button">Einpassen</button>
+        </div>
+      </div>
+      <div id="board-shell" class="board-shell" tabindex="0" aria-label="Mahjong-Spielfeld. Bei Zoom horizontal und vertikal verschiebbar.">
+        <section id="board" class="board" role="grid" aria-label="144 Mahjong-Steine im Turtle-Layout" aria-describedby="tile-legend"></section>
+      </div>
+      <div id="tile-legend" class="legend">
+        <span><i class="legend-tile free" aria-hidden="true"></i> frei und wählbar</span>
+        <span><i class="legend-tile covered" aria-hidden="true"></i> noch bedeckt</span>
+        <span><i class="legend-tile selected" aria-hidden="true"></i> ausgewählt</span>
+        <span><i class="legend-tile hinted" aria-hidden="true"></i> Hinweis-Paar</span>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="Spielaktionen">
+      <button id="hint" type="button">💡 Hinweis</button>
+      <button id="shuffle" type="button">🔀 Rest lösbar mischen</button>
+      <button id="undo" type="button">↶ Rückgängig</button>
+      <button id="new-game" type="button" class="primary">＋ Neues Spiel</button>
+    </section>
+
+    <details class="rules" open>
+      <summary>Ausführliche Regeln, Sondersteine &amp; Steuerung</summary>
+      <div class="rules-grid">
+        <section><h3>Wann ist ein Stein frei?</h3><p>Kein Stein einer höheren Ebene darf seine Fläche überdecken. Zusätzlich muss links oder rechts die gesamte lange Seite offen sein. Das Spiel berechnet genau dieselben Halbstein-Flächen, die du siehst.</p></section>
+        <section><h3>Welche Steine passen?</h3><p>Kreise, Bambus, Zeichen, Winde und Drachen brauchen dasselbe Motiv und denselben Wert. Die vier unterschiedlichen Blumen passen untereinander; ebenso die vier Jahreszeiten.</p></section>
+        <section><h3>Was bedeutet „lösbar“?</h3><p>Jeder Deal besitzt beim Austeilen einen vollständig geprüften Entfernungsweg. Ein anderer legaler Zug kann trotzdem in eine Sackgasse führen. „Mischen“ verteilt nur die übrigen Motive in eine erneut geprüfte Fortsetzung.</p></section>
+        <section><h3>Tastatur</h3><p>Tab betritt das Brett; Pfeiltasten wechseln räumlich zwischen freien Steinen. Enter/Leertaste wählt. <kbd>H</kbd> Hinweis, <kbd>M</kbd> Mischen, <kbd>U</kbd> Rückgängig, <kbd>N</kbd> neues Spiel, <kbd>Esc</kbd> Auswahl aufheben.</p></section>
+      </div>
+    </details>
+
+    <div id="result" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="result-card">
+        <p class="eyebrow">GESCHAFFT</p>
+        <h2 id="result-title">Pahjong gewonnen!</h2>
+        <p id="result-text"></p>
+        <div class="result-actions">
+          <button id="result-button" type="button" class="primary">Neues Spiel</button>
+          <button id="result-undo" type="button">Letztes Paar zurück</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer><small>Offline und ohne externe Assets. Laufender Deal und Zoom werden nur lokal im Browser gespeichert.</small></footer>
+</body>
+</html>

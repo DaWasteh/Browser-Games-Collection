@@ -3,6 +3,13 @@
 Sudoku für die Browser-Games-Collection – komplett offline, ohne externe
 Abhängigkeiten oder Frameworks.
 
+## Neu in v1.5
+
+- Puzzle, Eingaben, Notizen, Fehlermarkierungen, Hinweise, Auswahl, Notizmodus, Undo-/Redo-Verlauf und aktive Zeit werden versioniert lokal gespeichert.
+- Ein manuell pausiertes Rätsel bleibt nach einem Reload pausiert und verdeckt, bis es bewusst fortgesetzt wird.
+- Der Timer speichert Millisekunden und rundet erst für die Anzeige; häufiges Pause/Fortsetzen verliert keine Teilsekunden mehr.
+- Gespeicherte Rätsel werden vor dem Laden erneut auf gültige Zahlen, feste Vorgaben, eindeutige Lösbarkeit und dieselbe Lösung geprüft.
+
 ## Spielen
 
 `index.html` direkt im Browser öffnen (oder über die

@@ -106,6 +106,8 @@ select{
   padding:9px 8px; font-family:var(--ui); font-size:12px; cursor:pointer; max-width:190px;
 }
 select:focus-visible{outline:2px solid var(--bamboo)}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;white-space:nowrap!important;border:0!important}
+#gameCanvas:focus-visible{outline:3px solid var(--bamboo);outline-offset:-4px}
 @media (max-width:760px){
   #logo{font-size:12px} #stats{gap:9px} .skill{width:52px;height:52px} .skill .ico{font-size:17px}
 }
@@ -132,7 +134,9 @@ select:focus-visible{outline:2px solid var(--bamboo)}
 </div>
 
 <div id="stage">
-  <canvas id="gameCanvas" width="960" height="540" role="img" aria-label="Panda-Lemmings Spielfeld"></canvas>
+  <canvas id="gameCanvas" width="960" height="540" role="application" tabindex="0" aria-label="Interaktives Panda-Lemmings-Spielfeld" aria-describedby="canvas-help"></canvas>
+  <p id="canvas-help" class="sr-only">Pfeiltasten wählen einen aktiven Panda. Enter oder Leertaste weist die aktuell gewählte Fähigkeit zu.</p>
+  <p id="game-announcement" class="sr-only" role="status" aria-live="polite"></p>
 
   <div id="intro-overlay" class="overlay show">
     <div class="card">
@@ -678,7 +682,7 @@ if (typeof document!=='undefined' && document.getElementById('gameCanvas')) {
 
 const $=id=>document.getElementById(id);
 const TAU=Math.PI*2;
-const show=id=>$(id).classList.add('show');
+const show=id=>{ const el=$(id); el.classList.add('show'); requestAnimationFrame(()=>el.querySelector('button:not([disabled])')?.focus({preventScroll:true})); };
 const hide=id=>$(id).classList.remove('show');
 const overlayOpen=()=>['intro-overlay','result-overlay','final-overlay'].some(id=>$(id).classList.contains('show'));
 const _txt={};
@@ -1003,6 +1007,7 @@ function banner(ctx,txt,y=10){
 }
 
 // ---------- Spiel ----------
+const PROGRESS_KEY='panda-lemmings-progress-v1';
 class Game {
   constructor(){
     this.cv=$('gameCanvas'); this.g=this.cv.getContext('2d');
@@ -1015,7 +1020,9 @@ class Game {
     this.level=0; this.completed=new Set();
     this.totalSaved=0; this.totalLost=0;
     this.levelSaved=new Map(); this.levelLost=new Map();
+    this.restoreProgress();
     this.selected='builder';
+    this.keyboardPandaId=null;
     this.paused=false; this.speed=1; this.nukeArm=0;
     this.mouse={x:-99,y:-99,in:false};
     this.acc=0; this.last=performance.now(); this.rs=1;
@@ -1024,6 +1031,25 @@ class Game {
     this.loadLevel(0,true);
     requestAnimationFrame(t=>this.frame(t));
   }
+
+  restoreProgress(){
+    try{
+      const data=JSON.parse(localStorage.getItem(PROGRESS_KEY)||'null');
+      if(!data||data.version!==1) return;
+      const completed=Array.isArray(data.completed)?data.completed.filter(i=>Number.isInteger(i)&&i>=0&&i<LEVELS.length):[];
+      this.completed=new Set(completed);
+      this.levelSaved=new Map(Array.isArray(data.levelSaved)?data.levelSaved.filter(x=>Array.isArray(x)&&Number.isInteger(x[0])&&x[0]>=0&&x[0]<LEVELS.length&&Number.isFinite(x[1])&&x[1]>=0):[]);
+      this.levelLost=new Map(Array.isArray(data.levelLost)?data.levelLost.filter(x=>Array.isArray(x)&&Number.isInteger(x[0])&&x[0]>=0&&x[0]<LEVELS.length&&Number.isFinite(x[1])&&x[1]>=0):[]);
+      this.totalSaved=Number.isFinite(data.totalSaved)?Math.max(0,Math.floor(data.totalSaved)):0;
+      this.totalLost=Number.isFinite(data.totalLost)?Math.max(0,Math.floor(data.totalLost)):0;
+    }catch(_e){ /* defensiver Fallback */ }
+  }
+  saveProgress(){
+    try{
+      localStorage.setItem(PROGRESS_KEY,JSON.stringify({version:1,completed:[...this.completed],totalSaved:this.totalSaved,totalLost:this.totalLost,levelSaved:[...this.levelSaved],levelLost:[...this.levelLost]}));
+    }catch(_e){ /* Speicher optional */ }
+  }
+  announceGame(text){ const el=$('game-announcement'); if(el) el.textContent=text; }
 
   buildUI(){
     const sk=$('skills');
@@ -1054,6 +1080,7 @@ class Game {
     $('btn-again').addEventListener('click',()=>{
       this.totalSaved=0; this.totalLost=0; this.completed.clear();
       this.levelSaved=new Map(); this.levelLost=new Map();
+      this.saveProgress();
       this.refreshLevelSelect(); this.loadLevel(0,true);
     });
     $('btn-pause').addEventListener('click',()=>this.togglePause());
@@ -1075,19 +1102,24 @@ class Game {
     this.cv.addEventListener('pointerleave',()=>{ this.mouse.in=false; });
     this.cv.addEventListener('pointerdown',e=>{ e.preventDefault(); const p=this.toLogical(e); this.clickAt(p.x,p.y); });
     this.cv.addEventListener('contextmenu',e=>e.preventDefault());
+    this.cv.addEventListener('focus',()=>{ if(this.keyboardPandaId==null) this.cyclePanda(1); });
+    this.cv.addEventListener('keydown',e=>{
+      if(overlayOpen()) return;
+      if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); e.stopPropagation(); this.cyclePanda(-1); }
+      else if(['ArrowRight','ArrowDown'].includes(e.key)){ e.preventDefault(); e.stopPropagation(); this.cyclePanda(1); }
+      else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); this.assignKeyboardPanda(); }
+    });
     document.addEventListener('keydown',e=>{
+      const target=e.target;
+      if(target&&target.matches&&target.matches('button,a,input,select,textarea')) return;
       if(e.code==='Space'){ e.preventDefault(); if(!overlayOpen()) this.togglePause(); return; }
       const k=e.key;
       if(k==='f'||k==='F') this.toggleFF();
       else if(k==='r'||k==='R'){ if(!overlayOpen()) this.loadLevel(this.level,false); }
       else if(k==='n'||k==='N'){ if(!overlayOpen()) this.tryNuke(); }
-      else if(k>='1'&&k<='8') this.selectSkill(SKILLS[+k-1]);
-      else if(k==='Enter'){
-        if($('intro-overlay').classList.contains('show')) $('btn-start').click();
-        else if($('result-overlay').classList.contains('show')){
-          const n=$('btn-next');
-          (n.style.display!=='none'?n:$('btn-retry')).click();
-        } else if($('final-overlay').classList.contains('show')) $('btn-again').click();
+      else if(k>='1'&&k<='8'){
+        this.selectSkill(SKILLS[+k-1]);
+        this.announceGame('Fähigkeit '+SKILL_DE[this.selected][1]+' gewählt. Spielfeld fokussieren, Panda mit Pfeiltasten wählen und Enter drücken.');
       }
     });
   }
@@ -1100,7 +1132,7 @@ class Game {
   loadLevel(i,intro){
     this.level=i;
     this.world=new World(i,{on:(t,d)=>this.onEvent(t,d)});
-    this.parts.length=0; this.shake=0; this.nukeArm=0;
+    this.parts.length=0; this.shake=0; this.nukeArm=0; this.keyboardPandaId=null;
     $('btn-nuke').classList.remove('armed');
     this.paused=false; this.speed=1;
     setTxt('btn-pause','⏸'); $('btn-ff').classList.remove('on');
@@ -1179,6 +1211,7 @@ class Game {
     this.totalLost+=w.dead-prevLost;
     this.levelSaved.set(this.level,w.saved);
     this.levelLost.set(this.level,w.dead);
+    this.saveProgress();
     this.refreshLevelSelect();
     if(won && this.level===LEVELS.length-1){
       $('fin-detail').textContent=`Insgesamt gerettet: ${this.totalSaved} Pandas · verloren: ${this.totalLost}`;
@@ -1193,6 +1226,27 @@ class Game {
   }
 
   selectSkill(s){ this.selected=s; this.refreshSkills(); }
+  activePandas(){ return this.world.pandas.filter(p=>!p.done).sort((a,b)=>(a.x-b.x)||(a.id-b.id)); }
+  cyclePanda(step){
+    if(!this.world||!this.world.started||this.world.finished){ this.announceGame('Noch kein laufendes Level.'); return; }
+    const pandas=this.activePandas();
+    if(!pandas.length){ this.keyboardPandaId=null; this.announceGame('Kein aktiver Panda verfügbar.'); return; }
+    let index=pandas.findIndex(p=>p.id===this.keyboardPandaId);
+    index=index<0?(step<0?pandas.length-1:0):(index+step+pandas.length)%pandas.length;
+    const panda=pandas[index]; this.keyboardPandaId=panda.id;
+    const stateName=STATE_DE[panda.state]||panda.state;
+    this.announceGame(`Panda ${index+1} von ${pandas.length}, ${stateName}. Fähigkeit ${SKILL_DE[this.selected][1]}.`);
+  }
+  assignKeyboardPanda(){
+    const panda=this.world&&this.world.pandas.find(p=>p.id===this.keyboardPandaId&&!p.done);
+    if(!panda){ this.cyclePanda(1); return; }
+    if(this.world.canAssign(panda,this.selected)){
+      this.world.assign(panda,this.selected); this.refreshSkills(); this.refreshHUD();
+      this.announceGame(`${SKILL_DE[this.selected][1]} an Panda ${panda.id+1} vergeben.`);
+    }else{
+      this.sfx.play('no'); this.announceGame(`${SKILL_DE[this.selected][1]} kann diesem Panda gerade nicht zugewiesen werden.`);
+    }
+  }
   refreshSkills(){
     for(const s of SKILLS){
       const btn=document.querySelector(`.skill[data-skill="${s}"]`);
@@ -1218,14 +1272,17 @@ class Game {
     if(overlayOpen()) return;
     const w=this.world;
     if(!w.started||w.finished) return;
+    const rect=this.cv.getBoundingClientRect();
+    const touchRadius=Math.min(80,Math.max(26,22*W/Math.max(1,rect.width)));
     let best=null, bestD=1e9, bestOk=false;
     for(const p of w.pandas){
       if(p.done) continue;
       const d=Math.hypot(p.x+PW/2-x, p.y+PH/2-y);
-      if(d>26) continue;
+      if(d>touchRadius) continue;
       const ok=w.canAssign(p,this.selected);
       if((ok&&!bestOk)||(ok===bestOk&&d<bestD)){ best=p; bestD=d; bestOk=ok; }
     }
+    if(best){ this.keyboardPandaId=best.id; }
     if(best&&bestOk){ w.assign(best,this.selected); this.refreshSkills(); this.refreshHUD(); }
     else if(best){ this.sfx.play('no'); }
   }
@@ -1311,6 +1368,19 @@ class Game {
     ctx.fillText(txt,bx+4,byy+10);
   }
 
+  drawKeyboardSelection(ctx){
+    if(this.keyboardPandaId==null||overlayOpen()) return;
+    const panda=this.world.pandas.find(p=>p.id===this.keyboardPandaId&&!p.done);
+    if(!panda){ this.keyboardPandaId=null; return; }
+    ctx.save();
+    ctx.strokeStyle='#ffe2ad'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(panda.x+PW/2,panda.y+PH/2,12,0,TAU); ctx.stroke();
+    ctx.fillStyle='rgba(8,12,18,.85)'; ctx.fillRect(panda.x-2,panda.y-16,22,12);
+    ctx.fillStyle='#ffe2ad'; ctx.font='bold 8px system-ui,sans-serif'; ctx.textAlign='center';
+    ctx.fillText('P'+(panda.id+1),panda.x+9,panda.y-7); ctx.textAlign='left';
+    ctx.restore();
+  }
+
   draw(t){
     const ctx=this.g;
     ctx.setTransform(this.rs,0,0,this.rs,0,0);
@@ -1329,6 +1399,7 @@ class Game {
     for(const p of this.world.pandas) drawPanda(ctx,p,t);
     for(const pt of this.parts) pt.draw(ctx);
     this.drawCursorInfo(ctx);
+    this.drawKeyboardSelection(ctx);
     ctx.restore();
     if(this.nukeArm) banner(ctx,'☢ Nochmal klicken zum Bestätigen – sprengt ALLE Pandas!');
     else if(this.paused) banner(ctx,'PAUSE · Fähigkeiten zuweisen geht weiter (Leertaste)');

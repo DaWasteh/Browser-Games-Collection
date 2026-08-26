@@ -90,8 +90,11 @@
     if (state.foundations.every(rank => rank === 13)) win();
   }
   function undo() {
-    if (!state.history.length || state.status !== 'playing') { announce('Kein Zug zum Rückgängigmachen.'); return; }
-    state.elapsed = currentElapsed(); state.startedAt = Date.now(); restore(state.history.pop()); announce('Letzten Zug rückgängig gemacht.');
+    if (!state.history.length) { announce('Kein Zug zum Rückgängigmachen.'); return; }
+    state.elapsed = currentElapsed(); state.startedAt = Date.now();
+    restore(state.history.pop());
+    $('result').hidden = true;
+    announce('Letzten Zug rückgängig gemacht.');
   }
   function isSafeFoundation(id) {
     const card = state.cards.get(id); const rank = card.rank; const foundation = state.foundations[card.suit];
@@ -154,6 +157,13 @@
     });
 
     table.replaceChildren();
+    const tableStyle = getComputedStyle(table);
+    const gap = Number.parseFloat(tableStyle.columnGap) || 3;
+    const columnWidth = Math.max(26, (table.clientWidth - gap * 7) / 8);
+    const cardHeight = Math.max(50, Math.min(108, columnWidth / .68));
+    const cardStep = Math.max(24, Math.min(49, cardHeight * .45));
+    let maximumBottom = 220;
+    const wrappers = [];
     state.tableau.forEach((column, columnIndex) => {
       const wrapper = document.createElement('div');
       wrapper.className = 'column';
@@ -174,7 +184,8 @@
       });
       column.forEach((id, cardIndex) => {
         const button = cardButton(id);
-        button.style.top = `${cardIndex * (window.innerWidth <= 650 ? 37 : 49)}px`;
+        button.style.top = `${cardIndex * cardStep}px`;
+        button.style.height = `${cardHeight}px`;
         if (state.selected && state.selected.zone === 'tableau' && state.selected.index === columnIndex && cardIndex >= state.selected.cardIndex) button.classList.add('selected');
         button.addEventListener('click', event => {
           event.stopPropagation();
@@ -183,24 +194,29 @@
         button.addEventListener('dblclick', event => { event.stopPropagation(); doubleClick(id); });
         wrapper.append(button);
       });
+      const bottom = column.length ? (column.length - 1) * cardStep + cardHeight + 10 : cardHeight + 10;
+      maximumBottom = Math.max(maximumBottom, bottom);
+      wrappers.push(wrapper);
       table.append(wrapper);
     });
+    table.style.minHeight = `${Math.ceil(maximumBottom)}px`;
+    wrappers.forEach(wrapper => { wrapper.style.minHeight = `${Math.ceil(maximumBottom - 4)}px`; });
 
     $('moves').textContent = String(state.moves);
     $('time').textContent = formatTime(currentElapsed());
     $('foundation-count').textContent = `${state.foundations.reduce((a, b) => a + b, 0)} / 52`;
     $('move-limit').textContent = String(supermoveLimit(false));
-    $('undo').disabled = !state.history.length || state.status !== 'playing';
+    $('undo').disabled = !state.history.length;
     if (focusKey) document.querySelector(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
-  $('undo').addEventListener('click', undo); $('restart').addEventListener('click', () => reset(state.deal)); $('new-game').addEventListener('click', nextDeal); $('auto').addEventListener('click', autoMove); $('result-new').addEventListener('click', nextDeal); $('deal-number').addEventListener('change', event => reset(event.target.value));
-  document.addEventListener('keydown', event => { if (event.target.matches('input,textarea') && event.key !== 'Escape') return; const key = event.key.toLowerCase(); if (key === 'u') { event.preventDefault(); undo(); } else if (key === 'n') { event.preventDefault(); reset(state.deal); } else if (key === 'd') { event.preventDefault(); nextDeal(); } else if (key === 'a') { event.preventDefault(); autoMove(); } else if (event.key === 'escape') { state.selected = null; render(); announce('Auswahl aufgehoben.'); } });
+  $('undo').addEventListener('click', undo); $('restart').addEventListener('click', () => reset(state.deal)); $('new-game').addEventListener('click', nextDeal); $('auto').addEventListener('click', autoMove); $('result-new').addEventListener('click', nextDeal); $('result-undo').addEventListener('click', undo); $('deal-number').addEventListener('change', event => reset(event.target.value));
+  document.addEventListener('keydown', event => { const target = event.target; if (target && typeof target.matches === 'function' && target.matches('input,textarea') && event.key !== 'Escape') return; const key = event.key.toLowerCase(); if (key === 'u') { event.preventDefault(); undo(); } else if (key === 'n') { event.preventDefault(); reset(state.deal); } else if (key === 'd') { event.preventDefault(); nextDeal(); } else if (key === 'a') { event.preventDefault(); autoMove(); } else if (key === 'escape') { state.selected = null; render(); announce('Auswahl aufgehoben.'); } });
   setInterval(() => { if (state.status === 'playing') { $('time').textContent = formatTime(currentElapsed()); } }, 1000);
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
     window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(render, 120);
   });
-  window.PandaCell = { supermoveLimit, canFollow, isSequence, getState: () => ({ deal: state.deal, tableau: state.tableau.map(c => c.slice()), free: state.free.slice(), foundations: state.foundations.slice(), moves: state.moves, status: state.status }), newGame: reset, undo, autoMove };
+  window.PandaCell = { supermoveLimit, canFollow, isSequence, getState: () => ({ deal: state.deal, tableau: state.tableau.map(c => c.slice()), free: state.free.slice(), foundations: state.foundations.slice(), moves: state.moves, status: state.status, selected: state.selected ? { ...state.selected } : null, elapsed: currentElapsed(), historyLength: state.history.length }), newGame: reset, undo, autoMove };
   reset(1);
 })();

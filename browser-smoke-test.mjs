@@ -216,8 +216,18 @@ try {
         `${game}: shared dialog focus/inert/restore failed ${JSON.stringify(dialogFocus)}`);
     }
 
-    for (const width of [320, 375, 414, 600]) {
-      await cdp.send('Emulation.setDeviceMetricsOverride', { width, height: 812, deviceScaleFactor: 1, mobile: true });
+    const responsiveViewports = [
+      { width: 320, height: 568, mobile: true },
+      { width: 375, height: 812, mobile: true },
+      { width: 414, height: 896, mobile: true },
+      { width: 600, height: 960, mobile: true },
+      { width: 768, height: 1024, mobile: false },
+      { width: 1024, height: 768, mobile: false },
+      { width: 1366, height: 768, mobile: false }
+    ];
+    for (const viewport of responsiveViewports) {
+      const { width } = viewport;
+      await cdp.send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1 });
       for (const style of ['panda', 'night', 'contrast']) {
         const appearance = await evaluate(`(() => {
           const picker = document.querySelector('.game-style-control select');
@@ -239,8 +249,21 @@ try {
           }
           const cards = [...document.querySelectorAll('.card:not(.face-down):not(.covered)')].filter(card => getComputedStyle(card).visibility !== 'hidden');
           const controls = [...document.querySelectorAll('select, input[type="number"]')];
+          const activeControls = [...document.querySelectorAll('button.primary, button[aria-pressed="true"], .clue-btn.active')]
+            .filter(control => {
+              const computed = getComputedStyle(control);
+              return computed.visibility !== 'hidden' && computed.display !== 'none' && computed.backgroundColor !== 'rgba(0, 0, 0, 0)';
+            });
           const contrasts = cards.map(contrast).filter(value => value != null);
           const controlContrasts = controls.map(contrast).filter(value => value != null);
+          const activeControlDetails = activeControls.map(control => ({
+            label: control.textContent.trim().slice(0, 40),
+            className: String(control.className || ''),
+            contrast: contrast(control),
+            color: getComputedStyle(control).color,
+            background: getComputedStyle(control).backgroundColor
+          }));
+          const activeControlContrasts = activeControlDetails.map(detail => detail.contrast).filter(value => value != null);
           const overflowers = [...document.querySelectorAll('body *')].filter(element => {
             const rect = element.getBoundingClientRect();
             return rect.right > document.documentElement.clientWidth + 1 || rect.left < -1;
@@ -257,7 +280,9 @@ try {
             overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
             overflowers,
             minimumCardContrast: contrasts.length ? Math.min(...contrasts) : null,
-            minimumControlContrast: controlContrasts.length ? Math.min(...controlContrasts) : null
+            minimumControlContrast: controlContrasts.length ? Math.min(...controlContrasts) : null,
+            minimumActiveControlContrast: activeControlContrasts.length ? Math.min(...activeControlContrasts) : null,
+            activeControlDetails
           };
         })()`);
         assert(appearance.applied === style, `${game}: ${style} style did not apply`);
@@ -267,6 +292,9 @@ try {
         }
         if (appearance.minimumControlContrast != null) {
           assert(appearance.minimumControlContrast >= 4.5, `${game}: unreadable form control in ${style} style (contrast ${appearance.minimumControlContrast.toFixed(2)})`);
+        }
+        if (appearance.minimumActiveControlContrast != null) {
+          assert(appearance.minimumActiveControlContrast >= 4.5, `${game}: unreadable active control in ${style} style (contrast ${appearance.minimumActiveControlContrast.toFixed(2)}; ${JSON.stringify(appearance.activeControlDetails)})`);
         }
       }
     }
@@ -287,6 +315,20 @@ try {
         return document.activeElement && document.activeElement.dataset.focusKey === key;
       })()`);
       assert(focusKept, `${game}: card focus was lost after selection`);
+    }
+
+    if (game === 'panda-spider') {
+      const deepLayout = await evaluate(`(() => {
+        for (let i = 0; i < 5; i++) {
+          const deal = document.querySelector('#deal-stock');
+          if (!deal.disabled) deal.click();
+        }
+        const cards = [...document.querySelectorAll('#tableau .card')];
+        const bottom = Math.max(...cards.map(card => card.getBoundingClientRect().bottom));
+        const stockTop = document.querySelector('.stock-row').getBoundingClientRect().top;
+        return { cards: cards.length, beforeStock: bottom <= stockTop + 1, tableauHeight: document.querySelector('#tableau').getBoundingClientRect().height };
+      })()`);
+      assert(deepLayout.cards >= 90 && deepLayout.beforeStock, `panda-spider: deep columns overlap stock/controls ${JSON.stringify(deepLayout)}`);
     }
 
     if (game === 'pandadoku') {
@@ -323,6 +365,60 @@ try {
         return Array.isArray(puzzle) && PandaDoku.countSolutions(puzzle.slice(), 2) === 1;
       })()`);
       assert(uniquePuzzle, 'pandadoku: generated puzzle is not uniquely solvable');
+      const persistedSetup = await evaluate(`(async () => {
+        const beforeMs = PandaDoku.getState().elapsedMs;
+        for (let i = 0; i < 8; i++) {
+          await new Promise(resolve => setTimeout(resolve, 125));
+          PandaDoku.togglePause();
+          PandaDoku.togglePause();
+        }
+        const afterMs = PandaDoku.getState().elapsedMs;
+        const state = PandaDoku.getState();
+        const editable = state.givens.map((given, index) => given ? -1 : index).filter(index => index >= 0);
+        const valueCell = editable[0], noteCell = editable[1];
+        PandaDoku.selectCell(valueCell);
+        const wrong = state.solution[valueCell] === 9 ? 8 : 9;
+        PandaDoku.enterNumber(wrong);
+        PandaDoku.selectCell(noteCell);
+        PandaDoku.toggleNotes();
+        PandaDoku.enterNumber(3);
+        PandaDoku.togglePause();
+        PandaDoku.save();
+        const saved = JSON.parse(localStorage.getItem('pandadoku-save-v1'));
+        return {
+          timerDelta: afterMs - beforeMs,
+          puzzle: state.puzzle.join(''),
+          valueCell, value: wrong, noteCell,
+          historyLength: PandaDoku.getState().historyLength,
+          savedStatus: saved && saved.status,
+          savedElapsed: saved && saved.elapsedMs
+        };
+      })()`);
+      assert(persistedSetup.timerDelta >= 850, `pandadoku: repeated pauses lost sub-second time (${persistedSetup.timerDelta}ms)`);
+      assert(persistedSetup.savedStatus === 'paused' && persistedSetup.savedElapsed > 0 && persistedSetup.historyLength >= 2, 'pandadoku: paused progress/history was not saved');
+      await navigate('pandadoku/index.html');
+      const restored = await evaluate(`(() => {
+        const state = PandaDoku.getState();
+        const note = state.notes[${persistedSetup.noteCell}];
+        const report = {
+          samePuzzle: state.puzzle.join('') === ${JSON.stringify(persistedSetup.puzzle)},
+          value: state.board[${persistedSetup.valueCell}],
+          noteRestored: note.includes(3),
+          paused: state.status === 'paused' && state.elapsedMs >= ${persistedSetup.savedElapsed},
+          historyRestored: state.historyLength >= 2,
+          focusInPause: document.querySelector('#pause-overlay').contains(document.activeElement)
+        };
+        PandaDoku.togglePause();
+        return report;
+      })()`);
+      assert(restored.samePuzzle && restored.value === persistedSetup.value && restored.noteRestored && restored.paused && restored.historyRestored && restored.focusInPause, `pandadoku: reload persistence failed ${JSON.stringify(restored)}`);
+      await evaluate(`localStorage.setItem('pandadoku-save-v1', JSON.stringify({ version: 1, difficulty: 'mittel', puzzle: Array(81).fill(0), solution: Array(81).fill(1), board: Array(81).fill(9), notes: [], errors: [] }))`);
+      await navigate('pandadoku/index.html');
+      const corruptRejected = await evaluate(`(() => {
+        const state = PandaDoku.getState();
+        return state.status === 'playing' && state.puzzle.some(Boolean) && PandaDoku.countSolutions(state.puzzle, 2) === 1;
+      })()`);
+      assert(corruptRejected, 'pandadoku: corrupt persisted puzzle was not rejected safely');
     }
 
     if (game === 'pandakreuzwort') {
@@ -336,15 +432,18 @@ try {
         const restarted = Pandakreuzwort.getState();
         Pandakreuzwort.newGame('smoke-first');
         Pandakreuzwort.newGame('smoke-final');
-        await new Promise(resolve => setTimeout(resolve, 350));
+        await new Promise(resolve => setTimeout(resolve, 500));
         const raced = Pandakreuzwort.getState();
         Pandakreuzwort.setLanguage('bar');
-        await new Promise(resolve => setTimeout(resolve, 350));
+        await new Promise(resolve => setTimeout(resolve, 500));
         const bavarian = Pandakreuzwort.getState();
         const bavarianMetadata = document.querySelectorAll('.clue-btn .meta').length === bavarian.wordCount;
         Pandakreuzwort.setDifficulty('experte');
-        await new Promise(resolve => setTimeout(resolve, 600));
+        await new Promise(resolve => setTimeout(resolve, 750));
         const expert = Pandakreuzwort.getState();
+        const block = document.querySelector('#board .cell.block');
+        const inputSlots = Pandakreuzwort.parseWordDraft('A·C', 4);
+        const letterWidths = [...document.querySelectorAll('#board .cell:not(.block)')].map(cell => cell.getBoundingClientRect().width);
         return {
           initial,
           tabStops,
@@ -358,6 +457,12 @@ try {
           bavarianPlayable: bavarian.language === 'bar' && bavarian.status === 'playing' && bavarian.wordCount > 0,
           bavarianMetadata,
           expertPlayable: expert.difficulty === 'experte' && expert.status === 'playing' && expert.wordCount >= 19,
+          qualityPassed: expert.metrics && expert.metrics.density >= 0.27 && expert.metrics.directionBalance >= 0.28,
+          datasetSize: expert.datasetSize,
+          blockVisible: !!block && getComputedStyle(block).backgroundColor !== 'rgba(0, 0, 0, 0)',
+          slotsPreserved: inputSlots.length === 4 && inputSlots[0] === 'A' && inputSlots[1] === null && inputSlots[2] === 'C' && inputSlots[3] === null,
+          minimumCellWidth: letterWidths.length ? Math.min(...letterWidths) : 0,
+          boardScrollable: document.getElementById('board-scroll').scrollWidth > document.getElementById('board-scroll').clientWidth,
           finalTabStops: document.querySelectorAll('#board .cell[tabindex="0"]').length
         };
       })()`);
@@ -371,7 +476,11 @@ try {
       assert(crossword.restartKeptSeed && crossword.restartKeptShape, 'pandakreuzwort: restart changed the puzzle');
       assert(crossword.raceKeptLastSeed && crossword.racePlayable, 'pandakreuzwort: generation race did not keep the latest request');
       assert(crossword.bavarianPlayable && crossword.bavarianMetadata, 'pandakreuzwort: Bairisch mode or clue metadata is incomplete');
-      assert(crossword.expertPlayable, 'pandakreuzwort: Experte mode did not generate enough words');
+      assert(crossword.expertPlayable && crossword.qualityPassed, 'pandakreuzwort: Experte mode did not meet its layout contract');
+      assert(crossword.datasetSize >= 460, `pandakreuzwort: expanded word bank missing (${crossword.datasetSize})`);
+      assert(crossword.blockVisible, 'pandakreuzwort: blocked cells are not visibly rendered');
+      assert(crossword.slotsPreserved, 'pandakreuzwort: positional word-input blanks are not preserved');
+      assert(crossword.minimumCellWidth >= 28 || crossword.boardScrollable, `pandakreuzwort: mobile cells are too small (${crossword.minimumCellWidth}px)`);
 
       // Regression: Jede Eingabe wird persistiert (Debounce + pagehide) und
       // überlebt einen Neuladen; der Won-Status + eingefrorene Zeit werden restauriert.
@@ -382,23 +491,25 @@ try {
         const cell = document.querySelector('#board .cell[tabindex="0"]') || document.querySelector('#board .cell');
         if (!cell) return { ok: false, reason: 'no cell' };
         cell.click();
+        const key = cell.dataset.r + ',' + cell.dataset.c;
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'A', bubbles: true }));
-        return { ok: true, letter: (document.querySelector('#board .cell.sel .letter') || {}).textContent || '' };
+        return { ok: true, key, letter: Pandakreuzwort.getBoard()[key] || '' };
       })()`);
       assert(persist.ok, 'pandakreuzwort: cell should be focusable for input');
       await delay(450); // Entprell-Timer (300 ms) abwarten
-      const savedRaw = await evaluate(`localStorage.getItem('pandakreuzwort-save-v2') || ''`);
-      assert(savedRaw.includes(persist.letter), 'pandakreuzwort: typed letter was persisted to storage');
+      const saved = await evaluate(`JSON.parse(localStorage.getItem('pandakreuzwort-save-v3') || 'null')`);
+      assert(saved && saved.board[persist.key] === persist.letter, 'pandakreuzwort: typed letter was persisted to storage');
+      assert(!('cells' in saved) && !('placements' in saved), 'pandakreuzwort: save must not trust/persist derived grid structures');
 
       // Won-Status + Timer restaurieren: Das Rätsel durch korrektes Ausfüllen
       // wirklich lösen (setzt den In-Memory-Zustand 'won', den pagehide dann
       // konsistent persistiert), neu laden und Status + eingefrorene Zeit prüfen.
       await evaluate(`(async () => {
         Pandakreuzwort.newGame('won-seed');
-        await new Promise(r => setTimeout(r, 350));
-        const data = JSON.parse(localStorage.getItem('pandakreuzwort-save-v2'));
+        await new Promise(r => setTimeout(r, 500));
         const solution = {};
-        for (const k in data.cells) solution[k] = data.cells[k].letter;
+        const puzzle = Pandakreuzwort.getPuzzle();
+        for (const k in puzzle.cells) solution[k] = puzzle.cells[k].letter;
         const cells = [...document.querySelectorAll('#board .cell[role="gridcell"]')];
         for (const btn of cells) {
           const key = btn.dataset.r + ',' + btn.dataset.c;
@@ -437,13 +548,15 @@ try {
           Pandataire.restart();
           const after = dealKeys();
           const st = Pandataire.getState();
+          const covered = [...document.querySelectorAll('#tableau .card.covered')];
           perMode[m] = {
             mode: Pandataire.getMode(),
             deckUnique: deckUnique(),
             deterministic: before === after,
             cardCount: st.cards.length,
             stockCount: st.stock.length,
-            status: st.status
+            status: st.status,
+            hiddenInformationSafe: m !== 'tripeaks' || (covered.length > 0 && covered.every(card => card.textContent.trim() === '' && /verdeckte/i.test(card.getAttribute('aria-label') || '')))
           };
         }
         // Tastatur: Moduswechsel über 1/2/3 und ein Zug (Ziehen).
@@ -489,6 +602,7 @@ try {
         assert(r.deckUnique, `pandataire: ${m} deal is not 52 unique cards`);
         assert(r.deterministic, `pandataire: ${m} restart is not deterministic`);
         assert(r.status === 'playing', `pandataire: ${m} did not start playing`);
+        assert(r.hiddenInformationSafe, `pandataire: ${m} leaks covered card ranks/suits`);
         assert(r.cardCount === (m === 'golf' ? 35 : 28), `pandataire: ${m} tableau size is wrong`);
       }
       assert(report.perMode.tripeaks.stockCount === 23, 'pandataire: TriPeaks stock size wrong');
@@ -572,36 +686,88 @@ try {
       assert(buriedSafe.found, 'pandacell: a deal with a buried Ace should exist for the regression');
       assert(!buriedSafe.foundationChanged, `pandacell: buried Ace was illegally auto-foundationed on deal ${buriedSafe.deal}`);
       assert(buriedSafe.stillBuried, `pandacell: buried Ace was removed from its column on deal ${buriedSafe.deal}`);
+      const responsiveSelection = await evaluate(`(() => {
+        PandaCell.newGame(77);
+        const card = document.querySelector('#tableau .column .card:last-child');
+        card.click();
+        const selectedBefore = !!PandaCell.getState().selected;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        const selectedAfter = PandaCell.getState().selected;
+        const table = document.querySelector('#tableau').getBoundingClientRect();
+        const columns = [...document.querySelectorAll('#tableau .column')].map(column => column.getBoundingClientRect());
+        const lastCardBottom = Math.max(...[...document.querySelectorAll('#tableau .card')].map(item => item.getBoundingClientRect().bottom));
+        const controlsTop = document.querySelector('.controls').getBoundingClientRect().top;
+        return {
+          selectedBefore,
+          escapeCleared: selectedAfter === null,
+          columnsInside: columns.length === 8 && columns.every(column => column.left >= table.left - 1 && column.right <= table.right + 1),
+          cardsBeforeControls: lastCardBottom <= controlsTop + 1
+        };
+      })()`);
+      assert(responsiveSelection.selectedBefore && responsiveSelection.escapeCleared, 'pandacell: Escape did not cancel card selection');
+      assert(responsiveSelection.columnsInside && responsiveSelection.cardsBeforeControls, `pandacell: responsive/dynamic tableau failed ${JSON.stringify(responsiveSelection)}`);
     }
 
     if (game === 'panndike') {
-      // Regression: erneutes Antippen der bereits gewählten Karte wählt ab,
-      // OHNE vorher eine irreführende „nicht erlaubt“-Meldung auszugeben.
-      const deselect = await evaluate(`(() => {
-        Panndike.newGame();
+      const klondike = await evaluate(`(() => {
+        Panndike.newGame({ seed: 'browser-smoke-deal', drawCount: 3, dealType: 'random' });
+        const signature = state => JSON.stringify({
+          tableau: state.tableau.map(column => column.map(card => card.id)),
+          stock: state.stock.map(card => card.id)
+        });
+        const before = Panndike.getState();
+        document.getElementById('stock').click();
+        const afterDraw = Panndike.getState();
+        const drawLocked = document.getElementById('draw-mode').disabled;
+        Panndike.restart();
+        const restarted = Panndike.getState();
         const topCardOfCol0 = document.querySelector('#tableau .column:nth-child(1) .card:last-child');
         if (!topCardOfCol0) return { ok: false, reason: 'no top card' };
-        topCardOfCol0.click(); // auswählen
+        topCardOfCol0.focus();
+        topCardOfCol0.click();
         const selectedAfterFirst = !!document.querySelector('#tableau .column:nth-child(1) .card:last-child.selected');
-        // gleiche Karte erneut antippen → Abwahl
         document.querySelector('#tableau .column:nth-child(1) .card:last-child').click();
         const stillSelected = !!document.querySelector('#tableau .column:nth-child(1) .card:last-child.selected');
-        const msg = document.getElementById('message').textContent;
-        return { selectedAfterFirst, stillSelected, msg, noSpuriousError: msg !== 'Dieser Zug ist nicht erlaubt.' };
+        const tableRect = document.querySelector('.game-table').getBoundingClientRect();
+        const columns = [...document.querySelectorAll('#tableau .column')].map(column => column.getBoundingClientRect());
+        const controlsRect = document.querySelector('.guide').getBoundingClientRect();
+        const lastCardBottom = Math.max(...[...document.querySelectorAll('#tableau .card')].map(card => card.getBoundingClientRect().bottom));
+        return {
+          ok: true,
+          deterministicRestart: signature(before) === signature(restarted),
+          drawCount: afterDraw.drawCount,
+          wasteCount: afterDraw.waste.length,
+          drawLocked,
+          selectedAfterFirst,
+          stillSelected,
+          msg: document.getElementById('message').textContent,
+          allColumnsInside: columns.length === 7 && columns.every(rect => rect.left >= tableRect.left - 1 && rect.right <= tableRect.right + 1),
+          cardsBeforeGuide: lastCardBottom <= controlsRect.top + 1,
+          pointerLifecycle: /pointercancel/.test(String(document.documentElement.innerHTML)) || typeof PointerEvent === 'function'
+        };
       })()`);
-      assert(deselect.selectedAfterFirst, 'panndike: top card should be selectable');
-      assert(!deselect.stillSelected, 'panndike: re-clicking the selected card should deselect');
-      assert(deselect.noSpuriousError, `panndike: deselection announced a spurious invalid-move error: "${deselect.msg}"`);
+      assert(klondike.ok, `panndike: setup failed ${JSON.stringify(klondike)}`);
+      assert(klondike.deterministicRestart, 'panndike: restarting did not preserve the deal');
+      assert(klondike.drawCount === 3 && klondike.wasteCount === 3 && klondike.drawLocked, 'panndike: draw-3 rule is not fixed after the first move');
+      assert(klondike.selectedAfterFirst, 'panndike: top card should be selectable');
+      assert(!klondike.stillSelected, 'panndike: re-clicking the selected card should deselect');
+      assert(!/nicht möglich|nicht erlaubt/i.test(klondike.msg), `panndike: deselection announced a spurious invalid-move error: "${klondike.msg}"`);
+      assert(klondike.allColumnsInside, 'panndike: all seven tableau columns must fit inside the board');
+      assert(klondike.cardsBeforeGuide, 'panndike: cards overlap the following guide/controls');
     }
 
     if (game === 'texttl') {
       const raceSafe = await evaluate(`(async () => {
         const word = TexttlLogic.dailyWord(new Date());
         function submitSolution() {
+          document.activeElement?.blur();
           for (const letter of TexttlLogic.graphemes(word)) document.dispatchEvent(new KeyboardEvent('keydown', { key: letter, bubbles: true }));
           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
         }
         submitSolution();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        const committedSave = JSON.parse(localStorage.getItem('texttl_daily') || 'null');
+        const committedBeforeAnimation = committedSave && committedSave.guesses.includes(word) && committedSave.status === 'won';
         document.querySelector('#restart-btn').click();
         await new Promise(resolve => setTimeout(resolve, 1600));
         const flipSafe = document.querySelectorAll('.tile.correct,.tile.present,.tile.absent').length === 0 && document.querySelector('#result-overlay').hidden;
@@ -610,9 +776,10 @@ try {
         document.querySelector('#restart-btn').click();
         await new Promise(resolve => setTimeout(resolve, 600));
         const bounceSafe = document.querySelectorAll('.tile.bounce,.tile.correct,.tile.present,.tile.absent').length === 0 && document.querySelector('#result-overlay').hidden;
-        return flipSafe && bounceSafe;
+        return { flipSafe, bounceSafe, committedBeforeAnimation, committedSave, word };
       })()`);
-      assert(raceSafe, 'texttl: stale evaluation timers modified a restarted game');
+      assert(raceSafe.flipSafe && raceSafe.bounceSafe, 'texttl: stale evaluation timers modified a restarted game');
+      assert(raceSafe.committedBeforeAnimation, `texttl: committed guess was not persisted before its flip animation ${JSON.stringify(raceSafe)}`);
 
       // Regression: ß wird als einzelnes Zeichen gerendert (kein CSS text-transform,
       // das ß zu SS machen würde) – in Kachel und Bildschirmtaste.
@@ -671,7 +838,7 @@ try {
   await navigate('pahjong/index.html');
   const pahjongUi = await evaluate(`(async () => {
     const result = document.querySelector('#result');
-    const back = document.querySelector('nav a[href]');
+    const back = document.querySelector('.game-toolbar a[href], a.back-link[href]');
     const summary = document.querySelector('details > summary');
     const isTopmost = element => {
       const rect = element.getBoundingClientRect();
@@ -681,50 +848,110 @@ try {
     window.scrollTo(0, 0);
     await new Promise(requestAnimationFrame);
     const backClickable = isTopmost(back);
+    const initialBoardWidth = document.querySelector('#board').getBoundingClientRect().width;
+    document.querySelector('#zoom-in').click();
+    document.querySelector('#zoom-in').click();
+    const zoomedBoardWidth = document.querySelector('#board').getBoundingClientRect().width;
+    const tileWidths = [...document.querySelectorAll('#board .tile:not(.removed)')].map(tile => tile.getBoundingClientRect().width);
+    const controlsTallEnough = [...document.querySelectorAll('.controls button, .zoom-controls button')].every(button => button.getBoundingClientRect().height >= 44);
+    const freeContract = [...document.querySelectorAll('#board .tile')].every((tile, id) => tile.classList.contains('removed') || tile.disabled === !Pahjong.isFree(id));
     summary.scrollIntoView({ block: 'center' });
     await new Promise(requestAnimationFrame);
     return {
       resultHidden: result.hidden && getComputedStyle(result).display === 'none',
       backClickable,
       rulesClickable: isTopmost(summary),
-      pairPlanValid: Pahjong.testPlan(50).allPassed
+      pairPlanValid: Pahjong.testPlan(50).allPassed,
+      tileCount: document.querySelectorAll('#board > .tile').length,
+      layers: Pahjong.engine.SLOTS.reduce((out, slot) => { out[slot.z] = (out[slot.z] || 0) + 1; return out; }, {}),
+      guideSteps: document.querySelectorAll('.quick-guide li').length,
+      rovingStops: document.querySelectorAll('#board .tile[tabindex="0"]').length,
+      freeContract,
+      zoomed: zoomedBoardWidth > initialBoardWidth * 1.5 && Math.min(...tileWidths) >= 28,
+      boardScrollable: document.querySelector('#board-shell').scrollWidth > document.querySelector('#board-shell').clientWidth,
+      controlsTallEnough
     };
   })()`);
   assert(pahjongUi.resultHidden, 'pahjong: hidden result dialog still blocks the page');
   assert(pahjongUi.backClickable, 'pahjong: overview link is covered by another element');
   assert(pahjongUi.rulesClickable, 'pahjong: rules summary is covered by another element');
   assert(pahjongUi.pairPlanValid, 'pahjong: generated pair-removal plan is invalid');
+  assert(pahjongUi.tileCount === 144 && JSON.stringify(pahjongUi.layers) === JSON.stringify({ 0: 87, 1: 36, 2: 16, 3: 4, 4: 1 }), `pahjong: Turtle layout is incomplete ${JSON.stringify(pahjongUi.layers)}`);
+  assert(pahjongUi.guideSteps === 3, 'pahjong: visible step-by-step instructions are missing');
+  assert(pahjongUi.rovingStops === 1 && pahjongUi.freeContract, 'pahjong: free-tile/roving-focus contract failed');
+  assert(pahjongUi.zoomed && pahjongUi.boardScrollable, 'pahjong: mobile zoom did not create readable scrollable tiles');
+  assert(pahjongUi.controlsTallEnough, 'pahjong: mobile controls are below 44px');
 
   // Regression: Dokumentierte Kurzbefehle (H/M/U/N) wirken auch, wenn ein
   // Stein (button) fokussiert ist – früher wurden sie bei Fokus auf einem
   // Button verschluckt. Native Space/Enter bleiben unangetastet.
-  const pahjongKeys = await evaluate(`(() => {
-    // 1) 'n' bei fokussiertem Stein muss neu mischen (frisches Spiel: 144 Steine).
+  const pahjongKeys = await evaluate(`(async () => {
+    Pahjong.newGame('browser-keys-start');
     const tile = document.querySelector('#board .tile:not(:disabled)');
     if (tile) tile.focus();
-    const beforeN = Pahjong.getState().remaining;
+    const seedBeforeN = Pahjong.getState().seed;
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', bubbles: true }));
-    const afterN = Pahjong.getState().remaining;
-    const reshuffledOnN = afterN === 144 && beforeN === 144;
-    // 2) 'u' nach einem Zug muss rückgängig machen, selbst bei fokussiertem Stein.
+    const afterN = Pahjong.getState();
+    const reshuffledOnN = afterN.remaining === 144 && afterN.seed !== seedBeforeN;
+
+    // Ein bereits gewählter Fremdstein darf den Hinweis nicht als dritte,
+    // gleich aussehende Markierung stehen lassen.
+    const hintedPair = Pahjong.findHint();
+    const outsider = [...document.querySelectorAll('#board .tile:not(:disabled)')].find(button => !hintedPair.includes(Number(button.dataset.id)));
+    outsider?.click();
+    document.querySelector('#hint').click();
+    const exactHintPair = document.querySelectorAll('#board .tile.hinted').length === 2 && document.querySelectorAll('#board .tile.selected').length === 0;
+
     const hint = Pahjong.findHint();
-    let undoWorked = false;
+    let undoWorked = false, focusRecovered = false, arrowMoved = false;
     if (hint) {
-      document.querySelector('#board .tile:nth-child(' + (hint[0] + 1) + ')').click();
-      document.querySelector('#board .tile:nth-child(' + (hint[1] + 1) + ')').click();
+      const first = document.querySelector('#board .tile:nth-child(' + (hint[0] + 1) + ')');
+      const second = document.querySelector('#board .tile:nth-child(' + (hint[1] + 1) + ')');
+      first.click(); second.focus(); second.click();
+      const active = document.activeElement;
+      focusRecovered = !!active && active.matches('#board .tile:not(:disabled)') && getComputedStyle(active).visibility !== 'hidden';
       const movesAfterPair = Pahjong.getState().moves;
-      const t2 = document.querySelector('#board .tile:not(:disabled)');
-      if (t2) t2.focus();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'u', bubbles: true }));
       undoWorked = Pahjong.getState().moves < movesAfterPair;
+      const arrowStart = document.activeElement;
+      for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp']) {
+        arrowStart?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        if (document.activeElement !== arrowStart) { arrowMoved = true; break; }
+      }
     }
-    return { reshuffledOnN, undoWorked, hadHint: !!hint };
-  })()`);
-  assert(pahjongKeys.reshuffledOnN, 'pahjong: N shortcut did not redeal while a tile was focused');
-  assert(pahjongKeys.hadHint, 'pahjong: a free hint pair should exist for the undo test');
-  assert(pahjongKeys.undoWorked, 'pahjong: U shortcut did not undo while a tile was focused');
 
-  console.log(`browser smoke ok (${games.length} styled games plus Pahjong UI, 4 viewports × 3 styles, navigation, contrast, focus)`);
+    // Mischen erhält jedes verbleibende physische Motiv.
+    const facesBefore = Pahjong.getCards().filter(card => !card.removed).map(card => card.face.uid).sort().join(',');
+    document.querySelector('#shuffle').click();
+    const facesAfter = Pahjong.getCards().filter(card => !card.removed).map(card => card.face.uid).sort().join(',');
+    const shufflePreserved = facesBefore === facesAfter && Pahjong.getState().shuffles === 1;
+
+    // Vollständigen garantierten Weg durch die echte Click-UI abspielen.
+    Pahjong.newGame('browser-full-solution');
+    const fullPlan = Pahjong.getSolutionPlan();
+    for (const pair of fullPlan) {
+      document.querySelector('#board .tile:nth-child(' + (pair[0] + 1) + ')').click();
+      document.querySelector('#board .tile:nth-child(' + (pair[1] + 1) + ')').click();
+    }
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const won = Pahjong.getState().status === 'won' && Pahjong.getState().remaining === 0;
+    const resultFocused = document.querySelector('#result').contains(document.activeElement);
+    document.querySelector('#result-undo').click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const terminalUndo = Pahjong.getState().status === 'playing' && Pahjong.getState().remaining === 2 && document.querySelector('#result').hidden;
+
+    return { reshuffledOnN, exactHintPair, undoWorked, focusRecovered, arrowMoved, shufflePreserved, hadHint: !!hint, won, resultFocused, terminalUndo };
+  })()`);
+  assert(pahjongKeys.reshuffledOnN, 'pahjong: N shortcut did not create a fresh deal while a tile was focused');
+  assert(pahjongKeys.exactHintPair, 'pahjong: hint did not mark exactly two distinct tiles');
+  assert(pahjongKeys.hadHint, 'pahjong: a free hint pair should exist for the undo test');
+  assert(pahjongKeys.focusRecovered, 'pahjong: focus remained on an invisible removed tile');
+  assert(pahjongKeys.undoWorked, 'pahjong: U shortcut did not undo while a tile was focused');
+  assert(pahjongKeys.arrowMoved, 'pahjong: spatial arrow-key navigation did not move focus');
+  assert(pahjongKeys.shufflePreserved, 'pahjong: shuffle changed the remaining face multiset');
+  assert(pahjongKeys.won && pahjongKeys.resultFocused && pahjongKeys.terminalUndo, `pahjong: full solution/result/terminal undo failed ${JSON.stringify(pahjongKeys)}`);
+
+  console.log(`browser smoke ok (${games.length} styled games plus Pahjong UI, 7 Phone/Tablet/Desktop-Viewports × 3 styles, navigation, contrast, focus)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();

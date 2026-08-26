@@ -1,76 +1,112 @@
-/* === Pahjong — Smoke-Test (Node) ===
-   Statische + Konventions-Prüfungen für pahjong/game.js und index.html.
-   (Das Spiel ist ein Browser-IIFE; daher hier statische Fix-Prüfungen plus
-   node --check. Die Paarplan-Logik wird zusätzlich im Browser-Smoke
-   (browser-smoke-test.mjs) über Pahjong.testPlan verifiziert.)
-   Aufruf: node smoke-test.cjs */
+/* Pahjong v1.5 – Turtle-Geometrie, Deals, Paare, Shuffle und Shell. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const E = require('./engine.js');
 
-// Syntax intakt
-require('node:child_process').execSync('node --check "' + path.join(__dirname, 'game.js') + '"', { stdio: 'pipe' });
+for (const file of ['engine.js', 'game.js']) execFileSync(process.execPath, ['--check', path.join(__dirname, file)], { stdio: 'pipe' });
 
-const js = fs.readFileSync(path.join(__dirname, 'game.js'), 'utf8');
+assert.equal(E.SLOTS.length, 144);
+const layers = E.SLOTS.reduce((counts, slot) => { counts[slot.z] = (counts[slot.z] || 0) + 1; return counts; }, {});
+assert.deepEqual(layers, { 0: 87, 1: 36, 2: 16, 3: 4, 4: 1 }, 'klassische 87+36+16+4+1 Turtle-Ebenen');
+assert.equal(new Set(E.SLOTS.map(slot => `${slot.x},${slot.y},${slot.z}`)).size, 144, 'eindeutige Plätze');
+assert.ok(E.SLOTS.some(slot => slot.x % 2 || slot.y % 2), 'Halbstein-Koordinaten vorhanden');
 
-// ============================================================
-// 1) Tastaturkurzbefehle (H/M/U/N) wirken auch bei fokussiertem
-//    Stein/Steuerbutton; native Space/Enter werden nicht blockiert.
-//    Die alte Wächter-Zeile button,a,summary ist entfernt.
-// ============================================================
-assert.doesNotMatch(js, /\.matches\('button,a,summary'\)/, 'alter Button-Wächter entfernt');
-assert.match(js, /tag==='INPUT'\|\|tag==='SELECT'\|\|tag==='TEXTAREA'/, 'Wächter nur noch für Formularfelder');
-assert.doesNotMatch(js, /k==='h'\)\{e\.preventDefault\(\);hint\(\);\}if\(k==='m'/, 'Shortcuts else-if verkettet (kein Doppelabfangen)');
-assert.match(js, /function hint\(\)\{ if\(status==='won'\)return;/, 'H verändert den gewonnenen Zustand nicht');
+// Geometrie und Renderfläche verwenden dieselben Rechtecke.
+const top = E.SLOTS.find(slot => slot.z === 4);
+const directlyCovered = E.SLOTS.filter(slot => slot.z === 3 && E.covers(slot, top));
+assert.equal(directlyCovered.length, 4, 'oberster Stein überdeckt vier Halbstein-Flächen');
+for (const lower of directlyCovered) assert.equal(E.overlaps(lower.x, top.x) && E.overlaps(lower.y, top.y), true);
 
-// ============================================================
-// 2) Echte modale Ergebnis-Steuerung: Hintergrund inert,
-//    Tab-Eindämmung, Escape, Fokus.
-// ============================================================
-assert.match(js, /function openResultDialog\(\)/, 'openResultDialog vorhanden');
-assert.match(js, /function teardownResultDialog\(\)/, 'teardownResultDialog vorhanden');
-assert.match(js, /function setBackgroundInert\(/, 'Hintergrund-inert vorhanden');
-assert.match(js, /function resultFocusables\(\)/, 'Fokus-Erfassung für Ergebnisdialog');
-assert.match(js, /el\.inert=inert/, 'inert wird gesetzt');
-assert.match(js, /e\.key==='Escape'/, 'Escape-Policy im Ergebnisdialog');
-assert.match(js, /e\.key==='Tab'/, 'Tab-Eindämmung im Ergebnisdialog');
+const started = performance.now();
+for (let seed = 0; seed < 1000; seed += 1) {
+  const first = E.createState({ seed: `deal-${seed}` });
+  const second = E.createState({ seed: `deal-${seed}` });
+  assert.deepEqual(first, second, `Deal ${seed} deterministisch`);
+  assert.equal(E.validateState(first), true, `Deal ${seed} gültig`);
+  assert.equal(new Set(first.cards.map(card => card.face.uid)).size, 144, '144 physisch eindeutige Steine');
+  assert.equal(first.solutionPlan.length, 72);
+  assert.equal(E.verifyRemovalPlan(first.cards, first.solutionPlan, new Set(first.cards.map(card => card.id))), true);
+  for (const [a, b] of first.solutionPlan) {
+    assert.equal(E.isFree(first, a), true, `Planstein ${a} frei`);
+    assert.equal(E.isFree(first, b), true, `Planstein ${b} frei`);
+    assert.equal(E.isMatch(first.cards[a], first.cards[b]), true, `Planpaar ${a}/${b} passend`);
+    assert.equal(E.removePair(first, a, b).ok, true);
+  }
+  assert.equal(first.status, 'won');
+  assert.equal(first.cards.every(card => card.removed), true);
+}
+assert.ok(performance.now() - started < 15000, '1000 Deals bleiben in einem begrenzten Testbudget');
 
-// ============================================================
-// 3) Zeit friert im blockierten Zustand ein und bleibt auch bei
-//    gedrosselten Browser-Timern über Date.now präzise.
-// ============================================================
-assert.match(js, /elapsed = 0, activeSince = Date\.now\(\)/, 'präzise Zeitbasis vorhanden');
-assert.match(js, /function currentElapsed\(\)/, 'aktuelle Laufzeit wird aus Date.now berechnet');
-assert.match(js, /function pauseClock\(\)/, 'Uhr lässt sich beim Blockieren einfrieren');
-assert.match(js, /function resumeClock\(\)/, 'Uhr lässt sich nach Fortsetzung starten');
-assert.match(js, /if\(status==='playing'\)\$\('time'\)\.textContent=format\(currentElapsed\(\)\)/, 'Tick aktualisiert nur beim Spielen');
-assert.doesNotMatch(js, /status==='playing'\|\|status==='blocked'\)render/, 'kein Render-Tick mehr im blockierten Zustand');
-assert.match(js, /moves=0; status='playing'; elapsed=0; activeSince=Date\.now\(\)/, 'deal setzt präzise Zeitbasis zurück');
+// Sondergruppen: beliebige Blumen bzw. Jahreszeiten, normale Motive nur identisch.
+{
+  const state = E.createState({ seed: 'matches' });
+  const flowers = state.cards.filter(card => card.face.group === 'flower');
+  const seasons = state.cards.filter(card => card.face.group === 'season');
+  const normal = state.cards.filter(card => card.face.group === 'normal');
+  flowers.forEach(card => { card.removed = false; });
+  assert.equal(E.isMatch(flowers[0], flowers[1]), true);
+  assert.equal(E.isMatch(seasons[0], seasons[1]), true);
+  assert.equal(E.isMatch(flowers[0], seasons[0]), false);
+  const same = normal.find(card => card.id !== normal[0].id && card.face.key === normal[0].face.key);
+  const different = normal.find(card => card.face.key !== normal[0].face.key);
+  assert.equal(E.isMatch(normal[0], same), true);
+  assert.equal(E.isMatch(normal[0], different), false);
+}
 
-// ============================================================
-// 4) HTML-Konventionen der Collection
-// ============================================================
+// Nach legalen Teilzügen bewahrt Mischen das Gesichtsmultiset und liefert einen
+// vollständig verifizierten Fortsetzungsplan.
+for (let seed = 0; seed < 120; seed += 1) {
+  const state = E.createState({ seed: `shuffle-${seed}` });
+  for (let move = 0; move < 12 && state.status === 'playing'; move += 1) {
+    const pairs = E.matchingPairs(state);
+    const pair = pairs[(seed + move * 7) % pairs.length];
+    assert.ok(pair, `freies Paar ${seed}/${move}`);
+    assert.equal(E.removePair(state, pair[0], pair[1]).ok, true);
+  }
+  const before = state.cards.filter(card => !card.removed).map(card => card.face.uid).sort();
+  const result = E.shuffleRemaining(state);
+  assert.equal(result.ok, true, `Shuffle ${seed}`);
+  const after = state.cards.filter(card => !card.removed).map(card => card.face.uid).sort();
+  assert.deepEqual(after, before, 'Shuffle erhält alle Reststeine');
+  const ids = new Set(state.cards.filter(card => !card.removed).map(card => card.id));
+  assert.equal(E.verifyRemovalPlan(state.cards, result.plan, ids), true, 'Shuffle-Fortsetzung geometrisch gültig');
+  for (const [a, b] of result.plan) assert.equal(E.isMatch(state.cards[a], state.cards[b]), true, 'Shuffle-Planpaare passen');
+}
+
+// Defensive Zustandsprüfung.
+{
+  const good = E.createState({ seed: 'validate' });
+  const duplicateFace = E.clone(good); duplicateFace.cards[0].face.uid = duplicateFace.cards[1].face.uid;
+  assert.equal(E.validateState(duplicateFace), false);
+  const badSlot = E.clone(good); badSlot.cards[0].x += 1;
+  assert.equal(E.validateState(badSlot), false);
+  const odd = E.clone(good); odd.cards[0].removed = true;
+  assert.equal(E.validateState(odd), false);
+  const falseWin = E.clone(good); falseWin.status = 'won';
+  assert.equal(E.validateState(falseWin), false);
+}
+
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-assert.match(html, /lang="de"/, 'lang=de');
-assert.match(html, /<script src="game\.js" defer><\/script>/, 'game.js mit defer');
-assert.match(html, /href="styles\.css"/, 'CSS referenziert');
-assert.match(html, /\.\.\/index\.html/, 'Back-Link zur Collection');
-assert.match(html, /href="\.\.\/index\.html">[^<]*Spieleauswahl/, 'Back-Link zur Spieleauswahl');
-assert.match(html, /role="status"[\s\S]*aria-live="polite"/, 'aria-live Status-Region');
-assert.match(html, /role="dialog"[\s\S]*aria-modal="true"/, 'Modal role/aria-modal');
-assert.match(html, /<kbd>H<\/kbd>.+<kbd>M<\/kbd>.+<kbd>U<\/kbd>.+<kbd>N<\/kbd>/, 'Kurzbefehle H/M/U/N dokumentiert');
-assert.doesNotMatch(html, /onclick=/, 'keine Inline-Handler');
-assert.doesNotMatch(html, /innerHTML/, 'kein innerHTML');
-assert.doesNotMatch(html, /https?:\/\//, 'keine externen URLs');
+const css = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf8');
+const js = fs.readFileSync(path.join(__dirname, 'game.js'), 'utf8');
+for (const pattern of [
+  /lang="de"/, /engine\.js/, /game\.js" defer/, /\.\.\/shared\/game-shell\.js/,
+  /role="status"[^>]*aria-live="polite"/, /role="grid"/, /role="dialog"[^>]*aria-modal="true"/,
+  /id="quick-guide-title"/, /id="zoom-in"/, /id="tile-legend"/, /id="result-undo"/
+]) assert.match(html, pattern);
+assert.doesNotMatch(html, /onclick=/);
+assert.doesNotMatch(html, /https?:\/\//);
+assert.doesNotMatch(js, /\.innerHTML\s*=/);
+assert.match(js, /ArrowLeft/);
+assert.match(js, /selected = null; \/\/ genau zwei/);
+assert.match(js, /localStorage/);
+assert.match(js, /visibilitychange/);
+assert.match(css, /aspect-ratio:\s*1\.52 \/ 1/);
+assert.match(css, /\.tile:not\(\.free\)/);
+assert.match(css, /\.tile\.hinted/);
+assert.match(css, /prefers-reduced-motion/);
 
-// UI-Konventionen
-assert.doesNotMatch(js, /\.innerHTML\s*=/, 'kein innerHTML im UI-Code');
-
-// Datei-Existenz & Back-Link-Ziel
-assert.ok(fs.existsSync(path.join(__dirname, 'game.js')), 'game.js');
-assert.ok(fs.existsSync(path.join(__dirname, 'index.html')), 'index.html');
-assert.ok(fs.existsSync(path.join(__dirname, 'styles.css')), 'styles.css');
-assert.ok(fs.existsSync(path.join(__dirname, 'README.md')), 'README');
-assert.ok(fs.existsSync(path.join(__dirname, '..', 'index.html')), 'Collection-Index');
-
-console.log('smoke ok');
+for (const file of ['index.html', 'styles.css', 'engine.js', 'game.js', 'README.md']) assert.ok(fs.existsSync(path.join(__dirname, file)), file);
+console.log('smoke ok (1000 Turtle-Deals, 120 Rest-Shuffles, Geometrie, Sonderpaare, Speicher/Shell)');

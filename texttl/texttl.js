@@ -300,23 +300,26 @@
 
         var grades = L.evaluate(guess, state.solution);
         var version = gameVersion;
-        state.accepting = false; // während Animation keine Eingaben
-        animateRow(state.guesses.length, grades, state.current.slice(), version, function () {
+        var rowIndex = state.guesses.length;
+        var letters = state.current.slice();
+        // Der bestätigte Versuch ist Spiellogik, die Flip-Sequenz nur Darstellung:
+        // deshalb vor jedem Timer/Reload atomar übernehmen und persistieren.
+        state.guesses.push(guess);
+        state.current = [];
+        state.accepting = false;
+        if (state.mode === 'daily') {
+            var committedStatus = L.isWin(grades) ? 'won' : (state.guesses.length >= MAX_ROWS ? 'lost' : 'playing');
+            saveDaily({
+                key: state.dailyKey,
+                puzzleNumber: state.puzzleNumber,
+                solution: state.solution,
+                guesses: state.guesses.slice(),
+                status: committedStatus
+            });
+        }
+        animateRow(rowIndex, grades, letters, version, function () {
             if (version !== gameVersion) return;
-            state.guesses.push(guess);
-            state.current = [];
             state.accepting = true;
-
-            // Tagesfortschritt laufend sichern (Moduswechsel/Reload-safe)
-            if (state.mode === 'daily') {
-                saveDaily({
-                    key: state.dailyKey,
-                    puzzleNumber: state.puzzleNumber,
-                    solution: state.solution,
-                    guesses: state.guesses.slice(),
-                    status: 'playing'
-                });
-            }
 
             if (L.isWin(grades)) {
                 finishGame(true);
@@ -639,6 +642,15 @@
             modeLabelEl.textContent = 'Tagesrätsel #' + (state.puzzleNumber || '') + ' · 5 Buchstaben · 6 Versuche';
             setModeButtons('daily');
             if (state.status !== 'playing') {
+                // Ein Reload während der letzten Flip-Animation darf den bereits
+                // atomar gespeicherten Endstand nicht aus der Statistik verlieren.
+                var restoredStats = loadStats();
+                if (!L.dailyAlreadySolved(restoredStats, state.dailyKey)) {
+                    restoredStats = L.recordResult(restoredStats, {
+                        mode: 'daily', won: state.status === 'won', attempts: state.guesses.length, dayKey: state.dailyKey
+                    });
+                    saveStats(restoredStats);
+                }
                 // lastGame wiederherstellen, damit Teilen funktioniert
                 lastGame = {
                     mode: 'daily',

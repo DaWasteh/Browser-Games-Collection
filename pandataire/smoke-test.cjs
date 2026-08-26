@@ -230,8 +230,21 @@ assert.equal(E.applyMove(empty, rsP, { type: 'draw' }).ok, false, 'draw aus leer
 // recycle nur wenn Stock leer + Umläufe übrig + Waste vorhanden.
 assert.equal(E.applyMove(E.cloneState(empty), rsP, { type: 'recycle' }).ok, false, 'recycle ohne Waste abgewiesen');
 
+// Rangmuster müssen über Seeds deutlich variieren (früher nur Pfad/Umkehrung).
+for (const mode of ['tripeaks', 'golf']) {
+  const signatures = new Set();
+  for (let seed = 1; seed <= 100; seed++) {
+    const deal = R[mode].deal(E.rng(seed));
+    signatures.add(deal.cards.map(card => card.rank).join(','));
+  }
+  assert.ok(signatures.size >= 90, mode + ' Rangvarianz nur ' + signatures.size + '/100');
+}
+
 const uiSource = fs.readFileSync(path.join(__dirname, 'game.js'), 'utf8');
 assert.match(uiSource, /\$\('result-button'\)\.focus/, 'Ergebnisdialog fokussiert den vorhandenen Primärbutton');
+assert.match(uiSource, /mode === 'tripeaks' && !free/, 'TriPeaks verdeckt blockierte Ränge');
+assert.match(uiSource, /function pauseClock\(\)/, 'aktive Zeit wird am Rundenende eingefroren');
+assert.match(uiSource, /visibilitychange/, 'Hintergrundzeit wird nicht mitgezählt');
 
 // Niemals werfende Deals (Randfall Start-Waste) über alle Modi.
 for (const mode of R.order) {

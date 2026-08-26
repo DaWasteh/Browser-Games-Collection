@@ -16,7 +16,9 @@ assert.equal(L.toUpperDe('ä'), 'AE');
 assert.deepEqual(L.graphemes('straße'), ['S', 'T', 'R', 'A', 'S', 'S', 'E']);
 assert.equal(L.normalizeGridAnswer('Maß'), 'MASS');
 assert.equal(L.normalizeGridAnswer('größer'), 'GROESSER');
-assert.equal(L.normalizeGridAnswer('für Öl'), 'FUER OEL');
+assert.equal(L.normalizeGridAnswer('für Öl'), 'FUEROEL');
+assert.equal(L.normalizeGridAnswer('Grüß Gott'), 'GRUESSGOTT');
+assert.equal(L.normalizeGridAnswer("Jean-Luc's"), 'JEANLUCS');
 assert.equal(L.normalizeGridAnswer('Apfel'), 'APFEL');
 assert.equal(L.isGridLetter('ß'), false);
 assert.equal(L.isGridLetter('Ä'), false);
@@ -30,8 +32,11 @@ const dv = L.validateDataset(DATA);
 assert.equal(dv.ok, true, 'Dataset gültig: ' + JSON.stringify(dv.errors));
 const deEntries = DATA.entries.filter(e => e.language === 'de');
 const barEntries = DATA.entries.filter(e => e.language === 'bar');
-assert.ok(deEntries.length >= 80, 'mindestens 80 Deutsch-Einträge (' + deEntries.length + ')');
+assert.ok(deEntries.length >= 380, 'mindestens 380 Deutsch-Einträge (' + deEntries.length + ')');
 assert.ok(barEntries.length >= 80, 'mindestens 80 Bairisch-Einträge (' + barEntries.length + ')');
+assert.ok(DATA.entries.length >= 460, 'mindestens 460 Einträge insgesamt (' + DATA.entries.length + ')');
+assert.equal(DATA.schemaVersion, 2, 'redaktionelles Datenschema v2');
+assert.ok(DATA.editorialPolicy && DATA.editorialPolicy.normalization, 'Editorial Policy dokumentiert');
 
 // Eindeutige IDs und Antworten, NFC, erlaubte Grapheme, Hinweis vorhanden,
 // reviewed, ausschließlich project-editorial; Bairisch mit Region + Standarddeutsch.
@@ -44,6 +49,8 @@ for (const e of DATA.entries) {
     assert.ok(!seenAnswer.has(ak), 'eindeutige Antwort je Sprache ' + e.id); seenAnswer.add(ak);
     assert.ok(typeof e.clue === 'string' && e.clue.trim(), 'Hinweis vorhanden ' + e.id);
     assert.equal(e.reviewed, true, 'reviewed ' + e.id);
+    assert.equal(e.review.status, 'project-reviewed', 'Review-Status ' + e.id);
+    assert.match(e.review.reviewDate, /^\d{4}-\d{2}-\d{2}$/, 'Review-Datum ' + e.id);
     assert.deepEqual(e.source, { kind: 'project-editorial' }, 'Quelle ' + e.id);
     for (const ch of Array.from(ga)) assert.match(ch, /^[A-Z]$/, 'Zeichen erlaubt ' + ch + ' in ' + e.id);
     if (e.language === 'bar') {
@@ -73,7 +80,7 @@ const baseKey = { seed: 'determinismus-test', language: 'de', difficulty: 'mitte
 const p1 = L.generatePuzzle(baseKey);
 const p2 = L.generatePuzzle(baseKey);
 assert.equal(L.canonicalizePuzzle(p1), L.canonicalizePuzzle(p2), 'gleicher Schlüssel → gleiches kanonisches Puzzle');
-assert.equal(L.GENERATOR_VERSION, 2);
+assert.equal(L.GENERATOR_VERSION, 3);
 
 // ============================================================
 // 5) Strukturelle Gültigkeit für Seed-Samples je Sprache × Profil
@@ -89,11 +96,18 @@ for (const language of ['de', 'bar']) {
             const m = puzzle.metrics;
             assert.ok(m.wordCount >= profile.minWords, language + '/' + difficulty + '/' + seed + ' Wortzahl ' + m.wordCount + ' < ' + profile.minWords);
             assert.ok(m.crossingCells >= 1, language + '/' + difficulty + ' hat Kreuzung');
+            assert.ok(m.crossingRate >= profile.minCrossingRate, language + '/' + difficulty + ' Kreuzungsrate ' + m.crossingRate);
+            assert.ok(m.density >= profile.minDensity, language + '/' + difficulty + ' Gitterdichte ' + m.density);
+            assert.ok(m.directionBalance >= 0.28, language + '/' + difficulty + ' Richtungsbalance ' + m.directionBalance);
+            assert.equal(puzzle.qualityPassed, true, language + '/' + difficulty + ' Qualitätsvertrag');
             assert.ok(m.rows <= 16 && m.cols <= 16, language + '/' + difficulty + ' Bounding-Box ' + m.rows + 'x' + m.cols);
             assert.ok(m.wordCount <= profile.targetWords, 'Wortzahl überschreitet Ziel');
-            // keine doppelte entryId
+            // keine doppelte entryId und jede Zelle höchstens einmal je Richtung
             const used = new Set(puzzle.placements.map(p => p.entryId));
             assert.equal(used.size, puzzle.placements.length, 'keine doppelte entryId ' + language + '/' + difficulty);
+            for (const cell of Object.values(puzzle.cells)) {
+                assert.ok(cell.across == null || cell.down == null || cell.across !== cell.down, 'rechtwinklige Kreuzung');
+            }
         }
     }
 }
@@ -205,8 +219,24 @@ function makeBasePuzzle() {
     for (const pl of legal) assert.equal(L.isLegalPlacement(st, pl), true, 'aufgeführte Platzierung legal');
 }
 
+// 10b) Gleichgerichtete Überlagerungen sind keine Kreuzungen.
+{
+    const eis = DATA.entries.find(e => e.id === 'de-eis');
+    const reise = DATA.entries.find(e => e.id === 'de-reise');
+    const st = L.newState();
+    L.applyPlacement(st, { entry: eis, row: 0, col: 1, dir: 'across' });
+    assert.equal(L.isLegalPlacement(st, { entry: reise, row: 0, col: 0, dir: 'across' }), false, 'EIS/REISE-Überlagerung abgelehnt');
+    const malformed = L.buildPuzzle([
+        { entry: eis, row: 0, col: 1, dir: 'across' },
+        { entry: reise, row: 0, col: 0, dir: 'across' }
+    ], { seed: 'overlap', language: 'de', difficulty: 'mittel', datasetVersion: DATA.datasetVersion, generatorVersion: L.GENERATOR_VERSION });
+    const check = L.validatePuzzle(malformed, DATA.entries);
+    assert.equal(check.ok, false, 'Validator lehnt gleichgerichtete Überlagerung ab');
+    assert.ok(check.errors.some(e => /gleichgerichtete Überlagerung/.test(e)), check.errors.join('\n'));
+}
+
 // ============================================================
-// 10b) Winzige Pools (length 0/1/2) dürfen nicht werfen
+// 10c) Winzige Pools (length 0/1/2) dürfen nicht werfen
 // ============================================================
 function makeTinyEntry(id, answer) {
     return { id: id, language: 'de', displayAnswer: answer, gridAnswer: L.normalizeGridAnswer(answer), clue: 'Test', difficulty: 1, allowedProfiles: ['leicht', 'mittel', 'schwer'], reviewed: true, source: { kind: 'project-editorial' } };
@@ -249,6 +279,18 @@ assert.equal(L.sanitizeSavedPuzzle({}, DATA.entries), null, 'leeres Objekt verwo
     const forgedClue = JSON.parse(JSON.stringify(good));
     forgedClue.placements[0].clue = 'Gefälschter Hinweis';
     assert.equal(L.sanitizeSavedPuzzle(forgedClue, DATA.entries), null, 'gefälschter Hinweis verworfen');
+
+    const huge = JSON.parse(JSON.stringify(good));
+    huge.rows = 1000000;
+    assert.equal(L.sanitizeSavedPuzzle(huge, DATA.entries), null, 'gefälschte Dimension verworfen');
+
+    const extraCell = JSON.parse(JSON.stringify(good));
+    extraCell.cells['999,999'] = { letter: 'A', number: 0, across: null, down: null };
+    assert.equal(L.sanitizeSavedPuzzle(extraCell, DATA.entries), null, 'zusätzliche Zelle verworfen');
+
+    const stale = JSON.parse(JSON.stringify(good));
+    stale.generatorVersion--;
+    assert.equal(L.sanitizeSavedPuzzle(stale, DATA.entries), null, 'alte Generatorversion verworfen');
 }
 
 // ============================================================
@@ -265,6 +307,8 @@ assert.match(html, /aria-label="Zur Spieleübersicht"/, 'Back-Link aria-label');
 assert.match(html, /\.\.\/shared\/game-shell\.js/, 'gemeinsame Shell');
 assert.match(html, /role="status"[\s\S]*aria-live="polite"/, 'aria-live Status-Region');
 assert.match(html, /role="grid"/, 'role=grid für Spielfeld');
+assert.match(html, /id="active-clue"/, 'dauerhaft sichtbarer aktiver Hinweis');
+assert.match(html, /id="board-scroll"[^>]*tabindex="0"/, 'fokussierbarer mobiler Gitter-Scrollbereich');
 assert.match(html, /id="diff-experte"/, 'vierter Schwierigkeitsgrad Experte');
 assert.match(html, /role="dialog"[\s\S]*aria-modal="true"/, 'Modal role/aria-modal');
 assert.doesNotMatch(html, /onclick=/, 'keine Inline-Handler');
@@ -283,6 +327,9 @@ assert.match(uiJs, /aria-live|announce/, 'barrierefreie Rückmeldung');
 assert.match(uiJs, /scheduleSave/, 'Eingaben werden entprellt persistiert (scheduleSave)');
 assert.match(uiJs, /pagehide/, 'pagehide sichert ausstehende Eingaben');
 assert.match(uiJs, /flushSave/, 'flushSave leert den Entprell-Timer');
+assert.match(uiJs, /parseWordDraft/, 'positionssichere Wort-Eingabe vorhanden');
+assert.match(uiJs, /saveVersion: 3/, 'minimales Speicherschema v3');
+assert.doesNotMatch(uiJs, /placements:\s*puzzle\.placements/, 'abgeleitete Platzierungen werden nicht gespeichert');
 // Won-Status und verstrichene Zeit werden persistiert (status-Feld im Save).
 assert.match(uiJs, /status: status/, 'Won-Status wird gespeichert');
 assert.match(uiJs, /data\.status === 'won'/, 'Won-Status wird beim Laden wiederhergestellt');
@@ -298,4 +345,9 @@ assert.ok(fs.existsSync(path.join(__dirname, 'pandakreuzwort.css')), 'css file')
 assert.ok(fs.existsSync(path.join(__dirname, 'README.md')), 'README');
 assert.ok(fs.existsSync(path.join(__dirname, '..', 'index.html')), 'Collection-Index als Back-Link-Ziel');
 
-console.log('smoke ok');
+const css = fs.readFileSync(path.join(__dirname, 'pandakreuzwort.css'), 'utf8');
+assert.match(css, /\.cell\.block\s*\{[^}]*background:\s*var\(--block-bg\)/, 'sichtbare Sperrfelder');
+assert.match(css, /\.board-scroll\s*\{[^}]*overflow:\s*auto/, 'gezielter mobiler Gitter-Scrollbereich');
+assert.match(css, /repeat\(5, minmax\(0, 1fr\)\) !important/, 'größere mobile Bildschirmtasten');
+
+console.log(`smoke ok (${DATA.entries.length} Wörter, 8 Profil-Samples, Qualitäts-/Overlap-/Speicher-Negativtests)`);

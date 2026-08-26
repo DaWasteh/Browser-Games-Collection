@@ -284,6 +284,24 @@
         .game-collection-link { position: fixed; left: 12px; bottom: 12px; z-index: 10000; padding: 8px 12px; border: 1px solid #0ff; border-radius: 999px; background: rgba(0, 0, 0, .9); color: #fff; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,.45); }
         .game-collection-link:hover { background: #044; }
         .game-collection-link:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        @media (max-width: 600px), (pointer: coarse) {
+            #ui-overlay button,
+            #ui-overlay button.primary-btn,
+            #ui-overlay button.secondary-btn {
+                min-width: 7rem;
+                min-height: 44px;
+                padding: .65rem .85rem;
+                font-size: .9rem;
+                margin: .2rem;
+                letter-spacing: .04em;
+            }
+            #ui-overlay h2 { font-size: 2rem; }
+            #ui-overlay h3, #ui-overlay .winner-text { font-size: 1.15rem; }
+            #ui-overlay .score-result { font-size: .95rem; }
+            #name-input { max-width: min(18rem, 92%); gap: .45rem; }
+            #name-input input { min-height: 44px; padding: .55rem; font-size: 1rem; }
+            #overlay-scoreboard .score-entry { gap: .5rem; font-size: .78rem; }
+        }
     </style>
 </head>
 <body>
@@ -870,6 +888,10 @@
             player2.targetY = player2.y + player2.height / 2;
 
             resetBall();
+            // Menü-/Ergebniszeit darf beim Replay nicht als Catch-up in den
+            // ersten Frame einfließen.
+            lastFrameTime = 0;
+            simAccumulator = 0;
 
             gameRunning = true;
             gameLoop();
@@ -883,10 +905,13 @@
             const winnerName = winner === 1 ? player1Name : (gameMode === 'ai' ? 'CPU' : player2Name);
             const loserName = winner === 1 ? (gameMode === 'ai' ? 'CPU' : player2Name) : player1Name;
 
-            addToScoreboard(winnerName, loserName, player1Score, player2Score);
+            const winnerScore = winner === 1 ? player1Score : player2Score;
+            const loserScore = winner === 1 ? player2Score : player1Score;
+            addToScoreboard(winnerName, loserName, winnerScore, loserScore);
 
+            const secondName = gameMode === 'ai' ? 'CPU' : player2Name;
             winnerText.textContent = `${winnerName} hat gewonnen!`;
-            scoreResult.textContent = `${player1Name}: ${player1Score} - ${player2Name}: ${player2Score}`;
+            scoreResult.textContent = `${player1Name}: ${player1Score} - ${secondName}: ${player2Score}`;
 
             showScreen('screen-game-over');
 

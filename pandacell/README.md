@@ -2,6 +2,13 @@
 
 PandaCell ist ein vollständiger, offline spielbarer FreeCell-Klon ohne Frameworks, Build-Schritt oder externe Assets. Öffne `index.html` direkt im Browser.
 
+## Neu in v1.5
+
+- Acht Spalten und alle acht oberen Ablagen passen nun ohne erzwungene Mindestbreite auf schmale Displays.
+- Spalten- und Tableauhöhe folgen der tatsächlich längsten Kartenfolge; tiefe Stapel überdecken keine Bedienelemente mehr.
+- `Esc` hebt eine Kartenauswahl zuverlässig auf.
+- Auch ein finaler Siegzug kann über „Letzten Zug zurück“ rückgängig gemacht werden.
+
 ## Regeln
 
 - 52 Karten werden offen auf acht Tableau-Spalten verteilt (4 Spalten mit 7, 4 mit 6 Karten).

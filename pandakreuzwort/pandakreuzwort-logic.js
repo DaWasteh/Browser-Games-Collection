@@ -17,7 +17,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : window, function () {
     'use strict';
 
-    var GENERATOR_VERSION = 2;
+    var GENERATOR_VERSION = 3;
 
     // Klassische deutsche Kreuzworträtsel-Umschrift -----------------------
     function toUpperDe(ch) {
@@ -28,7 +28,13 @@
     function normalizeGridAnswer(value) {
         var chars = Array.from(String(value == null ? '' : value).normalize('NFC'));
         var out = '';
-        for (var i = 0; i < chars.length; i++) out += toUpperDe(chars[i]);
+        for (var i = 0; i < chars.length; i++) {
+            var mapped = toUpperDe(chars[i]);
+            // Natürliche Schreibweisen dürfen Leerzeichen, Bindestriche und
+            // Apostrophe enthalten; im klassischen Gitter entfallen sie.
+            if (/^[\s\-'’]$/.test(mapped)) continue;
+            out += mapped;
+        }
         return out;
     }
 
@@ -57,7 +63,11 @@
             placementLimit: 9,
             hints: 4,
             entryDifficultyMax: 2,
-            preferLong: false
+            preferLong: false,
+            minCrossingRate: 0.18,
+            minDensity: 0.24,
+            qualityAttempts: 4,
+            poolLimit: 100
         }),
         mittel: Object.freeze({
             name: 'mittel',
@@ -69,7 +79,11 @@
             placementLimit: 11,
             hints: 3,
             entryDifficultyMax: 3,
-            preferLong: true
+            preferLong: true,
+            minCrossingRate: 0.18,
+            minDensity: 0.25,
+            qualityAttempts: 5,
+            poolLimit: 130
         }),
         schwer: Object.freeze({
             name: 'schwer',
@@ -81,7 +95,11 @@
             placementLimit: 13,
             hints: 2,
             entryDifficultyMax: 3,
-            preferLong: true
+            preferLong: true,
+            minCrossingRate: 0.18,
+            minDensity: 0.26,
+            qualityAttempts: 6,
+            poolLimit: 170
         }),
         experte: Object.freeze({
             name: 'experte',
@@ -93,7 +111,11 @@
             placementLimit: 13,
             hints: 1,
             entryDifficultyMax: 3,
-            preferLong: true
+            preferLong: true,
+            minCrossingRate: 0.19,
+            minDensity: 0.27,
+            qualityAttempts: 7,
+            poolLimit: 190
         })
     });
 
@@ -232,6 +254,9 @@
                 }
             }
             if (e.reviewed !== true) errors.push(ctx + ': reviewed muss true sein.');
+            if (!e.review || e.review.status !== 'project-reviewed' || typeof e.review.reviewerRole !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e.review.reviewDate || '')) {
+                errors.push(ctx + ': redaktionelle Review-Metadaten fehlen.');
+            }
             if (!e.source || e.source.kind !== 'project-editorial') {
                 errors.push(ctx + ': source.kind muss "project-editorial" sein.');
             }
@@ -274,6 +299,7 @@
     function newState() {
         return {
             grid: Object.create(null),        // "r,c" -> Graphem
+            owners: Object.create(null),      // "r,c" -> {across,down}
             letterIndex: Object.create(null), // Graphem -> [[r,c],...]
             placements: [],                   // {entry, row, col, dir}
             usedIds: Object.create(null),
@@ -314,6 +340,7 @@
         var dr = dir === 'across' ? 0 : 1;
         var dc = dir === 'across' ? 1 : 0;
         var created = [];
+        var touched = [];
         for (var i = 0; i < g.length; i++) {
             var r = row + dr * i, c = col + dc * i, ky = key(r, c);
             if (state.grid[ky] == null) {
@@ -327,20 +354,33 @@
                 arr.push([r, c]);
                 created.push(ky);
             }
+            if (!state.owners[ky]) state.owners[ky] = { across: false, down: false };
+            state.owners[ky][dir] = true;
+            touched.push(ky);
         }
         state.placements.push({ entry: entry, row: row, col: col, dir: dir });
         state.usedIds[entry.id] = true;
-        return created;
+        return { created: created, touched: touched };
     }
 
-    // Wendet eine geprüfte Platzierung an und merkt sich die neu erzeugten
-    // Zellen (Kreuzungszellen gehören dem Ersteller und werden nur von ihm
-    // wieder entfernt). Backtracking macht immer LIFO, daher sicher.
+    // Wendet eine geprüfte Platzierung an. Richtungsbesitz wird auch für
+    // Kreuzungszellen gespeichert, damit gleichgerichtete Überlagerungen
+    // unmöglich sind und beim Backtracking sauber entfernt werden.
     function applyPlacement(state, placement) {
-        placement._created = placeWordDirect(state, placement.entry, placement.row, placement.col, placement.dir);
+        var changes = placeWordDirect(state, placement.entry, placement.row, placement.col, placement.dir);
+        placement._created = changes.created;
+        placement._touched = changes.touched;
     }
 
     function undoPlacement(state, placement) {
+        var touched = placement._touched || [];
+        for (var ti = 0; ti < touched.length; ti++) {
+            var owner = state.owners[touched[ti]];
+            if (owner) {
+                owner[placement.dir] = false;
+                if (!owner.across && !owner.down) delete state.owners[touched[ti]];
+            }
+        }
         var created = placement._created || [];
         for (var ci = 0; ci < created.length; ci++) {
             var ky = created[ci];
@@ -401,6 +441,12 @@
             var existing = state.grid[ky];
             if (existing != null) {
                 if (existing !== g[i]) return false;
+                var owner = state.owners[ky];
+                // Eine echte Kreuzung besteht aus genau einem waagrechten und
+                // einem senkrechten Wort. Gleiche Richtung darf nie überlagern.
+                if (!owner || owner[placement.dir]) return false;
+                var perpendicular = placement.dir === 'across' ? 'down' : 'across';
+                if (!owner[perpendicular]) return false;
                 hasCrossing = true;
             } else {
                 // Neue Zelle: seitliche Nachbarn müssen frei sein.
@@ -450,7 +496,7 @@
     }
 
     // Bewertung einer Platzierung: Kreuzungen, Kompaktheit, Länge.
-    function scorePlacement(state, placement) {
+    function scorePlacement(state, placement, profile) {
         var g = prep(placement.entry).graphemes;
         var across = placement.dir === 'across';
         var dr = across ? 0 : 1, dc = across ? 1 : 0;
@@ -466,7 +512,8 @@
         var mid = (g.length - 1) / 2;
         var wr = placement.row + dr * mid, wc = placement.col + dc * mid;
         var dist = Math.abs(wr - cr) + Math.abs(wc - cc);
-        return crossings * 100 - boxPenalty - dist * 2 + g.length * 2;
+        var lengthWeight = profile && profile.preferLong ? 3 : 1.5;
+        return crossings * 120 - boxPenalty - dist * 2 + g.length * lengthWeight;
     }
 
     // Sammle einsetzbare Kandidaten (nur Einträge mit mind. einer legalen Stelle).
@@ -481,7 +528,7 @@
             // Nach Bewertung sortieren, Gleichstände PRNG-gemischt.
             for (var k = 0; k < placements.length; k++) placements[k]._tb = prng();
             placements.sort(function (a, b) {
-                var sa = scorePlacement(state, a), sb = scorePlacement(state, b);
+                var sa = scorePlacement(state, a, profile), sb = scorePlacement(state, b, profile);
                 if (sb !== sa) return sb - sa;
                 return a._tb - b._tb;
             });
@@ -507,6 +554,7 @@
     // ============================================================
     function generateOneAttempt(prng, pool, profile) {
         var order = shuffle(pool, prng);
+        if (profile.poolLimit && order.length > profile.poolLimit) order = order.slice(0, profile.poolLimit);
         var state = newState();
         var anchor = order[0];
         placeWordDirect(state, anchor, 0, 0, 'across');
@@ -580,23 +628,38 @@
         }
 
         var bestPlacements = null;
-        var bestCount = -1;
+        var bestScore = -Infinity;
+        var bestQualityPassed = false;
+        var targetHits = 0;
+        var attemptsUsed = 0;
         for (var attempt = 0; attempt < profile.maxAttempts; attempt++) {
-            if (bestCount >= profile.targetWords) break;
             var attemptSeed = deriveAttemptSeed(seed, attempt, datasetVersion, GENERATOR_VERSION);
             var prng = createPrng(attemptSeed);
             var placements = generateOneAttempt(prng, pool, profile);
-            if (placements.length > bestCount) {
-                bestCount = placements.length;
+            var candidate = buildPuzzle(placements, meta);
+            candidate.metrics = computeMetrics(candidate);
+            var candidatePassed = candidate.metrics.wordCount >= profile.minWords &&
+                candidate.metrics.crossingRate >= profile.minCrossingRate &&
+                candidate.metrics.density >= profile.minDensity && candidate.metrics.directionBalance >= 0.28;
+            var score = qualityScore(candidate.metrics, profile);
+            if (score > bestScore) {
+                bestScore = score;
                 bestPlacements = placements;
+                bestQualityPassed = candidatePassed;
             }
-            if (bestCount >= profile.targetWords) break;
+            attemptsUsed = attempt + 1;
+            if (placements.length >= profile.targetWords) targetHits++;
+            if (targetHits >= profile.qualityAttempts && bestQualityPassed) break;
         }
 
         var puzzle = buildPuzzle(bestPlacements, meta);
         puzzle.profile = profile.name;
         puzzle.metrics = computeMetrics(puzzle);
-        puzzle.attemptsUsed = attempt;
+        puzzle.qualityPassed = puzzle.metrics.wordCount >= profile.minWords &&
+            puzzle.metrics.crossingRate >= profile.minCrossingRate &&
+            puzzle.metrics.density >= profile.minDensity &&
+            puzzle.metrics.directionBalance >= 0.28;
+        puzzle.attemptsUsed = attemptsUsed;
         return puzzle;
     }
 
@@ -729,15 +792,35 @@
         var cellCount = 0, crossingCells = 0;
         for (var kk in cells) { cellCount++; if (cells[kk] > 1) crossingCells++; }
         var wordCount = puzzle.placements.length;
+        var rows = (minR === Infinity) ? 0 : maxR - minR + 1;
+        var cols = (minC === Infinity) ? 0 : maxC - minC + 1;
+        var acrossCount = puzzle.placements.filter(function (p) { return p.dir === 'across'; }).length;
+        var downCount = wordCount - acrossCount;
         return {
             wordCount: wordCount,
             cellCount: cellCount,
             crossingCells: crossingCells,
             crossingRate: cellCount ? crossingCells / cellCount : 0,
-            rows: (minR === Infinity) ? 0 : maxR - minR + 1,
-            cols: (minC === Infinity) ? 0 : maxC - minC + 1,
+            density: rows && cols ? cellCount / (rows * cols) : 0,
+            directionBalance: Math.max(acrossCount, downCount) ? Math.min(acrossCount, downCount) / Math.max(acrossCount, downCount) : 0,
+            acrossCount: acrossCount,
+            downCount: downCount,
+            rows: rows,
+            cols: cols,
             avgLen: wordCount ? Math.round((total / wordCount) * 10) / 10 : 0
         };
+    }
+
+    function qualityScore(metrics, profile) {
+        if (!metrics) return -Infinity;
+        var minimumPenalty = metrics.wordCount < profile.minWords ? (profile.minWords - metrics.wordCount) * 1000000 : 0;
+        if (metrics.crossingRate < profile.minCrossingRate) minimumPenalty += (profile.minCrossingRate - metrics.crossingRate) * 500000;
+        if (metrics.density < profile.minDensity) minimumPenalty += (profile.minDensity - metrics.density) * 350000;
+        if (metrics.directionBalance < 0.28) minimumPenalty += (0.28 - metrics.directionBalance) * 250000;
+        return metrics.wordCount * 100000 - minimumPenalty +
+            metrics.crossingRate * 12000 + metrics.density * 7000 +
+            metrics.directionBalance * 2500 + metrics.avgLen * (profile.preferLong ? 80 : 25) -
+            Math.abs(metrics.rows - metrics.cols) * 20;
     }
 
     // ============================================================
@@ -749,67 +832,76 @@
         var errors = [];
         if (!puzzle || typeof puzzle !== 'object') return { ok: false, errors: ['puzzle kein Objekt.'] };
         var placements = puzzle.placements;
-        if (!Array.isArray(placements) || placements.length === 0) {
-            return { ok: false, errors: ['Keine Platzierungen.'] };
-        }
+        if (!Array.isArray(placements) || placements.length === 0) return { ok: false, errors: ['Keine Platzierungen.'] };
+        if (placements.length > 64) errors.push('Zu viele Platzierungen.');
+        if (puzzle.language !== 'de' && puzzle.language !== 'bar') errors.push('Ungültige Sprache.');
+        if (!PROFILES[puzzle.difficulty]) errors.push('Ungültige Schwierigkeit.');
 
         var grid = Object.create(null);
-        var coverage = Object.create(null);
+        var coverage = Object.create(null); // {across:index|null,down:index|null}
         var usedIds = Object.create(null);
         var idToEntry = Object.create(null);
-        if (entries) {
-            for (var ei = 0; ei < entries.length; ei++) idToEntry[entries[ei].id] = entries[ei];
-        }
+        var sourceEntries = [];
+        if (entries) for (var ei = 0; ei < entries.length; ei++) idToEntry[entries[ei].id] = entries[ei];
 
         for (var i = 0; i < placements.length; i++) {
             var p = placements[i];
             var ctx = 'Platzierung #' + (i + 1);
-            if (!p || typeof p !== 'object') { errors.push(ctx + ': kein Objekt.'); continue; }
-            if (typeof p.entryId !== 'string' || !p.entryId) { errors.push(ctx + ': entryId fehlt.'); }
+            if (!p || typeof p !== 'object') { errors.push(ctx + ': kein Objekt.'); sourceEntries.push(null); continue; }
+            if (typeof p.entryId !== 'string' || !p.entryId) errors.push(ctx + ': entryId fehlt.');
             else if (usedIds[p.entryId]) errors.push(ctx + ': doppelte entryId ' + p.entryId);
             else usedIds[p.entryId] = true;
             if (typeof p.clue !== 'string' || !p.clue.trim()) errors.push(ctx + ': clue fehlt/leer.');
             if (p.dir !== 'across' && p.dir !== 'down') errors.push(ctx + ': dir ungültig.');
-            if (typeof p.row !== 'number' || typeof p.col !== 'number') errors.push(ctx + ': row/col keine Zahl.');
+            if (!Number.isInteger(p.row) || !Number.isInteger(p.col) || p.row < 0 || p.col < 0 || p.row > MAX_SPAN || p.col > MAX_SPAN) {
+                errors.push(ctx + ': row/col außerhalb des Gitters.');
+            }
             if (typeof p.gridAnswer !== 'string' || !p.gridAnswer) errors.push(ctx + ': gridAnswer fehlt.');
             var g = graphemes(p.gridAnswer);
+            if (g.length < 2 || g.length > 14) errors.push(ctx + ': ungültige Antwortlänge.');
             for (var gi = 0; gi < g.length; gi++) if (!ALLOWED_LETTER.test(g[gi])) { errors.push(ctx + ': unerlaubtes Graphem.'); break; }
 
-            var dr = p.dir === 'across' ? 0 : 1, dc = p.dir === 'across' ? 1 : 0;
-            for (var j = 0; j < g.length; j++) {
-                var r = p.row + dr * j, c = p.col + dc * j, ky = key(r, c);
-                if (grid[ky] == null) grid[ky] = g[j];
-                else if (grid[ky] !== g[j]) errors.push(ctx + ': Buchstabenkonflikt bei ' + ky + '.');
-                if (!coverage[ky]) coverage[ky] = [];
-                coverage[ky].push(i);
-            }
+            var sourceEntry = entries && p.entryId ? idToEntry[p.entryId] : null;
+            sourceEntries.push(sourceEntry || null);
             if (entries && p.entryId) {
-                var sourceEntry = idToEntry[p.entryId];
-                if (!sourceEntry) {
-                    errors.push(ctx + ': entryId nicht in Datenbank.');
-                } else {
+                if (!sourceEntry) errors.push(ctx + ': entryId nicht in Datenbank.');
+                else {
                     var expectedAnswer = sourceEntry.gridAnswer || normalizeGridAnswer(sourceEntry.displayAnswer);
+                    if (sourceEntry.language !== puzzle.language) errors.push(ctx + ': Sprache passt nicht zum Rätsel.');
                     if (p.gridAnswer !== expectedAnswer) errors.push(ctx + ': gridAnswer passt nicht zur entryId.');
                     if (p.clue !== sourceEntry.clue) errors.push(ctx + ': clue passt nicht zur entryId.');
                     if (p.displayAnswer !== sourceEntry.displayAnswer) errors.push(ctx + ': displayAnswer passt nicht zur entryId.');
                     if (p.length !== graphemes(expectedAnswer).length) errors.push(ctx + ': length passt nicht zur entryId.');
                 }
             }
-        }
-
-        // Konsistenz der cells-Darstellung mit der gridAnswer-Rekonstruktion.
-        if (puzzle.cells) {
-            for (var cky in grid) {
-                var cellEntry = puzzle.cells[cky];
-                if (!cellEntry || typeof cellEntry.letter !== 'string') {
-                    errors.push('Zelle ' + cky + ' fehlt in cells.');
-                } else if (cellEntry.letter !== grid[cky]) {
-                    errors.push('Zelle ' + cky + ': Buchstabe widerspricht gridAnswer.');
-                }
+            if (p.dir !== 'across' && p.dir !== 'down') continue;
+            var dr = p.dir === 'across' ? 0 : 1, dc = p.dir === 'across' ? 1 : 0;
+            for (var j = 0; j < g.length; j++) {
+                var r = p.row + dr * j, c = p.col + dc * j, ky = key(r, c);
+                if (r > MAX_SPAN || c > MAX_SPAN) errors.push(ctx + ': Wort ragt aus dem maximalen Gitter.');
+                if (grid[ky] == null) grid[ky] = g[j];
+                else if (grid[ky] !== g[j]) errors.push(ctx + ': Buchstabenkonflikt bei ' + ky + '.');
+                if (!coverage[ky]) coverage[ky] = { across: null, down: null };
+                if (coverage[ky][p.dir] != null) errors.push(ctx + ': gleichgerichtete Überlagerung bei ' + ky + '.');
+                else coverage[ky][p.dir] = i;
             }
         }
 
-        // Adjazenzregel: benachbarte Buchstabenpaare brauchen gemeinsame Platzierung.
+        var cellKeys = Object.keys(grid);
+        var suppliedCells = puzzle.cells && typeof puzzle.cells === 'object' ? Object.keys(puzzle.cells) : [];
+        if (!puzzle.cells || typeof puzzle.cells !== 'object') errors.push('cells fehlt.');
+        if (suppliedCells.length !== cellKeys.length) errors.push('cells enthält fehlende oder zusätzliche Zellen.');
+        for (var cki = 0; cki < cellKeys.length; cki++) {
+            var cky = cellKeys[cki];
+            var cellEntry = puzzle.cells && puzzle.cells[cky];
+            if (!cellEntry || typeof cellEntry.letter !== 'string') errors.push('Zelle ' + cky + ' fehlt in cells.');
+            else {
+                if (cellEntry.letter !== grid[cky]) errors.push('Zelle ' + cky + ': Buchstabe widerspricht gridAnswer.');
+                if (cellEntry.across !== coverage[cky].across || cellEntry.down !== coverage[cky].down) errors.push('Zelle ' + cky + ': Richtungsbesitz ist inkonsistent.');
+            }
+        }
+
+        // Adjazenzregel: benachbarte Buchstabenpaare brauchen dieselbe Platzierung.
         for (var ck in grid) {
             var parts = ck.split(',');
             var cr = +parts[0], cc = +parts[1];
@@ -817,24 +909,16 @@
             for (var ni = 0; ni < neighbors.length; ni++) {
                 var nk = key(neighbors[ni][0], neighbors[ni][1]);
                 if (grid[nk] == null) continue;
-                var shared = false;
                 var a = coverage[ck], b = coverage[nk];
-                for (var ai = 0; ai < a.length && !shared; ai++) {
-                    for (var bi = 0; bi < b.length; bi++) {
-                        if (a[ai] === b[bi]) { shared = true; break; }
-                    }
-                }
+                var shared = (a.across != null && a.across === b.across) || (a.down != null && a.down === b.down);
                 if (!shared) errors.push('Benachbarte Zellen ' + ck + ' und ' + nk + ' ohne gemeinsames Wort.');
             }
         }
 
         // Zusammenhängend: genau eine 4-Komponente der Buchstabenzellen.
-        var cellKeys = Object.keys(grid);
-        if (cellKeys.length === 0) {
-            errors.push('Keine Buchstabenzellen.');
-        } else {
-            var visited = Object.create(null);
-            var components = 0;
+        if (cellKeys.length === 0) errors.push('Keine Buchstabenzellen.');
+        else {
+            var visited = Object.create(null), components = 0;
             for (var si = 0; si < cellKeys.length; si++) {
                 if (visited[cellKeys[si]]) continue;
                 components++;
@@ -843,8 +927,7 @@
                     var cur = stack.pop();
                     if (visited[cur]) continue;
                     visited[cur] = true;
-                    var cp = cur.split(',');
-                    var qr = +cp[0], qc = +cp[1];
+                    var cp = cur.split(','), qr = +cp[0], qc = +cp[1];
                     var nbs = [[qr + 1, qc], [qr - 1, qc], [qr, qc + 1], [qr, qc - 1]];
                     for (var nb = 0; nb < 4; nb++) {
                         var nky = key(nbs[nb][0], nbs[nb][1]);
@@ -853,6 +936,21 @@
                 }
             }
             if (components !== 1) errors.push(components + ' getrennte Komponenten statt einer.');
+        }
+
+        // Alle abgeleiteten Daten werden gegen eine kanonische Rekonstruktion geprüft.
+        if (entries && sourceEntries.every(Boolean) && sourceEntries.length === placements.length) {
+            var specs = placements.map(function (p, index) { return { entry: sourceEntries[index], row: p.row, col: p.col, dir: p.dir }; });
+            var expected = buildPuzzle(specs, {
+                seed: puzzle.seed, language: puzzle.language, difficulty: puzzle.difficulty,
+                datasetVersion: puzzle.datasetVersion, generatorVersion: puzzle.generatorVersion
+            });
+            if (puzzle.rows !== expected.rows || puzzle.cols !== expected.cols) errors.push('rows/cols stimmen nicht mit den Platzierungen überein.');
+            for (var pi = 0; pi < placements.length; pi++) {
+                if (placements[pi].row !== expected.placements[pi].row || placements[pi].col !== expected.placements[pi].col ||
+                    placements[pi].number !== expected.placements[pi].number) errors.push('Platzierung #' + (pi + 1) + ': Koordinaten/Nummer nicht kanonisch.');
+            }
+            if (JSON.stringify(puzzle.clues) !== JSON.stringify(expected.clues)) errors.push('Hinweislisten sind nicht kanonisch.');
         }
 
         return { ok: errors.length === 0, errors: errors };
@@ -872,7 +970,7 @@
 
     // Defensives Laden eines gespeicherten Rätsels.
     function sanitizeSavedPuzzle(value, entries) {
-        if (!value || typeof value !== 'object') return null;
+        if (!value || typeof value !== 'object' || value.generatorVersion !== GENERATOR_VERSION) return null;
         try {
             var puzzle = {
                 seed: value.seed, language: value.language, difficulty: value.difficulty,
@@ -882,7 +980,17 @@
             };
             var v = validatePuzzle(puzzle, entries);
             if (!v.ok) return null;
-            return puzzle;
+            var byId = Object.create(null);
+            for (var i = 0; i < entries.length; i++) byId[entries[i].id] = entries[i];
+            var specs = puzzle.placements.map(function (p) { return { entry: byId[p.entryId], row: p.row, col: p.col, dir: p.dir }; });
+            if (specs.some(function (s) { return !s.entry; })) return null;
+            var rebuilt = buildPuzzle(specs, {
+                seed: puzzle.seed, language: puzzle.language, difficulty: puzzle.difficulty,
+                datasetVersion: puzzle.datasetVersion, generatorVersion: puzzle.generatorVersion
+            });
+            rebuilt.profile = puzzle.difficulty;
+            rebuilt.metrics = computeMetrics(rebuilt);
+            return rebuilt;
         } catch (_err) {
             return null;
         }
@@ -916,6 +1024,7 @@
         numberPlacements: numberPlacements,
         buildPuzzle: buildPuzzle,
         computeMetrics: computeMetrics,
+        qualityScore: qualityScore,
         validatePuzzle: validatePuzzle,
         canonicalizePuzzle: canonicalizePuzzle,
         sanitizeSavedPuzzle: sanitizeSavedPuzzle

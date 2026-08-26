@@ -55,6 +55,7 @@ html[data-game-style] {
   --text: var(--pg-text);
   --muted: var(--pg-muted);
   --accent: var(--pg-accent);
+  --accent-text: var(--pg-accent-text);
   --line: var(--pg-border);
   --border: var(--pg-border);
   --green: var(--pg-accent);
@@ -145,6 +146,17 @@ html[data-game-style] :is(button, select, input, a, summary, [tabindex]):focus-v
   outline: 3px solid var(--pg-focus);
   outline-offset: 3px;
 }
+html[data-game-style] :is(.controls, .actions, .overlay-actions, .result-actions) button,
+html[data-game-style] details > summary {
+  min-height: 2.75rem;
+  touch-action: manipulation;
+}
+html[data-game-style] :is(button.primary, button[aria-pressed="true"], .clue-btn.active) {
+  border-color: var(--pg-accent);
+  background: var(--pg-accent);
+  color: var(--pg-accent-text);
+  transition-property: transform;
+}
 html[data-game-style="contrast"] :is(button, select, input, .card, .pile, .cell, .tile) { border-width: 2px; }
 html[data-game-style="contrast"] :is(button, select, input) { min-height: 2.75rem; font-weight: 800; }
 html[data-game-style="contrast"] :is(.card, .tile, .cell) { box-shadow: 0 0 0 1px #000, 0 0 0 3px #fff; }
@@ -155,30 +167,28 @@ html[data-game-style] .card.covered { filter: brightness(.72); }
 html[data-game-style="contrast"] .card.covered { filter: none; opacity: .72; }
 
 @media (max-width: 600px) {
-  .game-toolbar { align-items: stretch; flex-wrap: wrap; }
-  .game-style-control { margin-left: auto; }
+  .game-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+  }
   .game-toolbar .back-link,
   .game-toolbar .back,
   .game-style-control { min-height: 3rem; }
+  .game-toolbar .back-link,
+  .game-toolbar .back { justify-content: center; min-width: 0; }
+  .game-style-control { min-width: 0; margin-left: 0; padding-left: .45rem; }
   .game-style-control > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .game-style-control { padding-left: .45rem; }
-  .game-style-control select { max-width: 8rem; }
+  .game-style-control select { width: 100%; max-width: 8rem; }
   :is(.game-table, .tableau-area) {
     max-width: 100%;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
   }
-  :is(.game-table, .tableau-area)::before {
-    content: "↔ Spielfeld bei Bedarf seitlich verschieben";
-    display: block;
-    position: sticky;
-    left: 0;
-    width: max-content;
-    max-width: 100%;
-    margin: 0 0 .55rem;
-    color: #ffffff;
-    font-size: .78rem;
-    font-weight: 800;
-  }
-  .game-table > :is(.top-piles, .tableau) { min-width: 430px; }
+}
+
+@media (max-width: 340px) {
+  .game-toolbar { grid-template-columns: 1fr; }
+  .game-style-control { justify-content: center; }
+  .game-style-control select { max-width: none; }
 }

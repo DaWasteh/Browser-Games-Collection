@@ -3,6 +3,13 @@
 Ein Lemmings-inspiriertes Puzzle-Spiel als eigenständige HTML-Datei –
 keine Build-Schritte, keine Abhängigkeiten, einfach im Browser öffnen und spielen.
 
+## Neu in v1.5
+
+- Das Spielfeld ist eine fokussierbare interaktive Canvas-Anwendung: Pfeiltasten wählen einen Panda, Enter/Leertaste weist die gewählte Fähigkeit zu.
+- Native Buttons in Start-, Ergebnis- und Finaldialogen behalten ihre normale Space-/Enter-Bedienung; kein globaler Handler löst mehr versehentlich eine andere Aktion aus.
+- Touch-Ziele um Pandas werden auf schmalen Displays auf mindestens etwa 44 CSS-Pixel vergrößert und wählen den nächsten gültigen Panda.
+- Level-Häkchen sowie gerettete/verlorene Gesamtsummen werden versioniert und defensiv lokal gespeichert.
+
 ## 🎮 Spielen
 
 * **Lokal:** `panda_lemmings.html` im Browser öffnen.

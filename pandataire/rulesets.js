@@ -21,6 +21,36 @@
   var shuffle = engine.shuffle;
   var makeDeck = engine.makeDeck;
 
+  // Zufälliger, aber deckverträglicher ±1-Rangpfad. Jeder Rang darf höchstens
+  // viermal vorkommen; am Ende bleibt mindestens eine passende Startkarte für
+  // die Ablage übrig. Dadurch besitzen neue Seeds echte Rangvarianz statt nur
+  // eines festen Pfads und seiner Umkehrung.
+  function randomRankPath(length, random) {
+    for (var attempt = 0; attempt < 200; attempt++) {
+      var current = 1 + Math.floor(random() * 13);
+      var path = [current];
+      var counts = new Array(14).fill(0);
+      counts[current] = 1;
+      while (path.length < length) {
+        var lower = current === 1 ? 13 : current - 1;
+        var upper = current === 13 ? 1 : current + 1;
+        var choices = [];
+        if (counts[lower] < 4) choices.push(lower);
+        if (counts[upper] < 4) choices.push(upper);
+        if (!choices.length) break;
+        current = choices[Math.floor(random() * choices.length)];
+        counts[current]++;
+        path.push(current);
+      }
+      if (path.length !== length) continue;
+      var first = path[0];
+      var before = first === 1 ? 13 : first - 1;
+      var after = first === 13 ? 1 : first + 1;
+      if (counts[before] < 4 || counts[after] < 4) return path;
+    }
+    throw new Error('Kein deckverträglicher Rangpfad gefunden');
+  }
+
   // --- TriPeaks: vorhandene Konstanten wörtlich übernommen -----------------
   var tripeaksPositions = [
     [1, 0], [5, 0], [9, 0], [0, 1], [2, 1], [4, 1], [6, 1], [8, 1], [10, 1],
@@ -33,7 +63,6 @@
     [], [], [], [], [], [], [], [], [], []
   ];
   var tripeaksRemovalOrder = [18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 9, 10, 11, 12, 13, 14, 15, 16, 17, 3, 4, 5, 6, 7, 8, 0, 1, 2];
-  var tripeaksRankPath = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 2, 3, 4];
 
   function tripeaksLayout(id) {
     var p = tripeaksPositions[id];
@@ -42,8 +71,7 @@
 
   function tripeaksDeal(random) {
     var deck = shuffle(makeDeck(), random);
-    var wanted = tripeaksRankPath.slice();
-    if (random() < 0.5) wanted.reverse();
+    var wanted = randomRankPath(tripeaksRemovalOrder.length, random);
     var byRank = [];
     for (var r = 0; r < 14; r++) byRank.push([]);
     deck.forEach(function (c) { byRank[c.rank].push(c); });
@@ -91,19 +119,6 @@
   for (var gcol = 0; gcol < 7; gcol++) {
     for (var gr = 4; gr >= 0; gr--) golfRemovalOrder.push(gcol * 5 + gr);
   }
-  // 35 Ränge, jeweils ±1 (mit A↔K) zum Nachbarn.
-  var golfRankPath = [1];
-  (function buildGolfPath() {
-    var cur = 1, dir = 1;
-    while (golfRankPath.length < 35) {
-      var nx = cur + dir;
-      if (nx > 13) { dir = -1; nx = cur + dir; }
-      else if (nx < 1) { dir = 1; nx = cur + dir; }
-      golfRankPath.push(nx);
-      cur = nx;
-    }
-  })();
-
   function golfLayout(id) {
     var col = Math.floor(id / 5);
     var row = id % 5;
@@ -112,8 +127,7 @@
 
   function golfDeal(random) {
     var deck = shuffle(makeDeck(), random);
-    var wanted = golfRankPath.slice();
-    if (random() < 0.5) wanted.reverse();
+    var wanted = randomRankPath(golfRemovalOrder.length, random);
     var byRank = [];
     for (var r0 = 0; r0 < 14; r0++) byRank.push([]);
     deck.forEach(function (c) { byRank[c.rank].push(c); });

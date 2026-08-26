@@ -4,6 +4,13 @@
 
 Ein klassisches Pong-Spiel, komplett in einer einzigen HTML-Datei implementiert. Kein Server, keine Abhängigkeiten, kein Build-Prozess – einfach im Browser öffnen und spielen.
 
+## Neu in v1.5
+
+- Siege von CPU beziehungsweise Spieler 2 werden in Ergebnis und Bestenliste korrekt in Gewinnerreihenfolge (`5–0` statt `0–5`) gespeichert.
+- Der CPU-Name erscheint im Resultat auch wirklich als „CPU“.
+- Replay setzt Frame-Zeit und Fixed-Step-Akkumulator zurück; nach längerer Menüzeit springt der Ball nicht mehr beim ersten Frame.
+- Mobile Menübuttons und Namensfelder besitzen mindestens 44 CSS-Pixel Höhe und lesbare `rem`-Schriftgrößen.
+
 ## Spiel starten
 
 Online spielen: **<https://dawasteh.github.io/Pong/>**

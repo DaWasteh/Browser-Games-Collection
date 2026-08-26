@@ -180,8 +180,8 @@ try {
     await delay(350); // allow game boot / RAF startup
   }
 
-  async function setViewport(width, height, orientation) {
-    const params = { width, height, deviceScaleFactor: 1, mobile: true };
+  async function setViewport(width, height, orientation, mobile = true, deviceScaleFactor = 1) {
+    const params = { width, height, deviceScaleFactor, mobile };
     if (orientation) params.screenOrientation = { type: orientation, angle: orientation === 'landscapePrimary' ? 90 : 0 };
     await cdp.send('Emulation.setDeviceMetricsOverride', params);
     await delay(260); // debounce windows in the games are 150–200ms
@@ -256,6 +256,70 @@ try {
       regression: async () => {
         const hij = await keyHijacked(' ', 'Space', '#pauseBtn');
         assert(hij.hasFocus && !hij.defaultPrevented, 'sandgame: Space wird auf fokussiertem Control gehijackt');
+        await setViewport(375, 812, 'portraitPrimary', true, 3);
+        const report = await evaluate(`(async () => {
+          if (!window.SandGame) return { api: false };
+          const initial = SandGame.getDiagnostics();
+          const sixty = SandGame.computeTickBudget(0, 1000 / 60, 5);
+          const highA = SandGame.computeTickBudget(0, 1000 / 120, 5);
+          const highB = SandGame.computeTickBudget(highA.accumulator, 1000 / 120, 5);
+          const stalled = SandGame.computeTickBudget(0, 1000, 8);
+          const reset = SandGame.verifyCellReset();
+          const tall = SandGame.computeCoverSourceRect(1, 10000, 1080, 720);
+          const wide = SandGame.computeCoverSourceRect(10000, 1, 1080, 720);
+
+          const rendererAfterFallback = SandGame.forceCpuFallback();
+          const canvas = document.getElementById('c');
+          const rect = canvas.getBoundingClientRect();
+          canvas.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 41, pointerType: 'touch', button: 0, clientX: rect.left + 4, clientY: rect.top + 4, bubbles: true, cancelable: true }));
+          canvas.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 42, pointerType: 'touch', button: 0, clientX: rect.left + 8, clientY: rect.top + 8, bubbles: true, cancelable: true }));
+          const pointerDuring = SandGame.getDiagnostics();
+          window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 41, pointerType: 'touch', bubbles: true }));
+          const pointerAfter = SandGame.getDiagnostics();
+          const pointerPainted = SandGame.findMaterial(SandGame.materials.SAND).length > 0;
+
+          SandGame.setPaused(true);
+          SandGame.renderNow();
+          const framesBeforePause = SandGame.getDiagnostics().renderedFrames;
+          await new Promise(resolve => setTimeout(resolve, 140));
+          const framesAfterPause = SandGame.getDiagnostics().renderedFrames;
+
+          SandGame.setResolution(120);
+          SandGame.clear();
+          let dimensions = SandGame.getDiagnostics();
+          SandGame.placeMaterial(Math.floor(dimensions.width / 2), dimensions.height - 1, SandGame.materials.STONE);
+          SandGame.setResolution(80);
+          dimensions = SandGame.getDiagnostics();
+          const marker = SandGame.findMaterial(SandGame.materials.STONE)[0];
+
+          SandGame.clear();
+          SandGame.placeMaterial(Math.floor(dimensions.width / 2), Math.floor(dimensions.height / 2), SandGame.materials.SMOKE);
+          SandGame.setWind(true);
+          const windBefore = SandGame.getDiagnostics();
+          SandGame.simulateTicks(1);
+          const windAfter = SandGame.getDiagnostics();
+          SandGame.setWind(false);
+          SandGame.setResolution(initial.width);
+          SandGame.setPaused(false);
+          return {
+            api: true, initial, sixty, highA, highB, stalled, reset, tall, wide,
+            rendererAfterFallback, pointerDuring, pointerAfter, pointerPainted,
+            pausedUploads: framesAfterPause - framesBeforePause,
+            marker, resized: dimensions,
+            windVisits: windAfter.windActiveVisits - windBefore.windActiveVisits
+          };
+        })()`);
+        assert(report.api, 'sandgame: Diagnose-API fehlt');
+        assert(report.sixty.ticks === 5, `sandgame: 60-Hz-Tickbudget falsch ${JSON.stringify(report.sixty)}`);
+        assert(report.highA.ticks + report.highB.ticks === 5, `sandgame: 120-Hz-Tickbudget falsch ${JSON.stringify([report.highA, report.highB])}`);
+        assert(report.stalled.ticks === 8 && report.stalled.dropped > 0 && report.stalled.accumulator < 1, `sandgame: Stall-Catch-up nicht begrenzt ${JSON.stringify(report.stalled)}`);
+        assert(report.reset.material === 2 && report.reset.salinity === 0 && report.reset.radiation === 0 && report.reset.age === 0 && report.reset.plantType === 0 && report.reset.plantHealth === 0 && report.reset.soil === 0 && report.reset.nitrogen === 0 && report.reset.mycelium === 0 && report.reset.colorSeed > 0, `sandgame: Zellzustand wird nicht vollständig zurückgesetzt ${JSON.stringify(report.reset)}`);
+        assert(report.tall.sw <= 1 && report.tall.sh <= 10000 && report.wide.sw <= 10000 && report.wide.sh <= 1, `sandgame: Extremformat-Crop ungültig ${JSON.stringify([report.tall, report.wide])}`);
+        assert(report.rendererAfterFallback === 'cpu', 'sandgame: WebGL→Canvas2D-Fallback schlug fehl');
+        assert(report.pointerDuring.activePointerId === 41 && report.pointerDuring.drawing && report.pointerAfter.activePointerId === null && !report.pointerAfter.drawing && report.pointerPainted, `sandgame: Pointer-Cancel/Mehrfingergeste fehlerhaft ${JSON.stringify([report.pointerDuring, report.pointerAfter])}`);
+        assert(report.pausedUploads === 0, `sandgame: pausierte Szene rendert weiter (${report.pausedUploads} Frames)`);
+        assert(report.marker && report.marker.y === report.resized.height - 1 && Math.abs(report.marker.x - report.resized.width / 2) <= 1, `sandgame: Resize erhält Boden nicht unten/zentriert ${JSON.stringify(report.marker)}`);
+        assert(report.windVisits < report.resized.cells / 4, `sandgame: Wind scannt weiterhin zu viele Zellen (${report.windVisits}/${report.resized.cells})`);
       }
     },
     {
@@ -280,13 +344,33 @@ try {
           return Array.isArray(loaded) && loaded.length === 0;
         })()`);
         assert(corruptStorageSafe, 'pong: valide JSON-Daten mit falscher Form werden nicht verworfen');
-        // Tatsächlich ein Spiel starten und den fixen 60-Hz-Loop ohne Fehler laufen lassen.
-        const started = await evaluate(`(() => {
-          if (typeof selectMode === 'function') selectMode('ai');
-          const btn = [...document.querySelectorAll('#screen-main-menu button')].find(b => /starten/i.test(b.textContent));
-          if (btn) btn.click();
-          return document.getElementById('ui-overlay').classList.contains('hidden');
+        const resultContract = await evaluate(`(() => {
+          scoreboardData = [];
+          player1Name = 'Testspieler'; player2Name = 'Spieler 2';
+          selectMode('ai'); player1Score = 0; player2Score = 5;
+          endGame(2);
+          const entry = scoreboardData.at(-1);
+          const resultText = document.getElementById('score-result').textContent;
+          showMainMenuScreen();
+          const controls = [...document.querySelectorAll('#ui-overlay button, #name-input input')].filter(element => element.getBoundingClientRect().height > 0);
+          const minHeight = Math.min(...controls.map(element => element.getBoundingClientRect().height));
+          const minFont = Math.min(...controls.map(element => parseFloat(getComputedStyle(element).fontSize)));
+          lastFrameTime = performance.now() - 5000; simAccumulator = 123;
+          startGame();
+          return {
+            winner: entry && entry.winner,
+            score: entry && entry.score,
+            resultText,
+            minHeight,
+            minFont,
+            accumulatorReset: simAccumulator === 0
+          };
         })()`);
+        assert(resultContract.winner === 'CPU' && resultContract.score === '5-0' && /CPU: 5/.test(resultContract.resultText), `pong: Spieler-2/CPU-Ergebnis vertauscht ${JSON.stringify(resultContract)}`);
+        assert(resultContract.minHeight >= 44 && resultContract.minFont >= 14, `pong: mobile Menüsteuerung zu klein ${JSON.stringify(resultContract)}`);
+        assert(resultContract.accumulatorReset, 'pong: Replay übernimmt alten Fixed-Step-Akkumulator');
+        // Tatsächlich den fixen 60-Hz-Loop ohne Fehler laufen lassen.
+        const started = await evaluate(`document.getElementById('ui-overlay').classList.contains('hidden')`);
         assert(started, 'pong: Spiel startet nicht (Overlay bleibt sichtbar)');
         await delay(500); // Loop läuft einige Frames
       }
@@ -338,6 +422,19 @@ try {
         assert(inert.menuVisible && inert.gameInert, 'minesweeper: Hintergrund ist bei offenem Menü nicht inert');
         const roles = await evaluate(`(document.getElementById('menu-overlay').getAttribute('aria-modal') === 'true' && document.getElementById('result-overlay').getAttribute('aria-modal') === 'true')`);
         assert(roles, 'minesweeper: Overlay-Dialog-Semantik fehlt');
+        const touchStart = await evaluate(`(() => {
+          document.querySelector('[data-difficulty="hard"]').click();
+          const wrap = document.getElementById('board-wrap');
+          const cell = document.querySelector('#board .cell');
+          const a = wrap.getBoundingClientRect(), b = cell.getBoundingClientRect();
+          return { x: Math.min(a.right - 20, a.left + 220), y: b.top + b.height / 2, scrollLeft: wrap.scrollLeft, revealed: document.querySelectorAll('#board .cell.revealed').length };
+        })()`);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: touchStart.x, y: touchStart.y, radiusX: 5, radiusY: 5, force: 1, id: 1 }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: touchStart.x - 90, y: touchStart.y, radiusX: 5, radiusY: 5, force: 1, id: 1 }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await delay(120);
+        const touchEnd = await evaluate(`(() => ({ scrollLeft: document.getElementById('board-wrap').scrollLeft, revealed: document.querySelectorAll('#board .cell.revealed').length }))()`);
+        assert(touchEnd.revealed === touchStart.revealed, `minesweeper: Scrollgeste deckte ein Feld auf ${JSON.stringify({ touchStart, touchEnd })}`);
       }
     },
     {
@@ -346,14 +443,38 @@ try {
         const a11y = await evaluate(`(() => {
           const cv = document.getElementById('gameCanvas');
           const stats = document.getElementById('stats');
+          const start = document.getElementById('btn-start');
+          start.focus();
+          const space = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
+          start.dispatchEvent(space);
           return {
             canvasRole: cv ? cv.getAttribute('role') : null,
             canvasLabel: cv ? cv.getAttribute('aria-label') : null,
-            statsLive: stats ? stats.getAttribute('aria-live') : null
+            canvasTabbable: cv ? cv.tabIndex === 0 : false,
+            canvasHelp: !!document.getElementById('canvas-help'),
+            statsLive: stats ? stats.getAttribute('aria-live') : null,
+            nativeSpacePreserved: !space.defaultPrevented
           };
         })()`);
-        assert(a11y.canvasRole === 'img' && a11y.canvasLabel, 'panda-lemmings: Canvas-Barrierefreiheit fehlt');
-        assert(a11y.statsLive === 'polite', 'panda-lemmings: Stats aria-live fehlt');
+        assert(a11y.canvasRole === 'application' && a11y.canvasLabel && a11y.canvasTabbable && a11y.canvasHelp, 'panda-lemmings: interaktive Canvas-Tastatursemantik fehlt');
+        assert(a11y.statsLive === 'polite' && a11y.nativeSpacePreserved, 'panda-lemmings: Live-Status oder native Button-Aktivierung fehlerhaft');
+        const keyboardAssignment = await evaluate(`(async () => {
+          document.getElementById('btn-start').click();
+          if (!game.world.pandas.length) game.world.spawn();
+          game.selectSkill('bomber');
+          const canvas = document.getElementById('gameCanvas');
+          canvas.focus();
+          canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+          const selectedId = game.keyboardPandaId;
+          const before = game.world.pool.bomber;
+          canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+          const assigned = game.world.pool.bomber === before - 1;
+          game.completed.add(0); game.totalSaved = 12; game.totalLost = 1; game.levelSaved.set(0, 12); game.levelLost.set(0, 1); game.saveProgress();
+          const stored = JSON.parse(localStorage.getItem('panda-lemmings-progress-v1'));
+          return { selectedId, assigned, focused: document.activeElement === canvas, stored: stored && stored.completed.includes(0) && stored.totalSaved === 12 };
+        })()`);
+        assert(keyboardAssignment.selectedId != null && keyboardAssignment.assigned && keyboardAssignment.focused, `panda-lemmings: keyboard-only assignment failed ${JSON.stringify(keyboardAssignment)}`);
+        assert(keyboardAssignment.stored, 'panda-lemmings: campaign progress was not persisted');
         for (const viewport of [{width:375,height:667},{width:414,height:736},{width:667,height:375},{width:736,height:414}]) {
           await cdp.send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: true });
           const overlaps = await evaluate(`(() => {
@@ -392,7 +513,15 @@ try {
     }
   ];
 
-  const portraitWidths = [320, 375, 414];
+  const responsiveViewports = [
+    { width: 320, height: 568, orientation: 'portraitPrimary', mobile: true, dpr: 2 },
+    { width: 375, height: 812, orientation: 'portraitPrimary', mobile: true, dpr: 3 },
+    { width: 414, height: 896, orientation: 'portraitPrimary', mobile: true, dpr: 1 },
+    { width: 812, height: 375, orientation: 'landscapePrimary', mobile: true },
+    { width: 768, height: 1024, orientation: 'portraitPrimary', mobile: false },
+    { width: 1024, height: 768, orientation: 'landscapePrimary', mobile: false },
+    { width: 1366, height: 768, orientation: 'landscapePrimary', mobile: false }
+  ];
   for (const game of games) {
     const eventStart = cdp.events.length;
     await setViewport(375, 812, 'portraitPrimary');
@@ -407,24 +536,20 @@ try {
       if (hij.hasFocus) assert(!hij.defaultPrevented, `${game.name}: Leertaste hijackt ${game.formControl}`);
     }
 
-    // Portrait: 320/375/414 ohne Body-Überlauf.
-    for (const w of portraitWidths) {
-      await setViewport(w, 812, 'portraitPrimary');
+    // Phone, Landscape, Tablet und Desktop ohne Dokument-Überlauf.
+    for (const viewport of responsiveViewports) {
+      await setViewport(viewport.width, viewport.height, viewport.orientation, viewport.mobile, viewport.dpr || 1);
       const ov = await bodyOverflows();
-      assert(!ov.overflow, `${game.name}: Body-Überlauf im Portrait bei ${w}px ${JSON.stringify(ov.offenders)}`);
+      assert(!ov.overflow, `${game.name}: Body-Überlauf bei ${viewport.width}×${viewport.height} ${JSON.stringify(ov.offenders)}`);
     }
-    // Landscape + Orientierungswechsel ohne Überlauf/Fehler.
-    await setViewport(812, 375, 'landscapePrimary');
-    let ov = await bodyOverflows();
-    assert(!ov.overflow, `${game.name}: Body-Überlauf im Landscape ${JSON.stringify(ov.offenders)}`);
-    await setViewport(375, 812, 'portraitPrimary'); // zurück (orientationchange-Pfad)
+    await setViewport(375, 812, 'portraitPrimary', true); // Orientierungspfad zurück
 
     // Keine Runtime-/Console-Fehler über die ganze Session (inkl. Resize/Orientation).
     const errors = collectErrors(eventStart);
     assert(errors.length === 0, `${game.name}: Laufzeit-/Console-Fehler: ${JSON.stringify(errors).slice(0, 600)}`);
   }
 
-  console.log(`classic-games-smoke ok (${games.length} Spiele, Boot, 0 Fehler, Portrait 320/375/414 + Landscape, kein Überlauf, Tastatur-Nicht-Hijack, Regressionen)`);
+  console.log(`classic-games-smoke ok (${games.length} Spiele, 7 Phone/Tablet/Desktop-Viewports, Boot, 0 Fehler, kein Überlauf, Tastatur-Nicht-Hijack, Regressionen)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pandakreuzwort – Kreuzworträtsel</title>
-  <meta name="description" content="Freiform-Kreuzworträtsel auf Deutsch oder Bairisch mit vier Schwierigkeitsgraden, vielen Wörtern, Hinweisen und Tastatursteuerung – komplett offline.">
+  <meta name="description" content="Kompakte Kreuzworträtsel auf Deutsch oder Bairisch mit 464 Wörtern, Sperrfeldern, vier Schwierigkeitsgraden und mobiler Wort-Eingabe – komplett offline.">
   <script src="../shared/game-shell.js"></script>
   <link rel="stylesheet" href="pandakreuzwort.css">
   <link rel="stylesheet" href="../shared/game-shell.css">
@@ -16,7 +16,7 @@
   <header class="site-header">
     <a href="../index.html" class="back-link" aria-label="Zur Spieleübersicht">← Spieleübersicht</a>
     <h1>🐼 Pandakreuzwort</h1>
-    <p>Freiform-Kreuzworträtsel – Deutsch oder Bairisch, vier Stufen, komplett offline.</p>
+    <p>Kompakte Kreuzworträtsel – Deutsch oder Bairisch, 464 Wörter, vier Stufen, komplett offline.</p>
   </header>
 
   <main>
@@ -24,6 +24,7 @@
       <div><span>Zeit</span><strong id="time">00:00</strong></div>
       <div><span>Fehler</span><strong id="mistakes">0</strong></div>
       <div><span>Hinweise</span><strong id="hints-left">3</strong></div>
+      <div><span>Fortschritt</span><strong id="progress">0 %</strong></div>
       <div><span>Status</span><strong id="status">Bereit</strong></div>
     </section>
 
@@ -47,15 +48,23 @@
 
     <div class="play-area">
       <section class="board-wrap" aria-label="Kreuzwortgitter">
-        <div id="board" class="board" role="grid" aria-label="Kreuzworträtsel, Buchstabenfelder"></div>
+        <div id="active-clue" class="active-clue" aria-live="polite">
+          <span id="active-clue-label">Aktueller Hinweis</span>
+          <strong id="active-clue-text">Rätsel wird vorbereitet …</strong>
+        </div>
+        <div id="board-scroll" class="board-scroll" tabindex="0" aria-label="Kreuzworträtsel. Auf kleinen Bildschirmen horizontal und vertikal verschiebbar.">
+          <div id="board" class="board" role="grid" aria-label="Kreuzworträtsel, Buchstabenfelder"></div>
+        </div>
+        <p id="scroll-hint" class="scroll-hint" hidden>↔ Das Gitter lässt sich verschieben; der aktive Hinweis bleibt sichtbar.</p>
       </section>
 
       <aside class="side" aria-label="Eingabe und Werkzeuge">
         <div class="word-input-wrap">
-          <label id="word-input-label" for="word-input">Aktuelles Wort</label>
+          <label id="word-input-label" for="word-input">Aktuelles Wort vollständig eingeben</label>
           <input id="word-input" type="text" autocomplete="off" autocorrect="off"
                  autocapitalize="characters" spellcheck="false" inputmode="text"
-                 aria-describedby="word-input-label" placeholder="Wort tippen …">
+                 aria-describedby="word-input-label word-input-help" placeholder="Wort tippen …">
+          <small id="word-input-help">Leere Stellen erscheinen als · und behalten ihre Position.</small>
         </div>
         <div id="keyboard" class="keyboard" role="group" aria-label="Gittertastatur"></div>
         <div class="actions" role="group" aria-label="Aktionen">
@@ -82,7 +91,7 @@
 
     <details class="rules">
       <summary>Regeln &amp; Steuerung</summary>
-      <p>Trage in jedes Feld den richtigen Buchstaben ein. Waagrechte und senkrechte Wörter kreuzen sich und bilden ein zusammenhängendes Gitter. Wie bei klassischen Kreuzworträtseln gilt: <em>Ä = AE, Ö = OE, Ü = UE und ß = SS</em>.</p>
+      <p>Trage in jedes weiße Feld den richtigen Buchstaben ein; dunkle Felder sind Sperrfelder. Waagrechte und senkrechte Wörter kreuzen sich in einem kompakten, nummerierten Gitter. Wie bei klassischen Kreuzworträtseln gilt: <em>Ä = AE, Ö = OE, Ü = UE und ß = SS</em>; Leerzeichen und Bindestriche entfallen.</p>
       <ul>
         <li>Wähle Sprache und Schwierigkeit, dann „⊕ Neues Rätsel“. <strong>↻ Neustart</strong> behält dasselbe Rätsel, <strong>⊕ Neues Rätsel</strong> erzeugt einen neuen Seed.</li>
         <li>Tippe ein Feld an oder bewege dich mit den <kbd>Pfeiltasten</kbd>. An einer Kreuzung wechselt <kbd>Enter</kbd> oder ein wiederholter Tip die Richtung (waagrecht/senkrecht).</li>
@@ -95,13 +104,14 @@
     <div id="help" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="help-title">
       <div class="overlay-card">
         <h2 id="help-title">Hilfe zu Pandakreuzwort</h2>
-        <p>Pandakreuzwort erzeugt jedes Rätsel aus einem Seed und Sprachpool per deterministischem Backtracking. Bairische Einträge zeigen Region und standarddeutsche Bedeutung an.</p>
-        <ul>
-          <li><strong>Leicht</strong>: mindestens zehn Wörter und vier Hinweise.</li>
-          <li><strong>Mittel/Schwer</strong>: deutlich mehr Wörter und weniger Hilfen.</li>
-          <li><strong>Experte</strong>: bis zu 23 Wörter und nur ein Hinweis.</li>
-          <li>Bei <em>Bairisch</em> steht in jedem Hinweis die Region und die hochdeutsche Entsprechung.</li>
-        </ul>
+        <p>Pandakreuzwort erzeugt jedes Rätsel reproduzierbar aus einem Seed. Das Gitter wird auf echte rechtwinklige Kreuzungen, Kompaktheit, Richtungsbalance und Mindestdichte geprüft.</p>
+        <ol>
+          <li>Hinweis in der Liste oder ein weißes Feld auswählen.</li>
+          <li>Buchstaben direkt tippen oder das vollständige Wort im Eingabefeld ersetzen.</li>
+          <li>An Kreuzungen mit Enter, Leertaste oder erneutem Tippen die Richtung wechseln.</li>
+          <li>Mit „Prüfen“ falsche Einträge markieren; ein Hinweis setzt genau einen Buchstaben.</li>
+        </ol>
+        <p>Die Wortbank enthält über 460 redaktionelle Einträge. Bairische Hinweise nennen zusätzlich Region und standarddeutsche Bedeutung.</p>
         <div class="overlay-actions">
           <button id="help-close" type="button" class="primary">Verstanden</button>
         </div>
@@ -120,6 +130,6 @@
     </div>
   </main>
 
-  <footer><small>Offline-Spiel ohne externe Abhängigkeiten. Hinweise und Antworten sind ausschließlich redaktionell (project-editorial) erstellt.</small></footer>
+  <footer><small>Offline-Spiel ohne externe Abhängigkeiten. Über 460 redaktionelle Antworten und Hinweise; keine Netzabfragen.</small></footer>
 </body>
 </html>

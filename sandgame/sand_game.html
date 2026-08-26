@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sand Game Pro · Advanced Simulation v2.1</title>
+  <title>Sand Game Pro · Advanced Simulation v2.2</title>
   <style>
     :root {
       color-scheme: dark;
@@ -323,6 +323,9 @@
       .stats { right: 10px; bottom: 10px; }
       .info-panel { left: 10px; bottom: 10px; }
       .sun-cycle-indicator { right: 10px; }
+      button { min-height: 44px; font-size: 12px; }
+      .grid-mats button { min-height: 50px; }
+      .game-collection-link { min-height: 44px; display: inline-flex; align-items: center; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -346,7 +349,7 @@
   <header class="header">
     <div class="title">
       <span class="eyebrow">● Live Cellular Automata</span>
-      <h1>Sand Pro v2.1</h1>
+      <h1>Sand Pro v2.2</h1>
       <p>Physik · Chemie · Biologie · Ökosystem</p>
     </div>
     <button id="toggleUI" class="ghost" type="button" aria-controls="ui" aria-expanded="true">Ausblenden</button>
@@ -465,7 +468,7 @@
 "use strict";
 
 /**
- * SAND GAME PRO v2.1 - Advanced Physics & Chemistry Simulation
+ * SAND GAME PRO v2.2 - Advanced Physics & Chemistry Simulation
  * 
  * Features:
  * - Realistic particle physics (density, buoyancy, viscosity)
@@ -781,6 +784,8 @@ let activeCellsCount = 0;
 let nextActiveCells = new Uint32Array(8192); // Next frame buffer
 let nextActiveCellsCount = 0;
 let activeCellHash = new Uint32Array(8192); // Tick-stamped dedup table, grown to N cells on resize
+let windProcessedStamp = new Uint32Array(8192);
+let windActiveVisits = 0;
 // Ruhe-Backoff: zählt aufeinanderfolgende Wake-Scans, die nichts gefunden haben.
 // Eine vollständig ruhende Szene muss nicht jeden Tick gescannt werden.
 let __quietScans = 0;
@@ -4243,14 +4248,14 @@ function checkChemicalReactions(x, y, matId) {
     if (matId === WATER && nMat.electrical > 0.5 && electricalGrid[i] > 0.5) {
       // Prüfe ob elektrische Verbindung zu einer Spannungsquelle
       let hasCurrent = false;
-      const checkNeighbors = [i-1, i+1, i-W, i+W];
-      for (const cn of checkNeighbors) {
-        if (cn >= 0 && cn < N) {
-          const cnMat = MATS[grid[cn]];
-          if (cnMat && cnMat.electrical > 1.0 && electricalGrid[cn] > 0.5) {
-            hasCurrent = true;
-            break;
-          }
+      for (let ci = 0; ci < 4; ci++) {
+        const cx = x + __NB4_DX[ci], cy = y + __NB4_DY[ci];
+        if (cx < 0 || cx >= W || cy < 0 || cy >= H) continue;
+        const cn = cy * W + cx;
+        const cnMat = MATS[grid[cn]];
+        if (cnMat && cnMat.electrical > 1.0 && electricalGrid[cn] > 0.5) {
+          hasCurrent = true;
+          break;
         }
       }
       
@@ -4274,27 +4279,14 @@ function checkChemicalReactions(x, y, matId) {
     
     // === DYNAMISCHE LEGIERUNGSBILDUNG Phase 4.4 ===
     // Metalle können bei hoher Temperatur legieren
-    if (isSolid(matId) && nMat.oxidizable && nId !== matId && nMat.oxidizable) {
+    if (isSolid(matId) && MATS[matId].oxidizable && nMat.oxidizable && nId !== matId) {
       // Beide Metalle müssen schmelzfähig sein
       if (tempGrid[i] > Math.min(MATS[matId].melting, nMat.melting) * 0.8) {
-        // Prüfe auf mögliche Legierungskombinationen
-        const alloyMap = {
-          [METAL + '_' + SAND]: BRASS, // Kupfer + Zink → Messing (vereinfacht)
-        };
         // Generische Legierungsbildung: Zwei verschiedene Metalle → BRASS
         if ((matId === METAL || matId === BRASS) && (nId === METAL || nId === BRASS) && matId !== nId) {
           if (rng() < 0.001) {
             grid[i] = BRASS;
             grid[ni] = BRASS;
-            tempGrid[i] = tempGrid[i];
-            tempGrid[ni] = tempGrid[ni];
-            aclAddNeighbors(x, y, 1);
-          }
-        }
-        // Metall + Lava → geschmolzene Legierung
-        if ((matId === METAL && matId === BRASS) && nId === LAVA) {
-          if (rng() < 0.002) {
-            grid[i] = BRASS;
             aclAddNeighbors(x, y, 1);
           }
         }
@@ -4869,11 +4861,7 @@ function generateEcosystemBase() {
   const stoneRows = 3;
   for (let y = H - stoneRows; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      if (grid[y * W + x] === EMPTY) {
-        grid[y * W + x] = STONE;
-        tempGrid[y * W + x] = 20;
-        ageGrid[y * W + x] = 0;
-      }
+      if (grid[y * W + x] === EMPTY) setCellMaterial(y * W + x, STONE);
     }
   }
   
@@ -4885,9 +4873,7 @@ function generateEcosystemBase() {
         // Leichte Oberflächenunebenheit für natürlicheres Aussehen
         const bump = rng() < 0.15 ? (rng() < 0.5 ? 1 : -1) : 0;
         const ty = Math.max(0, Math.min(H - 1, y + bump));
-        grid[ty * W + x] = DIRT;
-        tempGrid[ty * W + x] = 20;
-        ageGrid[ty * W + x] = 0;
+        setCellMaterial(ty * W + x, DIRT);
       }
     }
   }
@@ -4896,11 +4882,7 @@ function generateEcosystemBase() {
   const wetRows = 2;
   for (let y = H - stoneRows - dirtRows - wetRows; y < H - stoneRows - dirtRows; y++) {
     for (let x = 0; x < W; x++) {
-      if (grid[y * W + x] === EMPTY) {
-        grid[y * W + x] = SAND_WET;
-        tempGrid[y * W + x] = 20;
-        ageGrid[y * W + x] = 0;
-      }
+      if (grid[y * W + x] === EMPTY) setCellMaterial(y * W + x, SAND_WET);
     }
   }
   
@@ -4933,29 +4915,29 @@ function generateEcosystemBase() {
           stampTree(x, topSoilY);
         } else if (r < 0.55) {
           // Mehrheit: einfache Pflanzensamen (Gras/Kraut) statt Blumen
-          grid[aboveY * W + x] = PLANT_SEED;
+          setCellMaterial(aboveY * W + x, PLANT_SEED);
           plantTypeGrid[aboveY * W + x] = 1 + Math.floor(rng() * 2);
           plantStageGrid[aboveY * W + x] = 0;
           plantHealthGrid[aboveY * W + x] = 50;
           plantIdGrid[aboveY * W + x] = nextPlantId++;
         } else if (r < 0.72) {
           // Nur ein kleiner Teil sind Blumen-Samen
-          grid[aboveY * W + x] = FLOWER_SEED;
+          setCellMaterial(aboveY * W + x, FLOWER_SEED);
           plantTypeGrid[aboveY * W + x] = 1;
           plantStageGrid[aboveY * W + x] = 0;
           plantHealthGrid[aboveY * W + x] = 50;
           plantIdGrid[aboveY * W + x] = nextPlantId++;
         } else if (r < 0.80) {
-          grid[aboveY * W + x] = MUSHROOM;
+          setCellMaterial(aboveY * W + x, MUSHROOM);
           plantTypeGrid[aboveY * W + x] = 3;
           plantStageGrid[aboveY * W + x] = 0;
           plantHealthGrid[aboveY * W + x] = 50;
           plantIdGrid[aboveY * W + x] = nextPlantId++;
         } else if (r < 0.86) {
           // Sporen (selten)
-          grid[aboveY * W + x] = SPORE;
+          setCellMaterial(aboveY * W + x, SPORE);
         } else {
-          grid[aboveY * W + x] = PLANT_SEED;
+          setCellMaterial(aboveY * W + x, PLANT_SEED);
           plantTypeGrid[aboveY * W + x] = 1 + Math.floor(rng() * 2);
           plantStageGrid[aboveY * W + x] = 0;
           plantHealthGrid[aboveY * W + x] = 50;
@@ -4978,9 +4960,8 @@ function generateEcosystemBase() {
       for (let cdy = 0; cdy < ch; cdy++) {
         const yy = cy + cdy;
         if (cx >= 0 && cx < W && yy >= 0 && yy < H && grid[yy * W + cx] === EMPTY) {
-          grid[yy * W + cx] = CLOUD;
+          setCellMaterial(yy * W + cx, CLOUD);
           tempGrid[yy * W + cx] = 10 + Math.floor(rng() * 5);
-          ageGrid[yy * W + cx] = 0;
           aclAddNeighbors(cx, yy, 1);
         }
       }
@@ -5247,7 +5228,7 @@ function updateThermal(x, y, matId) {
 // FIX: Mehr Partikeltypen werden vom Wind erfasst, besonders Blätter
 function windAdvectCell(x, y, strength) {
   const m = grid[y * W + x];
-  if (m === EMPTY) return;
+  if (m === EMPTY) return -1;
   // Leichte/fliegende Partikel die vom Wind erfasst werden
   const blowable = m === SMOKE || m === STEAM || m === CLOUD || m === SPORE ||
                    m === POLLEN || m === PLANT_SEED || m === FLOWER_SEED ||
@@ -5255,9 +5236,11 @@ function windAdvectCell(x, y, strength) {
                    m === PLANT_LEAF ||
                    (m === LEAF_OAK && leafDetached(x, y)) ||
                    (m === LEAF_MAPLE && leafDetached(x, y));
-  if (!blowable) return;
-  if (rng() > strength) return;
-  tryMove(x, y, x + windDir, y, m);
+  if (!blowable) return -1;
+  if (rng() > strength) return -1;
+  const targetX = x + windDir;
+  if (!tryMove(x, y, targetX, y, m)) return -1;
+  return targetX >= 0 && targetX < W ? y * W + targetX : -1;
 }
 // Ist ein Blatt von Stamm/Ast gelöst (kein Holz/Stamm direkt benachbart)?
 // FIX: Auch PLANT (generic Stamm) und PLANT_ROOT zählen als Halt
@@ -5283,7 +5266,9 @@ function simulate() {
   // Scan-Abstand exponentiell (bis ~64 Ticks). So bleibt eine ruhige Szene
   // billig, ein neues Partikel/Mausstrich weckt sofort alles wieder auf.
   if (grid && W && H) {
-    const basePeriod = N > 120000 ? 31 : (N > 40000 ? 15 : 7);
+    // Große aktive Welten benötigen den selbstheilenden Vollscan nur selten;
+    // Eingaben und reguläre Mutationen wecken Nachbarn unmittelbar.
+    const basePeriod = N > 120000 ? 127 : (N > 40000 ? 63 : 31);
     const listEmpty = activeCellsCount === 0;
     const due = listEmpty ? (tick >= __nextScanTick) : ((tick & basePeriod) === 0);
     if (due) {
@@ -5456,13 +5441,16 @@ function simulate() {
   //     Rauch, Dampf, abgelöste Blätter) horizontal – und über die offene Seite hinaus.
   if (windActive) {
     const strength = 0.5;
-    for (let yy = 0; yy < H; yy++) {
-      // in Windrichtung iterieren, damit Partikel nicht doppelt verschoben werden
-      if (windDir > 0) {
-        for (let xx = W - 1; xx >= 0; xx--) windAdvectCell(xx, yy, strength);
-      } else {
-        for (let xx = 0; xx < W; xx++) windAdvectCell(xx, yy, strength);
-      }
+    if (!windProcessedStamp || windProcessedStamp.length < N) windProcessedStamp = new Uint32Array(N);
+    windActiveVisits += activeCellsCount;
+    for (let wi = 0; wi < activeCellsCount; wi++) {
+      const idx = activeCells[wi];
+      if (windProcessedStamp[idx] === tick) continue;
+      const xx = idx % W, yy = (idx - xx) / W;
+      const movedTo = windAdvectCell(xx, yy, strength);
+      // Ein verschobenes Partikel darf in derselben Windphase nicht ein zweites
+      // Mal verarbeitet werden, unabhängig von der Reihenfolge der Aktivliste.
+      if (movedTo >= 0) windProcessedStamp[movedTo] = tick;
     }
   }
   
@@ -5670,30 +5658,34 @@ function simulate() {
     }
     sunIntensity = Math.max(0, Math.min(1, sunIntensity));
     
-    // UI aktualisieren
-    const sunIndicator = document.getElementById("sunCycleIndicator");
-    const sunText = document.getElementById("sunCycleText");
-    const sunProgress = document.getElementById("sunCycleProgress");
-    
-    sunText.textContent = isDaytime ? "Tag" : "Nacht";
-    sunProgress.textContent = `(${Math.round(sunIntensity * 100)}%)`;
-    sunIndicator.className = "sun-cycle-indicator " + (isDaytime ? "day" : "night");
-    
-    // === Saison-Anzeiger aktualisieren ===
-    const seasonNames = ['Frühling', 'Sommer', 'Herbst', 'Winter'];
-    const seasonIcons = ['🌸', '☀️', '🍂', '❄️'];
-    const currentSeason = getCurrentSeason();
-    const seasonIndicator = document.getElementById('seasonIndicator');
-    const seasonText = document.getElementById('seasonText');
-    if (seasonIndicator && seasonText) {
-      const icon = seasonIndicator.querySelector('.sun-icon');
-      if (icon) icon.textContent = seasonIcons[currentSeason];
-      seasonText.textContent = seasonNames[currentSeason];
-    }
   }
   
   // Swap Active Cell List buffers für nächsten Tick
   aclSwapBuffers();
+}
+
+let lastSunUiKey = '';
+function updateSunCycleUi() {
+  if (!sunCycleEnabled) return;
+  const currentSeason = getCurrentSeason();
+  const key = `${isDaytime ? 1 : 0}|${Math.round(sunIntensity * 100)}|${currentSeason}`;
+  if (key === lastSunUiKey) return;
+  lastSunUiKey = key;
+  const sunIndicator = document.getElementById('sunCycleIndicator');
+  const sunText = document.getElementById('sunCycleText');
+  const sunProgress = document.getElementById('sunCycleProgress');
+  if (sunText) sunText.textContent = isDaytime ? 'Tag' : 'Nacht';
+  if (sunProgress) sunProgress.textContent = `(${Math.round(sunIntensity * 100)}%)`;
+  if (sunIndicator) sunIndicator.className = 'sun-cycle-indicator ' + (isDaytime ? 'day' : 'night');
+  const seasonNames = ['Frühling', 'Sommer', 'Herbst', 'Winter'];
+  const seasonIcons = ['🌸', '☀️', '🍂', '❄️'];
+  const seasonIndicator = document.getElementById('seasonIndicator');
+  const seasonText = document.getElementById('seasonText');
+  if (seasonText) seasonText.textContent = seasonNames[currentSeason];
+  if (seasonIndicator) {
+    const icon = seasonIndicator.querySelector('.sun-icon');
+    if (icon) icon.textContent = seasonIcons[currentSeason];
+  }
 }
 
 /**
@@ -5718,6 +5710,7 @@ function simulate() {
 let gl = null, glProgram = null, glU = {};
 let glTex0 = null, glTex1 = null, glTex2 = null, glQuad = null;
 let glPacked0 = null, glPacked1 = null, glPacked2 = null;
+let glContextClaimed = false;
 let useGL = false;          // GPU-Pfad aktiv (Adapter+Shader OK)
 let gpuEnabled = true;      // Nutzer-Wunsch (Toggle/localStorage)
 
@@ -5860,6 +5853,7 @@ function initGL(){
   try {
     gl = canvas.getContext('webgl2', { alpha:false, antialias:false, depth:false, stencil:false, premultipliedAlpha:false });
     if (!gl) return false;
+    glContextClaimed = true;
     const vs = glCompileShader(gl.VERTEX_SHADER, GL_VS);
     const fs = glCompileShader(gl.FRAGMENT_SHADER, GL_FS);
     if (!vs || !fs) return false;
@@ -5896,9 +5890,28 @@ function initGL(){
     return true;
   } catch (e){
     console.warn('SandGame: WebGL2 nicht verfügbar/fehlerhaft — CPU-Fallback aktiv', e);
-    useGL = false; gl = null; glProgram = null;
+    useGL = false; glProgram = null;
     return false;
   }
+}
+
+function switchVisibleCanvasToCPU(reason) {
+  const oldCanvas = canvas;
+  const replacement = oldCanvas.cloneNode(false);
+  replacement.width = oldCanvas.width;
+  replacement.height = oldCanvas.height;
+  oldCanvas.replaceWith(replacement);
+  canvas = replacement;
+  gl = null; glProgram = null; glTex0 = null; glTex1 = null; glTex2 = null; glQuad = null;
+  glPacked0 = null; glPacked1 = null; glPacked2 = null; glContextClaimed = false; useGL = false; gpuEnabled = false;
+  ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) throw new Error('Canvas2D-Fallback konnte nicht initialisiert werden.');
+  if (N > 0) { img = ctx.createImageData(W, H); pix = img.data; }
+  if (inputGlobalsBound) bindCanvasPointerInput(canvas);
+  if (typeof renderDirty !== 'undefined') renderDirty = true;
+  console.warn('SandGame: CPU-Fallback aktiv' + (reason ? ' (' + reason + ')' : ''));
+  if (typeof syncControlOutputs === 'function') syncControlOutputs();
+  return true;
 }
 
 function glResizeTextures(){
@@ -5954,8 +5967,10 @@ function renderGL(){
 }
 
 function render() {
-  if (useGL && gl && glProgram && gpuEnabled){ renderGL(); return; }
-  renderCPU();
+  if (useGL && gl && glProgram && gpuEnabled) renderGL();
+  else renderCPU();
+  renderDirty = false;
+  renderedFrames++;
 }
 
 function renderCPU() {
@@ -6380,6 +6395,7 @@ function resize() {
   H = newH;
   N = W * H;
   if (!activeCellHash || activeCellHash.length < N) activeCellHash = new Uint32Array(N);
+  if (!windProcessedStamp || windProcessedStamp.length < N) windProcessedStamp = new Uint32Array(N);
   canvas.width = W;
   canvas.height = H;
   
@@ -6425,28 +6441,26 @@ function resize() {
   }
   syncControlOutputs();
   
-  // Initialisiere Bodennährstoffe für DIRT-Zellen
-  for (let i = 0; i < N; i++) {
-    if (grid[i] === DIRT) {
-      soilNutrientGrid[i] = 50 + rng() * 30; // 50-80 Nährstoffe
-      nitrogenGrid[i] = Math.floor(40 + rng() * 40); // 40-80 Stickstoff
-      phosphorusGrid[i] = Math.floor(20 + rng() * 30); // 20-50 Phosphor
-      potassiumGrid[i] = Math.floor(30 + rng() * 35); // 30-65 Kalium
-    }
-  }
+  // Bodennährstoffe werden beim tatsächlichen Erzeugen einer DIRT-Zelle in
+  // setCellMaterial() initialisiert; ein Scan des noch leeren Rasters wäre wirkungslos.
   
   // Spatial-Hash-Strukturen werden (derzeit) nicht abgefragt
   // (spatialHashQuery/CountInRadius sind ungenutzt) – die Initialisierung
   // würde pro Resize nur ungenutzte Puffer allokieren und ist daher entfernt.
   
-  // Copy old data to new grid
+  // Alte Welt unten zentriert übernehmen: Boden bleibt am unteren Rand und
+  // Breitenänderungen beschneiden/erweitern symmetrisch statt oben links.
   if (oldGrid && oldGrid.length > 0) {
-    const newW2 = W, oldW2 = Math.min(oldW, W);
-    const copyH = Math.min(oldH, H);
-    for (let y = 0; y < copyH; y++) {
-      for (let x = 0; x < oldW2; x++) {
-        const oldIdx = y * oldW + x;
-        const newIdx = y * newW2 + x;
+    const xOffset = Math.floor((W - oldW) / 2);
+    const yOffset = H - oldH;
+    for (let oldY = 0; oldY < oldH; oldY++) {
+      const newY = oldY + yOffset;
+      if (newY < 0 || newY >= H) continue;
+      for (let oldX = 0; oldX < oldW; oldX++) {
+        const newX = oldX + xOffset;
+        if (newX < 0 || newX >= W) continue;
+        const oldIdx = oldY * oldW + oldX;
+        const newIdx = newY * W + newX;
         grid[newIdx] = oldGrid[oldIdx];
         tempGrid[newIdx] = oldTemp ? oldTemp[oldIdx] : 20;
         ageGrid[newIdx] = oldAge ? oldAge[oldIdx] : 0;
@@ -6455,10 +6469,10 @@ function resize() {
         radiationGrid[newIdx] = oldRad ? oldRad[oldIdx] : 0;
         plantTypeGrid[newIdx] = oldPlantType ? oldPlantType[oldIdx] : 0;
         plantStageGrid[newIdx] = oldPlantStage ? oldPlantStage[oldIdx] : 0;
-        plantHealthGrid[newIdx] = oldPlantHealth ? oldPlantHealth[oldIdx] : 50;
-        plantSapGrid[newIdx] = oldPlantSap ? oldPlantSap[oldIdx] : 50;
+        plantHealthGrid[newIdx] = oldPlantHealth ? oldPlantHealth[oldIdx] : 0;
+        plantSapGrid[newIdx] = oldPlantSap ? oldPlantSap[oldIdx] : 0;
         soilNutrientGrid[newIdx] = oldSoilNutrient ? oldSoilNutrient[oldIdx] : 0;
-        plantWaterGrid[newIdx] = oldPlantWater ? oldPlantWater[oldIdx] : 50;
+        plantWaterGrid[newIdx] = oldPlantWater ? oldPlantWater[oldIdx] : 0;
         plantIdGrid[newIdx] = oldPlantId ? oldPlantId[oldIdx] : 0;
         velXGrid[newIdx] = oldVelX ? oldVelX[oldIdx] : 0;
         velYGrid[newIdx] = oldVelY ? oldVelY[oldIdx] : 0;
@@ -6473,9 +6487,7 @@ function resize() {
   }
   
   for (let i = 0; i < N; i++) {
-    if (colorSeedGrid[i] === 0) {
-      colorSeedGrid[i] = Math.floor(rng() * 1000);
-    }
+    if (grid[i] !== EMPTY && colorSeedGrid[i] === 0) colorSeedGrid[i] = 1 + Math.floor(rng() * 65534);
   }
   
   // BUGFIX: nach Resize alle übernommenen Partikel reaktivieren.
@@ -6489,6 +6501,7 @@ function resize() {
     img = ctx.createImageData(W, H);
     pix = img.data;
   }
+  renderDirty = true;
 }
 
 function buildUI() {
@@ -6533,7 +6546,52 @@ function buildUI() {
 
 // Input handling
 let isDrawing = false, isErasing = false;
+let activePointerId = null;
 let lastPointerX = 0, lastPointerY = 0, hasPointer = false;
+
+// Materialgebundene Zellwerte zentral zurücksetzen. Dadurch erbt frisch
+// gemaltes Wasser weder Salz noch Strahlung/Pflanzenzustand einer früheren Zelle.
+function resetCellState(idx) {
+  grid[idx] = EMPTY;
+  tempGrid[idx] = 20;
+  ageGrid[idx] = 0;
+  colorSeedGrid[idx] = 0;
+  phGrid[idx] = 7.0;
+  radiationGrid[idx] = 0;
+  salinityGrid[idx] = 0;
+  plantTypeGrid[idx] = 0;
+  plantStageGrid[idx] = 0;
+  plantHealthGrid[idx] = 0;
+  plantSapGrid[idx] = 0;
+  soilNutrientGrid[idx] = 0;
+  plantWaterGrid[idx] = 0;
+  plantIdGrid[idx] = 0;
+  velXGrid[idx] = 0;
+  velYGrid[idx] = 0;
+  electricalGrid[idx] = 0;
+  nitrogenGrid[idx] = 0;
+  phosphorusGrid[idx] = 0;
+  potassiumGrid[idx] = 0;
+  myceliumGrid[idx] = 0;
+}
+
+function setCellMaterial(idx, mat, assumeReset) {
+  if (!assumeReset) resetCellState(idx);
+  if (mat === EMPTY) return;
+  const def = MATS[mat];
+  grid[idx] = mat;
+  tempGrid[idx] = def && Number.isFinite(def.temp) ? def.temp : 20;
+  phGrid[idx] = def && Number.isFinite(def.ph) ? def.ph : 7.0;
+  colorSeedGrid[idx] = 1 + Math.floor(rng() * 65534);
+  if (mat === WATER) electricalGrid[idx] = (def && def.electrical) || 0;
+  if (mat === MYCELIUM) myceliumGrid[idx] = 60;
+  if (mat === DIRT) {
+    soilNutrientGrid[idx] = 50 + rng() * 30;
+    nitrogenGrid[idx] = Math.floor(40 + rng() * 40);
+    phosphorusGrid[idx] = Math.floor(20 + rng() * 30);
+    potassiumGrid[idx] = Math.floor(30 + rng() * 35);
+  }
+}
 
 // ============================================================================
 // PIXEL-ART STAMP-SYSTEM für biologische Materialien
@@ -6550,10 +6608,8 @@ function stampCell(px, py, mat, opts) {
         cur === SAND_WET || cur === SAND_DARK || cur === POLLEN || cur === SPORE ||
         (opts && opts.force);
   if (!overwriteOk) return;
-  grid[idx] = mat;
-  tempGrid[idx] = (MATS[mat] && MATS[mat].temp) || 20;
+  setCellMaterial(idx, mat);
   ageGrid[idx] = (opts && opts.age) || 0;
-  phGrid[idx] = (MATS[mat] && MATS[mat].ph) || 7.0;
   if (opts) {
     if (opts.type !== undefined) plantTypeGrid[idx] = opts.type;
     if (opts.stage !== undefined) plantStageGrid[idx] = opts.stage;
@@ -6754,6 +6810,7 @@ function getPos(e) {
 }
 
 function paintAt(x, y) {
+  renderDirty = true;
   wakeReset(); // Eingabe -> Ruhe-Backoff sofort beenden.
 
   // --- PIXEL-ART PFLANZEN: diskrete Stamps statt flächigem Strich ---
@@ -6812,11 +6869,7 @@ function paintAt(x, y) {
           const idx = ny * W + nx;
           if (grid[idx] !== EMPTY && grid[idx] !== WATER && grid[idx] !== DIRT &&
               grid[idx] !== SAND && grid[idx] !== SAND_WET) continue;
-          grid[idx] = curMat;
-          tempGrid[idx] = MATS[curMat].temp || 20;
-          ageGrid[idx] = 0;
-          phGrid[idx] = MATS[curMat].ph || 7.0;
-          if (curMat === MYCELIUM) myceliumGrid[idx] = 60;
+          setCellMaterial(idx, curMat);
           aclAddNeighbors(nx, ny, 1);
         }
       }
@@ -6833,36 +6886,7 @@ function paintAt(x, y) {
       const nx = x + dx, ny = y + dy;
       if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
         const idx = ny * W + nx;
-        if (isErasing) {
-          grid[idx] = EMPTY;
-          tempGrid[idx] = 20;
-          ageGrid[idx] = 0;
-          phGrid[idx] = 7.0;
-          radiationGrid[idx] = 0;
-          plantTypeGrid[idx] = 0;
-          plantStageGrid[idx] = 0;
-          plantHealthGrid[idx] = 0;
-          plantSapGrid[idx] = 0;
-          plantWaterGrid[idx] = 0;
-          plantIdGrid[idx] = 0;
-          velXGrid[idx] = 0;
-          velYGrid[idx] = 0;
-          electricalGrid[idx] = 0;
-          myceliumGrid[idx] = 0;
-        } else {
-          grid[idx] = curMat;
-          tempGrid[idx] = MATS[curMat].temp || 20;
-          ageGrid[idx] = 0;
-          phGrid[idx] = MATS[curMat].ph || 7.0;
-          // Initialisiere neue Grids für gemalte Zellen
-          if (isLiquid(curMat)) {
-            velXGrid[idx] = 0;
-            velYGrid[idx] = 0;
-          }
-          if (curMat === WATER) {
-            electricalGrid[idx] = MATS[curMat].electrical || 0;
-          }
-        }
+        setCellMaterial(idx, isErasing ? EMPTY : curMat);
         // Active Cell List: Gemalte Zellen + Nachbarn markieren
         aclAddNeighbors(nx, ny, 1);
       }
@@ -6902,48 +6926,76 @@ function paintLine(x0, y0, x1, y1) {
   if (lastX !== x1 || lastY !== y1) paintAt(x1, y1);
 }
 
-function initInput() {
-  canvas.addEventListener("pointerdown", e => {
+let inputGlobalsBound = false;
+let lastLogicalViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+
+function stopActivePointer(e) {
+  if (e && e.pointerId != null && activePointerId !== e.pointerId) return;
+  const pointerId = activePointerId;
+  activePointerId = null;
+  isDrawing = false;
+  isErasing = false;
+  if (pointerId != null) {
+    try { canvas.releasePointerCapture(pointerId); } catch (_err) { /* optional */ }
+  }
+}
+
+function bindCanvasPointerInput(targetCanvas) {
+  targetCanvas.addEventListener("pointerdown", e => {
+    if (activePointerId != null || (e.button !== 0 && e.button !== 2)) return;
     e.preventDefault();
     try {
+      activePointerId = e.pointerId;
+      try { targetCanvas.setPointerCapture(e.pointerId); } catch (_err) { /* optional */ }
       isDrawing = true;
       isErasing = e.button === 2 || e.shiftKey;
       const pos = getPos(e);
       lastPointerX = pos.x; lastPointerY = pos.y; hasPointer = true;
       paintAt(pos.x, pos.y);
     } catch (err) {
+      stopActivePointer(e);
       console.error("Pointer down error:", err);
     }
   });
-  
+  targetCanvas.addEventListener("lostpointercapture", stopActivePointer);
+  targetCanvas.addEventListener("contextmenu", e => e.preventDefault());
+}
+
+function initInput() {
+  bindCanvasPointerInput(canvas);
+  if (inputGlobalsBound) return;
+  inputGlobalsBound = true;
   window.addEventListener("pointermove", e => {
+    if (activePointerId !== e.pointerId) return;
     try {
       const pos = getPos(e);
       if (isDrawing) paintLine(lastPointerX, lastPointerY, pos.x, pos.y);
       lastPointerX = pos.x; lastPointerY = pos.y; hasPointer = true;
     } catch (err) {
+      stopActivePointer(e);
       console.error("Pointer move error:", err);
     }
-  });
-  
-  window.addEventListener("pointerup", () => {
-    isDrawing = false;
-    isErasing = false;
-  });
-  window.addEventListener("blur", () => { isDrawing = false; isErasing = false; });
-  
-  canvas.addEventListener("contextmenu", e => e.preventDefault());
+  }, { passive: false });
+  window.addEventListener("pointerup", stopActivePointer);
+  window.addEventListener("pointercancel", stopActivePointer);
+  window.addEventListener("blur", () => stopActivePointer());
 
-  // Viewport-/Orientierungsänderungen debounced nachführen, damit das Raster
-  // bei Adressleisten-Ein-/Ausblenden oder Drehung das korrekte
-  // Seitenverhältnis behält (resize() übernimmt Daten-Erhaltung).
+  // Änderungen nur der mobilen Browserleisten verändern die logische Welt nicht.
+  // Erst eine echte Breiten-/Orientierungsänderung löst eine Reallokation aus.
   let resizeTimer = null;
-  function scheduleResize() {
+  function scheduleResize(force) {
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { resizeTimer = null; resize(); }, 200);
+    resizeTimer = setTimeout(() => {
+      resizeTimer = null;
+      const widthChanged = Math.abs(window.innerWidth - lastLogicalViewportWidth) > 8;
+      if (force || widthChanged) {
+        lastLogicalViewportWidth = window.innerWidth;
+        resize();
+      }
+    }, 220);
   }
-  window.addEventListener("resize", scheduleResize);
-  window.addEventListener("orientationchange", scheduleResize);
+  window.addEventListener("resize", () => scheduleResize(false));
+  window.addEventListener("orientationchange", () => scheduleResize(true));
 }
 
 function setOutput(id, value) {
@@ -6972,8 +7024,10 @@ function clearWorld() {
   if (grid) grid.fill(EMPTY);
   if (tempGrid) tempGrid.fill(20);
   if (ageGrid) ageGrid.fill(0);
+  if (colorSeedGrid) colorSeedGrid.fill(0);
   if (phGrid) phGrid.fill(7.0);
   if (radiationGrid) radiationGrid.fill(0);
+  if (salinityGrid) salinityGrid.fill(0);
   if (plantTypeGrid) plantTypeGrid.fill(0);
   if (plantStageGrid) plantStageGrid.fill(0);
   if (plantHealthGrid) plantHealthGrid.fill(0);
@@ -6994,6 +7048,7 @@ function clearWorld() {
   season = 0;
   seasonTime = 0;
   seasonProgress = 0;
+  renderDirty = true;
 }
 
 function setUiCollapsed(collapsed) {
@@ -7010,14 +7065,19 @@ function setUiCollapsed(collapsed) {
 
 function initUI() {
   syncControlOutputs();
-  document.getElementById("gridR").oninput = function() {
-    const newWidth = parseInt(this.value);
-    if (newWidth !== targetGridWidth) {
-      targetGridWidth = newWidth;
-      resize();
-    }
+  const gridControl = document.getElementById("gridR");
+  let gridResizeTimer = null;
+  function applyGridResize() {
+    if (gridResizeTimer) { clearTimeout(gridResizeTimer); gridResizeTimer = null; }
+    resize();
+  }
+  gridControl.oninput = function() {
+    targetGridWidth = parseInt(this.value);
     syncControlOutputs();
+    if (gridResizeTimer) clearTimeout(gridResizeTimer);
+    gridResizeTimer = setTimeout(applyGridResize, 180);
   };
+  gridControl.onchange = applyGridResize;
   document.getElementById("brushR").oninput = function() { bsz = parseInt(this.value); syncControlOutputs(); };
   document.getElementById("speedR").oninput = function() { spd = parseInt(this.value); syncControlOutputs(); };
   document.getElementById("photoR").oninput = function() { photoActivity = parseInt(this.value) / 100; syncControlOutputs(); };
@@ -7135,6 +7195,8 @@ function initUI() {
       sunCycleToggle.setAttribute("aria-pressed", sunCycleEnabled ? "true" : "false");
       document.getElementById("sunCycleIndicator").style.display = sunCycleEnabled ? "flex" : "none";
       document.getElementById("seasonIndicator").style.display = sunCycleEnabled ? "flex" : "none";
+      lastSunUiKey = '';
+      renderDirty = true;
     };
   }
   
@@ -7176,7 +7238,20 @@ function initUI() {
 // »Ticks/Frame«-Semantics (min(spd,8) Ticks/Frame); auf 120/144 Hz läuft
 // die Simulation nicht schneller. dt wird geclampt (Tab-Wechsel/Stalls).
 let simLastTime = null, simAccum = 0;
+let renderDirty = true, renderedFrames = 0, droppedCatchupTicks = 0;
 const FIXED_HZ = 60;
+const MAX_TICKS_PER_FRAME = 8;
+function computeTickBudget(accumulator, dt, speed) {
+  const clampedDt = Math.max(0, Math.min(200, dt));
+  const boundedSpeed = Math.max(0, Math.min(Number(speed) || 0, 8));
+  const total = Math.max(0, Number(accumulator) || 0) + (clampedDt / 1000) * boundedSpeed * FIXED_HZ;
+  const requested = Math.floor(total + 1e-9);
+  const ticks = Math.min(requested, MAX_TICKS_PER_FRAME);
+  // Bei Überlast wird nur der Bruchteil behalten; ein Stall erzeugt keine
+  // mehrframeige Catch-up-Spirale.
+  const remainder = requested > MAX_TICKS_PER_FRAME ? total % 1 : total - ticks;
+  return { ticks, accumulator: remainder, dropped: Math.max(0, requested - ticks) };
+}
 function loop(timestamp) {
   requestAnimationFrame(loop);
   
@@ -7188,31 +7263,29 @@ function loop(timestamp) {
     if (!isStamp || frameCount % 8 === 0) paintAt(lastPointerX, lastPointerY);
   }
 
+  let simulated = false;
   if (!paused) {
-    // Festschritt-Akkumulator: Ticks/Sekunde = min(spd,8)*60 (entspricht bei
-    // 60 Hz exakt min(spd,8) Ticks/Frame). dt clamen verhindert Catch-up-Bursts.
     if (simLastTime === null) simLastTime = timestamp;
-    let dt = timestamp - simLastTime;
+    const budget = computeTickBudget(simAccum, timestamp - simLastTime, spd);
     simLastTime = timestamp;
-    if (dt > 200) dt = 200; // catch-up clamp (Tab-Wechsel / lange Frames)
-    const tps = Math.min(spd, 8) * FIXED_HZ;
-    simAccum += (dt / 1000) * tps;
-    let ticks = Math.floor(simAccum + 1e-9);
-    if (ticks > 200) ticks = 200; // harte Sicherheitsgrenze pro Frame
-    simAccum -= ticks;
-    for (let s = 0; s < ticks; s++) {
-      simulate();
-    }
+    simAccum = budget.accumulator;
+    droppedCatchupTicks += budget.dropped;
+    for (let s = 0; s < budget.ticks; s++) simulate();
+    simulated = budget.ticks > 0;
   } else {
     simLastTime = timestamp;
     simAccum = 0; // beim Pausieren/Resume keinen Burst aufstauen
   }
   
-  render();
+  if (simulated || renderDirty) {
+    updateSunCycleUi();
+    render();
+  }
   
   frameCount++;
   if (timestamp - fpsTimer > 1000) {
-    lastFps = frameCount;
+    const sampleDuration = Math.max(1, timestamp - fpsTimer);
+    lastFps = Math.round(frameCount * 1000 / sampleDuration);
     // Performance-Optimierung: Zähle nur alle 4. Zelle für Partikelanzahl
     let particleCount = 0;
     for (let i = 0; i < N; i += 4) {
@@ -7250,7 +7323,17 @@ function init() {
   try { gpuEnabled = (localStorage.getItem('sandgame_gpu') !== '0'); } catch (e) { gpuEnabled = true; }
   let glOK = false;
   if (gpuEnabled && typeof WebGL2RenderingContext !== 'undefined') glOK = initGL();
-  if (!glOK) ctx = canvas.getContext("2d", { alpha: false });
+  if (!glOK) {
+    if (glContextClaimed) switchVisibleCanvasToCPU('Shader-/Kontextinitialisierung');
+    else ctx = canvas.getContext("2d", { alpha: false });
+  } else {
+    canvas.addEventListener('webglcontextlost', event => {
+      event.preventDefault();
+      switchVisibleCanvasToCPU('WebGL-Kontext verloren');
+      render();
+    }, { once: true });
+  }
+  if (!glOK && !ctx) throw new Error('Weder WebGL2 noch Canvas2D verfügbar.');
 
   // Default-Grid = Bildschirmauflösung (capped auf das Performance-Max von 1080).
   // Höhe folgt aus dem Seitenverhältnis in resize(). Der Slider bleibt manuelle
@@ -7280,31 +7363,39 @@ let colorMapping = {}; // { "rgb(r,g,b)": materialId }
 let importedImage = null;
 let simulationPausedForImport = false;
 
-// Color distance function
-function colorDistance(c1, c2) {
-  return Math.sqrt(
-    Math.pow(c1[0] - c2[0], 2) +
-    Math.pow(c1[1] - c2[1], 2) +
-    Math.pow(c1[2] - c2[2], 2)
-  );
+// Materialfarben werden einmal flach vorbereitet. Der 5-Bit-RGB-Cache hat
+// höchstens 32.768 Einträge und verhindert bei Fotos Millionen Vollsuchen.
+let materialColorTable = null;
+const nearestMaterialCache = new Map();
+function ensureMaterialColorTable() {
+  if (materialColorTable) return;
+  materialColorTable = [];
+  for (const id in MATS) {
+    if (+id === EMPTY || !MATS[id] || !MATS[id].color) continue;
+    const color = MATS[id].color;
+    materialColorTable.push([+id, color[0], color[1], color[2]]);
+  }
 }
 
-// Find closest material color
 function findClosestMaterial(r, g, b, maxDist) {
   maxDist = maxDist || 80;
-  let bestId = EMPTY;
-  let bestDist = maxDist;
-  
-  for (let id in MATS) {
-    if (id == 0) continue; // skip EMPTY
-    let matColor = MATS[id].color;
-    let dist = colorDistance([r, g, b], matColor);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestId = parseInt(id);
+  ensureMaterialColorTable();
+  const qr = (r & 248) + 4, qg = (g & 248) + 4, qb = (b & 248) + 4;
+  const cacheKey = (qr << 16) | (qg << 8) | qb;
+  let cached = nearestMaterialCache.get(cacheKey);
+  if (!cached) {
+    let bestId = EMPTY, bestSquared = Infinity;
+    for (let i = 0; i < materialColorTable.length; i++) {
+      const color = materialColorTable[i];
+      const dr = qr - color[1], dg = qg - color[2], db = qb - color[3];
+      const squared = dr * dr + dg * dg + db * db;
+      if (squared < bestSquared) { bestSquared = squared; bestId = color[0]; }
     }
+    cached = { id: bestId, squared: bestSquared };
+    nearestMaterialCache.set(cacheKey, cached);
   }
-  return { id: bestId, distance: bestDist };
+  const maxSquared = maxDist * maxDist;
+  return { id: cached.squared <= maxSquared ? cached.id : EMPTY, distance: Math.sqrt(cached.squared) };
 }
 
 // Auto-assign colors to materials
@@ -7374,25 +7465,26 @@ function loadImageFile(file) {
       
       // Scale image to fit current grid
       const scale = Math.min(W / img.width, H / img.height, 1);
-      canvas.width = Math.floor(img.width * scale);
-      canvas.height = Math.floor(img.height * scale);
+      canvas.width = Math.max(1, Math.floor(img.width * scale));
+      canvas.height = Math.max(1, Math.floor(img.height * scale));
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const pixels = imageData.data;
       
-      // Collect unique colors
-      const uniqueColors = {};
+      // Quantisiertes Histogramm: höchstens 32.768 Buckets statt bei einem
+      // verrauschten Foto hunderttausender kurzlebiger Farbobjekte.
+      const uniqueColors = new Map();
       for (let i = 0; i < pixels.length; i += 4) {
-        const key = `rgb(${pixels[i]},${pixels[i+1]},${pixels[i+2]})`;
-        if (!uniqueColors[key]) {
-          uniqueColors[key] = { r: pixels[i], g: pixels[i+1], b: pixels[i+2], count: 0 };
-        }
-        uniqueColors[key].count++;
+        if (pixels[i + 3] < 128) continue;
+        const key = ((pixels[i] >> 3) << 10) | ((pixels[i + 1] >> 3) << 5) | (pixels[i + 2] >> 3);
+        const found = uniqueColors.get(key);
+        if (found) found.count++;
+        else uniqueColors.set(key, { r: pixels[i], g: pixels[i + 1], b: pixels[i + 2], count: 1 });
       }
       
       // Sort by frequency
-      const sortedColors = Object.values(uniqueColors)
+      const sortedColors = Array.from(uniqueColors.values())
         .sort((a, b) => b.count - a.count)
         .slice(0, 50); // Top 50 colors
       
@@ -7422,6 +7514,20 @@ function loadImageFile(file) {
   reader.readAsDataURL(file);
 }
 
+function computeCoverSourceRect(imageWidth, imageHeight, targetWidth, targetHeight) {
+  const sourceAspect = imageWidth / imageHeight;
+  const targetAspect = targetWidth / targetHeight;
+  let sx = 0, sy = 0, sw = imageWidth, sh = imageHeight;
+  if (sourceAspect > targetAspect) {
+    sw = imageHeight * targetAspect;
+    sx = (imageWidth - sw) / 2;
+  } else {
+    sh = imageWidth / targetAspect;
+    sy = (imageHeight - sh) / 2;
+  }
+  return { sx, sy, sw, sh };
+}
+
 // Apply color mapping to grid
 function applyImageToGrid() {
   if (!importedImage) {
@@ -7434,30 +7540,26 @@ function applyImageToGrid() {
   simulationPausedForImport = true;
   updatePauseButton();
   
-  // Scale image to fill the FULL canvas (screen size), not the small grid
+  // Das Zwischenbild ist immer exakt W×H. Cover-Cropping geschieht über das
+  // Quellrechteck von drawImage, damit Extremformate niemals riesige Canvases
+  // (z. B. 1080×43200) allokieren.
   const imgCanvas = document.createElement('canvas');
-  const imgCtx = imgCanvas.getContext('2d');
-  const scale = Math.max(canvas.width / importedImage.width, canvas.height / importedImage.height);
-  const scaledW = Math.floor(importedImage.width * scale);
-  const scaledH = Math.floor(importedImage.height * scale);
-  imgCanvas.width = scaledW;
-  imgCanvas.height = scaledH;
-  imgCtx.drawImage(importedImage, 0, 0, scaledW, scaledH);
-  
-  const imageData = imgCtx.getImageData(0, 0, scaledW, scaledH);
+  const imgCtx = imgCanvas.getContext('2d', { alpha: true, willReadFrequently: true });
+  imgCanvas.width = W;
+  imgCanvas.height = H;
+  const crop = computeCoverSourceRect(importedImage.width, importedImage.height, W, H);
+  imgCtx.drawImage(importedImage, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, W, H);
+
+  const imageData = imgCtx.getImageData(0, 0, W, H);
   const pixels = imageData.data;
   
   // Clear grid first (inkl. Biologie-/Chemie-Zusatzgrids, damit kein Altzustand durchscheint)
   clearWorld();
   
-  // Map scaled canvas pixels to grid cells
-  // Each grid cell covers a portion of the scaled canvas
+  // Zwischenbild und Grid sind deckungsgleich.
   for (let gy = 0; gy < H; gy++) {
     for (let gx = 0; gx < W; gx++) {
-      // Map grid position to scaled canvas position
-      const sx = Math.floor((gx / W) * scaledW);
-      const sy = Math.floor((gy / H) * scaledH);
-      const pxIdx = (sy * scaledW + sx) * 4;
+      const pxIdx = (gy * W + gx) * 4;
       const r = pixels[pxIdx];
       const g = pixels[pxIdx + 1];
       const b = pixels[pxIdx + 2];
@@ -7487,9 +7589,7 @@ function applyImageToGrid() {
       }
       
       const idx = gy * W + gx;
-      grid[idx] = matId;
-      tempGrid[idx] = MATS[matId]?.temp || 20;
-      phGrid[idx] = MATS[matId]?.ph || 7;
+      setCellMaterial(idx, matId, true);
       if (isPlant(matId) || matId === TREE_WOOD || matId === MUSHROOM || matId === MYCELIUM) {
         plantHealthGrid[idx] = 70;
         plantSapGrid[idx] = 50;
@@ -7579,6 +7679,70 @@ function initImageImport() {
     playBtn.addEventListener('click', startSimulation);
   }
 }
+
+// Kleine, begrenzte Diagnose-API für Browser-Smokes und Performance-Messungen.
+window.SandGame = Object.freeze({
+  getDiagnostics() {
+    return {
+      width: W, height: H, cells: N, activeCells: activeCellsCount,
+      renderer: useGL && gpuEnabled ? 'webgl2' : 'cpu', paused,
+      droppedCatchupTicks, renderedFrames, windActiveVisits, renderDirty,
+      drawing: isDrawing, activePointerId
+    };
+  },
+  computeTickBudget(accumulator, dt, speed) { return computeTickBudget(accumulator, dt, speed); },
+  computeCoverSourceRect(imageWidth, imageHeight, targetWidth, targetHeight) {
+    return computeCoverSourceRect(imageWidth, imageHeight, targetWidth, targetHeight);
+  },
+  setPaused(value) { paused = !!value; updatePauseButton(); return paused; },
+  setWind(value) { windActive = !!value; return windActive; },
+  setResolution(width) {
+    targetGridWidth = Math.max(50, Math.min(1080, Math.floor(width)));
+    resize(); syncControlOutputs(); return { width: W, height: H };
+  },
+  clear() { clearWorld(); return true; },
+  placeMaterial(x, y, matId) {
+    x = Math.floor(x); y = Math.floor(y);
+    if (x < 0 || x >= W || y < 0 || y >= H || !MATS[matId]) return false;
+    setCellMaterial(y * W + x, matId); aclAddNeighbors(x, y, 1); renderDirty = true; return true;
+  },
+  findMaterial(matId) {
+    const out = [];
+    for (let i = 0; i < N && out.length < 20; i++) if (grid[i] === matId) out.push({ x: i % W, y: Math.floor(i / W) });
+    return out;
+  },
+  simulateTicks(count) {
+    const limit = Math.max(0, Math.min(200, Math.floor(count)));
+    for (let i = 0; i < limit; i++) simulate();
+    if (limit) renderDirty = true;
+    return limit;
+  },
+  renderNow() { render(); return true; },
+  forceCpuFallback() {
+    if (useGL || glContextClaimed) switchVisibleCanvasToCPU('Diagnosetest');
+    renderDirty = true; render(); return useGL ? 'webgl2' : 'cpu';
+  },
+  verifyCellReset() {
+    if (!N) return null;
+    const idx = Math.min(N - 1, Math.floor(N / 2));
+    const arrays = [grid, tempGrid, ageGrid, colorSeedGrid, phGrid, radiationGrid, salinityGrid,
+      plantTypeGrid, plantStageGrid, plantHealthGrid, plantSapGrid, soilNutrientGrid,
+      plantWaterGrid, plantIdGrid, velXGrid, velYGrid, electricalGrid,
+      nitrogenGrid, phosphorusGrid, potassiumGrid, myceliumGrid];
+    const before = arrays.map(array => array[idx]);
+    arrays.forEach(array => { array[idx] = 77; });
+    setCellMaterial(idx, WATER);
+    const result = {
+      material: grid[idx], salinity: salinityGrid[idx], radiation: radiationGrid[idx],
+      age: ageGrid[idx], plantType: plantTypeGrid[idx], plantHealth: plantHealthGrid[idx],
+      soil: soilNutrientGrid[idx], nitrogen: nitrogenGrid[idx], mycelium: myceliumGrid[idx],
+      colorSeed: colorSeedGrid[idx]
+    };
+    arrays.forEach((array, index) => { array[idx] = before[index]; });
+    return result;
+  },
+  materials: Object.freeze({ EMPTY, SAND, WATER, DIRT, STONE, SMOKE, CLOUD })
+});
 
 </script>
 </body>
