@@ -17,6 +17,9 @@
   function applyStyle(style, persist) {
     const next = STYLES.has(style) ? style : 'panda';
     root.dataset.gameStyle = next;
+    document.querySelectorAll('.game-style-control select').forEach(select => {
+      if (select.value !== next) select.value = next;
+    });
     if (persist) {
       try { window.localStorage.setItem(STORAGE_KEY, next); } catch (_error) { /* Storage can be unavailable. */ }
     }

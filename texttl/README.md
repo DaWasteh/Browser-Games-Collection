@@ -8,6 +8,21 @@ Errate das geheime deutsche Fünf-Buchstaben-Wort in bis zu sechs Versuchen.
 Nach jedem Versuch färben sich die Kacheln und zeigen, welche Buchstaben
 stimmen.
 
+## Neu in v1.6
+
+- Wortschatz auf **739 Lösungswörter** und **789 gültige Ratewörter** erweitert.
+- Der historische Tageswort-Pool mit 463 Lösungen bleibt eingefroren. Dadurch
+  ändern sich frühere Tagesrätsel und vorhandene Speicherstände nicht; der neue
+  Pool gilt ab **4. September 2026 (UTC)**.
+- Optionaler Modus **Knifflig**: Grüne Buchstaben bleiben an ihrer Position,
+  gelbe Buchstaben müssen erneut an einer anderen Position verwendet werden.
+  Der Modus wird lokal gespeichert und im geteilten Ergebnis mit `◆` markiert.
+- Neustart und Moduswechsel sind während einer laufenden Flip-/Endauswertung
+  gesperrt, damit kein bestätigtes Endergebnis verloren geht.
+- Statistikresultate werden als idempotente Ereignisse gespeichert und aus allen
+  bekannten Ereignissen neu aufgebaut. Gleichzeitige Tabs überschreiben einander
+  dadurch nicht mehr per veraltetem Gesamt-Snapshot.
+
 ## Neu in v1.5
 
 - Ein mit Enter bestätigter Versuch wird vor der Flip-Animation atomar übernommen und im Tagesmodus gespeichert.
@@ -25,6 +40,9 @@ stimmen.
   zu zählen.
 - **Zufallsmodus:** Jedes Spiel zieht ein neues Wort aus der
   Lösungsliste, beliebig oft.
+- **Knifflig (optional):** Gilt in beiden Spielmodi. Bereits grüne Buchstaben
+  bleiben fest; gelbe Buchstaben und bekannte Mehrfachvorkommen müssen im
+  nächsten Versuch berücksichtigt werden.
 
 ## Regeln
 
@@ -49,13 +67,17 @@ stimmen.
   gibt das Ergebnis-Modal ein neues Wort aus.
 - Ergebnisse lassen sich **spoilerfrei teilen** (nur Farb-Emojis, keine
   Buchstaben) – mit Clipboard-API und Fallback auf ältere Browser.
+- **Knifflig:** Über `◇ Knifflig` ein- oder ausschalten. Während der
+  Flip-Auswertung sind Modus und Neustart kurz gesperrt.
 
 ## Statistik
 
 Gespielte Partien, Siege, Trefferquote, aktuelle und längste Serie sowie
-die Versuchsverteilung werden defensiv in `localStorage` gespeichert. Die
-Tages-Serie (Streak) wird nur im Tagesmodus fortgeschrieben; der
-Zufallsmodus zählt in die Gesamtstatistik, bricht aber keine Serie.
+die Versuchsverteilung werden defensiv in `localStorage` gespeichert. Ergebnisse
+besitzen eindeutige Ereignisschlüssel; die Anzeige wird daraus reproduzierbar neu
+aufgebaut, sodass parallele Tabs keine Statistik verlieren. Die Tages-Serie
+(Streak) wird nur im Tagesmodus fortgeschrieben; der Zufallsmodus zählt in die
+Gesamtstatistik, bricht aber keine Serie.
 
 ## Barrierefreiheit & Animation
 

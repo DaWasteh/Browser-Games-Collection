@@ -4,6 +4,17 @@ Offline spielbares Mahjong-Solitaire mit einem echten 144-Stein-**Turtle-Layout*
 kompletter Spielanleitung, Zoom und reproduzierbar lösbaren Deals. Keine
 Frameworks, CDNs oder externen Assets.
 
+## Neu in v1.6
+
+- neuer Spieltisch-Look mit Holzrahmen, Filzfläche, plastischeren Steinen und
+  klarer gegliederten Karten für Panda-, Nacht- und Kontrastansicht
+- responsive Verfeinerungen für schmale Displays und reduzierte Bewegung
+- kompakte aktionsbasierte Rückgängig-Historie: Paarzüge speichern nur die beiden
+  Stein-IDs, Mischungen nur die vorherige Motiv-Reihenfolge; vollständige
+  144-Stein-Snapshots entfallen
+- Diagnosewerte für Undo-Tiefe und ungefähre Speichergröße sowie Browser-
+  Regressionstest über einen vollständig gelösten Deal
+
 ## Neu in v1.5
 
 - bisherige vier rechteckige Ebenen durch ein klassisches Schildkrötenlayout mit

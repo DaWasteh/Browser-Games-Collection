@@ -405,7 +405,8 @@
         state.gameOver = true;
         state.won = won;
         stopTimer();
-        var seconds = Math.max(1, Math.round(state.elapsedMs / 1000));
+        // Ergebnis, HUD und gespeicherte Bestzeit verwenden dieselbe volle-Sekunden-Regel.
+        var seconds = Math.max(0, Math.floor(state.elapsedMs / 1000));
         if (won) {
             setSmiley('😎');
             setStatus('Sieg!');

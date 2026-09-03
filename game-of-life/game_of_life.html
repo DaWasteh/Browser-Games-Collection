@@ -127,6 +127,7 @@
 
     if(newCols === cols && newRows === rows) {
       syncCanvasCss();
+      if(wasRunning) start();
       return;
     }
 

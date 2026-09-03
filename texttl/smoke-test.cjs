@@ -5,6 +5,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const logic = require('./texttl-logic.js');
 
 // ============================================================
@@ -25,7 +26,14 @@ assert.equal(logic.assertListsSane(), true);
 const solSet = new Set(logic.SOLUTION_WORDS);
 const valSet = new Set(logic.VALID_GUESS_WORDS);
 assert.equal(solSet.size, logic.SOLUTION_WORDS.length, 'Lösungen eindeutig');
-assert.ok(logic.SOLUTION_WORDS.length >= 200, 'ausreichend viele Lösungen (' + logic.SOLUTION_WORDS.length + ')');
+assert.ok(logic.SOLUTION_WORDS.length >= 700, 'deutlich erweiterte Lösungsbank (' + logic.SOLUTION_WORDS.length + ')');
+assert.equal(logic.DAILY_WORDS_V1.length, 463, 'historischer v1-Tagespool bleibt eingefroren');
+assert.equal(
+    crypto.createHash('sha256').update(JSON.stringify(logic.DAILY_WORDS_V1)).digest('hex'),
+    'fa107a8ec86fa952d9ae4848f1a3be067dec0cc1a4bfc1bb7a394e475f603936',
+    'vollständiger v1-Tagespool bleibt in Inhalt und Reihenfolge eingefroren'
+);
+assert.equal(logic.DAILY_WORDS_V2.length, logic.SOLUTION_WORDS.length, 'v2-Tagespool enthält die Erweiterung');
 assert.ok(logic.VALID_GUESS_WORDS.length >= logic.SOLUTION_WORDS.length, 'gültige ≥ Lösungen');
 
 // Jede Lösung muss gültig sein
@@ -72,6 +80,11 @@ function ev(g, s) { return logic.evaluate(g, s).join(','); }
 assert.equal(ev('ABEND', 'ABEND'), 'correct,correct,correct,correct,correct');
 assert.ok(logic.isWin(logic.evaluate('ABEND', 'ABEND')));
 
+// Knifflig-Modus: grüne Positionen und gelbe Pflichtbuchstaben werden erzwungen.
+assert.match(logic.hardModeViolation('BODEN', ['ABEND'], 'ABEND'), /Stelle 1/, 'grüner Buchstabe bleibt stehen');
+assert.match(logic.hardModeViolation('AHORN', ['ADLER'], 'ABEND'), /D muss mindestens/, 'gelber Buchstabe bleibt enthalten');
+assert.equal(logic.hardModeViolation('ABEND', ['ADLER'], 'ABEND'), '', 'regelkonformes Folgewort akzeptiert');
+
 // Doppelbuchstabe: Lösung hat EIN S, Ratewort zwei → zweites absent
 // ESSEN(E,S,S,E,N) vs SAUCE(S,A,U,C,E): nur ein S und ein E in Lösung
 assert.equal(ev('ESSEN', 'SAUCE'), 'present,present,absent,absent,absent');
@@ -114,8 +127,11 @@ assert.equal(logic.sanitizeGuesses(['ABEND', 42], 'ABEND'), null, 'nicht-string 
 // ============================================================
 const d = new Date(Date.UTC(2024, 5, 15)); // 2024-06-15
 assert.equal(logic.dailyWord(d), logic.dailyWord(d), 'Tageswort stabil');
+assert.equal(logic.dailyWord(d), 'WACHE', 'historisches Tageswort bleibt trotz Wortbank-Erweiterung unverändert');
 assert.equal(Array.from(logic.dailyWord(d)).length, 5, 'Tageswort 5 Grapheme');
 assert.ok(logic.isSolution(logic.dailyWord(d)), 'Tageswort ist Lösung');
+assert.equal(logic.dailyWord(new Date('2026-09-03T00:00:00Z')), 'NEIGE', 'letzter v1-Tag bleibt stabil');
+assert.equal(logic.dailyWord(new Date('2026-09-04T00:00:00Z')), 'GRÖßE', 'erster v2-Tag ist fest gepinnt');
 // Zwei identische Daten → gleicher Index
 assert.equal(logic.dailyIndex(d), logic.dailyIndex(d));
 // puzzleNumber monoton wachsend über aufeinanderfolgende Tage
@@ -207,6 +223,7 @@ assert.ok(share.includes('🟩') && share.includes('🟨') && share.includes('�
 assert.doesNotMatch(share.replace(/Texttl|#[0-9]+|\/6|X/g, '').trim(), /[A-ZÄÖÜß]/, 'Teilen enthält keine Buchstaben');
 const shareLoss = logic.buildShareText({ mode: 'random', won: false, attempts: 6, rows: [] });
 assert.match(shareLoss, /Texttl \(Zufall\) X\/6/);
+assert.match(logic.buildShareText({ mode: 'random', won: true, attempts: 2, rows: [], hardMode: true }), /2\/6 ◆/, 'Knifflig-Markierung wird geteilt');
 assert.equal(logic.shareLine(['correct', 'present', 'absent']), '🟩🟨⬛');
 
 // ============================================================
@@ -262,6 +279,8 @@ assert.doesNotMatch(css, /\.key\s*\{[^}]*text-transform:\s*uppercase/, '.key ohn
 const uiJs = fs.readFileSync(path.join(__dirname, 'texttl.js'), 'utf8');
 assert.doesNotMatch(uiJs, /\.innerHTML\s*=/, 'kein innerHTML im UI-Code');
 assert.match(uiJs, /gameVersion/, 'ausstehende Animationen werden bei Neustart invalidiert');
+assert.match(uiJs, /isResolvingGuess\(\)/, 'Neustart und Moduswechsel sind während der Endauswertung gesperrt');
+assert.match(uiJs, /hardModeViolation/, 'Knifflig-Regeln sind in der Eingabe angebunden');
 assert.doesNotMatch(uiJs, /onclick=/, 'keine Inline-Handler im UI-Code');
 assert.match(uiJs, /addEventListener\('keydown'/, 'physische Tastatur angebunden');
 assert.match(uiJs, /addEventListener\('click'/, 'Klick-Handler vorhanden');
@@ -276,6 +295,10 @@ assert.match(uiJs, /isValidLetter|typeLetter/, 'Buchstabeneingabe via Graphem-Pr
 assert.match(uiJs, /dailyWord/, 'Tageswort genutzt');
 assert.match(uiJs, /randomWord/, 'Zufallswort genutzt');
 assert.match(uiJs, /recordResult/, 'Statistik-Auswertung angebunden');
+assert.match(uiJs, /dailyEvents\[event\.dayKey\]/, 'Tagesresultate mehrerer Tabs werden pro Tag reduziert');
+assert.match(uiJs, /event\.won && !previous\.won/, 'Sieg dominiert konkurrierende Tagesniederlage deterministisch');
+assert.match(uiJs, /daily-.*win.*loss/, 'Tagesausgänge erhalten getrennte unveränderliche Event-Keys');
+assert.match(uiJs, /existing && existing\.status === 'won'/, 'konkurrierender Tages-Save kann einen Sieg nicht herabstufen');
 assert.match(uiJs, /validateDailySave/, 'Tagesfortschritt wird validiert');
 assert.match(uiJs, /var solvedAt = guesses\.indexOf\(solution\)/, 'Save-Status wird gegen frühere Lösungen geprüft');
 assert.match(uiJs, /shareBtn\.hidden = !\(lastGame && state\.status !== 'playing'\)/, 'wiederhergestellte Ergebnisse bleiben teilbar');
@@ -286,6 +309,7 @@ assert.ok(submitSource.indexOf('state.guesses.push(guess)') < submitSource.index
 assert.ok(submitSource.indexOf('saveDaily({') < submitSource.indexOf('animateRow('), 'bestätigter Tagesversuch wird vor der Animation gespeichert');
 assert.match(submitSource, /committedStatus = L\.isWin\(grades\) \? 'won'/, 'terminaler Commit erhält sofort korrekten Status');
 assert.match(uiJs, /Reload während der letzten Flip-Animation/, 'Reload stellt terminale Statistik idempotent wieder her');
+assert.doesNotMatch(uiJs, /if \(hardMode\)[\s\S]{0,180}hardModeViolation/, 'spät aktiviertes Knifflig verwirft frühere freie Versuche beim Laden nicht');
 
 // ============================================================
 // 12) Datei-Existenz & Back-Link-Ziel

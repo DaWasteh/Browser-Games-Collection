@@ -125,8 +125,14 @@ header.site-header .subtitle {
     font-size: 0.95rem;
     font-family: inherit;
 }
-.icon-btn:hover { background: #242450; }
+.icon-btn:hover { background: color-mix(in srgb, var(--panel-2) 78%, var(--accent)); }
 .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.challenge-toggle[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 22%, var(--panel-2));
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
 
 /* Statusmeldung (barrierefrei via aria-live) */
 .status {

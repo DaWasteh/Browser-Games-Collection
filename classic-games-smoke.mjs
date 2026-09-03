@@ -237,6 +237,12 @@ try {
         await delay(650);
         const generationEnd = await evaluate(`Number(document.getElementById('generation').textContent.replace(/\D/g, '')) || 0`);
         assert(generationEnd - generationStart >= 55, `game-of-life: 120-FPS-Modus erreicht nur ${generationEnd - generationStart} Schritte in 650 ms`);
+        const resizeKeptRunning = await evaluate(`(() => {
+          const before = document.getElementById('startStop').textContent;
+          window.dispatchEvent(new Event('resize'));
+          return before === 'Pause' && document.getElementById('startStop').textContent === 'Pause';
+        })()`);
+        assert(resizeKeptRunning, 'game-of-life: größenneutraler Resize stoppt die laufende Simulation');
         const ratioRestore = await evaluate(`(() => {
           document.getElementById('startStop').click();
           const ratio = document.getElementById('ratio');
@@ -278,6 +284,28 @@ try {
           const pointerAfter = SandGame.getDiagnostics();
           const pointerPainted = SandGame.findMaterial(SandGame.materials.SAND).length > 0;
 
+          SandGame.clear();
+          canvas.blur();
+          canvas.focus();
+          await new Promise(requestAnimationFrame);
+          const cursor = document.getElementById('keyboard-cursor');
+          const cursorLeftBefore = parseFloat(cursor.style.left);
+          canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+          const cursorLeftAfter = parseFloat(cursor.style.left);
+          canvas.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true }));
+          const keyboardCanvas = {
+            role: canvas.getAttribute('role'),
+            tabbable: canvas.tabIndex === 0,
+            focused: document.activeElement === canvas,
+            cursorOpacity: getComputedStyle(cursor).opacity,
+            cursorClass: cursor.className,
+            cursorStyle: cursor.getAttribute('style'),
+            cursorVisible: getComputedStyle(cursor).opacity === '1',
+            moved: cursorLeftAfter > cursorLeftBefore,
+            painted: SandGame.findMaterial(SandGame.materials.SAND).length > 0,
+            announced: /Spalte/.test(document.getElementById('canvas-status').textContent)
+          };
+
           SandGame.setPaused(true);
           SandGame.renderNow();
           const framesBeforePause = SandGame.getDiagnostics().renderedFrames;
@@ -303,7 +331,7 @@ try {
           SandGame.setPaused(false);
           return {
             api: true, initial, sixty, highA, highB, stalled, reset, tall, wide,
-            rendererAfterFallback, pointerDuring, pointerAfter, pointerPainted,
+            rendererAfterFallback, pointerDuring, pointerAfter, pointerPainted, keyboardCanvas,
             pausedUploads: framesAfterPause - framesBeforePause,
             marker, resized: dimensions,
             windVisits: windAfter.windActiveVisits - windBefore.windActiveVisits
@@ -317,6 +345,7 @@ try {
         assert(report.tall.sw <= 1 && report.tall.sh <= 10000 && report.wide.sw <= 10000 && report.wide.sh <= 1, `sandgame: Extremformat-Crop ungültig ${JSON.stringify([report.tall, report.wide])}`);
         assert(report.rendererAfterFallback === 'cpu', 'sandgame: WebGL→Canvas2D-Fallback schlug fehl');
         assert(report.pointerDuring.activePointerId === 41 && report.pointerDuring.drawing && report.pointerAfter.activePointerId === null && !report.pointerAfter.drawing && report.pointerPainted, `sandgame: Pointer-Cancel/Mehrfingergeste fehlerhaft ${JSON.stringify([report.pointerDuring, report.pointerAfter])}`);
+        assert(report.keyboardCanvas.role === 'application' && report.keyboardCanvas.tabbable && report.keyboardCanvas.cursorVisible && report.keyboardCanvas.moved && report.keyboardCanvas.painted && report.keyboardCanvas.announced, `sandgame: keyboard drawing alternative failed ${JSON.stringify(report.keyboardCanvas)}`);
         assert(report.pausedUploads === 0, `sandgame: pausierte Szene rendert weiter (${report.pausedUploads} Frames)`);
         assert(report.marker && report.marker.y === report.resized.height - 1 && Math.abs(report.marker.x - report.resized.width / 2) <= 1, `sandgame: Resize erhält Boden nicht unten/zentriert ${JSON.stringify(report.marker)}`);
         assert(report.windVisits < report.resized.cells / 4, `sandgame: Wind scannt weiterhin zu viele Zellen (${report.windVisits}/${report.resized.cells})`);
@@ -369,6 +398,17 @@ try {
         assert(resultContract.winner === 'CPU' && resultContract.score === '5-0' && /CPU: 5/.test(resultContract.resultText), `pong: Spieler-2/CPU-Ergebnis vertauscht ${JSON.stringify(resultContract)}`);
         assert(resultContract.minHeight >= 44 && resultContract.minFont >= 14, `pong: mobile Menüsteuerung zu klein ${JSON.stringify(resultContract)}`);
         assert(resultContract.accumulatorReset, 'pong: Replay übernimmt alten Fixed-Step-Akkumulator');
+        const keyboard2p = await evaluate(`(() => {
+          selectMode('2p');
+          const p1Before = player1.y, p2Before = player2.y;
+          handleKeyDown(new KeyboardEvent('keydown', { key: 'w', bubbles: true, cancelable: true }));
+          handleKeyDown(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+          for (let i = 0; i < 10; i++) { movePlayer1(); movePlayer2(); }
+          handleKeyUp(new KeyboardEvent('keyup', { key: 'w' }));
+          handleKeyUp(new KeyboardEvent('keyup', { key: 'ArrowUp' }));
+          return { p1Moved: player1.y < p1Before, p2Moved: player2.y < p2Before };
+        })()`);
+        assert(keyboard2p.p1Moved && keyboard2p.p2Moved, `pong: 2P keyboard controls incomplete ${JSON.stringify(keyboard2p)}`);
         // Tatsächlich den fixen 60-Hz-Loop ohne Fehler laufen lassen.
         const started = await evaluate(`document.getElementById('ui-overlay').classList.contains('hidden')`);
         assert(started, 'pong: Spiel startet nicht (Overlay bleibt sichtbar)');
@@ -382,20 +422,44 @@ try {
         // Pfeiltasten dürfen das Theme-Select nicht hijacken (Früher: Schwierigkeit geändert).
         const hij = await keyHijacked('ArrowDown', 'ArrowDown', '#themeSelectOverlay');
         assert(hij.hasFocus && !hij.defaultPrevented, 'snake-ultimate: Pfeiltaste hijackt fokussiertes Select');
-        const roles = await evaluate(`(() => ['mainMenu','pauseOverlay','gameOver'].map(id => document.getElementById(id).getAttribute('aria-modal')).join(','))()`);
-        assert(roles === 'true,true,true', 'snake-ultimate: Overlay-Dialog-Semantik fehlt');
+        const roles = await evaluate(`(() => ({
+          dialogs: ['mainMenu','pauseOverlay','gameOver'].map(id => document.getElementById(id).getAttribute('aria-modal')).join(','),
+          canvas: document.getElementById('gameCanvas').getAttribute('role'),
+          canvasTabbable: document.getElementById('gameCanvas').tabIndex === 0
+        }))()`);
+        assert(roles.dialogs === 'true,true,true' && roles.canvas === 'application' && roles.canvasTabbable, 'snake-ultimate: Dialog-/Canvas-Semantik fehlt');
+        const modalExit = await evaluate(`(() => ({
+          allDialogs: ['mainMenu','pauseOverlay','gameOver'].every(id => !!document.querySelector('#' + id + ' a[href="../index.html"]')),
+          outerHidden: getComputedStyle(document.querySelector('body > .game-collection-link')).visibility === 'hidden',
+          innerVisible: getComputedStyle(document.querySelector('#mainMenu .game-collection-link')).visibility === 'visible'
+        }))()`);
+        assert(modalExit.allDialogs && modalExit.outerHidden && modalExit.innerVisible, `snake-ultimate: modal overview navigation failed ${JSON.stringify(modalExit)}`);
         const gamepadStart = await evaluate(`(() => {
           const buttons = Array.from({length: 16}, () => ({ pressed: false }));
           const pad = { index: 0, axes: [0, 0, 0, 0], buttons };
           startGame();
+          const canvasFocused = document.activeElement === document.getElementById('gameCanvas');
           buttons[9].pressed = true; handleGamepadInput(pad); const paused = gameState;
           handleGamepadInput(pad); const stillPaused = gameState;
           buttons[9].pressed = false; handleGamepadInput(pad);
           buttons[9].pressed = true; handleGamepadInput(pad); const resumed = gameState;
           showMenu();
-          return { paused, stillPaused, resumed };
+          return { paused, stillPaused, resumed, canvasFocused };
         })()`);
-        assert(gamepadStart.paused === 'PAUSED' && gamepadStart.stillPaused === 'PAUSED' && gamepadStart.resumed === 'PLAYING', 'snake-ultimate: Gamepad-Start hat keine Flankenerkennung');
+        assert(gamepadStart.paused === 'PAUSED' && gamepadStart.stillPaused === 'PAUSED' && gamepadStart.resumed === 'PLAYING' && gamepadStart.canvasFocused, 'snake-ultimate: Gamepad-Flankenerkennung oder Canvas-Fokus fehlerhaft');
+        const cadence = await evaluate(`(() => {
+          startGame();
+          stopLoop();
+          tickAccumulator = 0;
+          lastFrameTime = 1000;
+          const before = frameCount;
+          runLoop(1250);
+          stopLoop();
+          const steps = frameCount - before;
+          showMenu();
+          return { steps, remainder: tickAccumulator, speed: gameSpeed };
+        })()`);
+        assert(cadence.steps === 2 && cadence.remainder === 50 && cadence.remainder < cadence.speed, `snake-ultimate: RAF accumulator loses elapsed ticks ${JSON.stringify(cadence)}`);
       }
     },
     {
@@ -404,10 +468,13 @@ try {
         const sem = await evaluate(`(() => ({
           ariaLive: !!document.getElementById('game-status'),
           menuDialog: document.getElementById('menu-overlay').getAttribute('aria-modal') === 'true',
+          modalExit: !!document.querySelector('#menu-overlay a[href="../index.html"]'),
+          outerHidden: getComputedStyle(document.querySelector('body > .game-collection-link')).visibility === 'hidden',
           hs: typeof highScore !== 'undefined'
         }))()`);
         assert(sem.ariaLive, 'tetris: aria-live-Region fehlt');
         assert(sem.menuDialog, 'tetris: Menü-Dialog-Semantik fehlt');
+        assert(sem.modalExit && sem.outerHidden, 'tetris: sichtbarer, aber inerter Außenlink statt Modal-Navigation');
       }
     },
     {
@@ -422,6 +489,12 @@ try {
         assert(inert.menuVisible && inert.gameInert, 'minesweeper: Hintergrund ist bei offenem Menü nicht inert');
         const roles = await evaluate(`(document.getElementById('menu-overlay').getAttribute('aria-modal') === 'true' && document.getElementById('result-overlay').getAttribute('aria-modal') === 'true')`);
         assert(roles, 'minesweeper: Overlay-Dialog-Semantik fehlt');
+        const modalExit = await evaluate(`(() => ({
+          menu: !!document.querySelector('#menu-overlay a[href="../index.html"]'),
+          result: !!document.querySelector('#result-overlay a[href="../index.html"]'),
+          outerHidden: getComputedStyle(document.querySelector('body > .back-link')).visibility === 'hidden'
+        }))()`);
+        assert(modalExit.menu && modalExit.result && modalExit.outerHidden, `minesweeper: Modal-Navigation unvollständig ${JSON.stringify(modalExit)}`);
         const touchStart = await evaluate(`(() => {
           document.querySelector('[data-difficulty="hard"]').click();
           const wrap = document.getElementById('board-wrap');
@@ -435,6 +508,22 @@ try {
         await delay(120);
         const touchEnd = await evaluate(`(() => ({ scrollLeft: document.getElementById('board-wrap').scrollLeft, revealed: document.querySelectorAll('#board .cell.revealed').length }))()`);
         assert(touchEnd.revealed === touchStart.revealed, `minesweeper: Scrollgeste deckte ein Feld auf ${JSON.stringify({ touchStart, touchEnd })}`);
+        const timerConsistent = await evaluate(`(async () => {
+          document.querySelector('#board .cell').dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+          await new Promise(resolve => setTimeout(resolve, 1800));
+          for (let attempt = 0; attempt < 600; attempt++) {
+            if (document.getElementById('result-overlay').classList.contains('show')) break;
+            const cell = document.querySelector('#board .cell:not(.revealed):not(.flagged)');
+            if (!cell) break;
+            cell.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+          }
+          const hud = Number(document.getElementById('timer').textContent);
+          const text = document.getElementById('result-text').textContent;
+          const result = Number((text.match(/Zeit: (\\d+) s/) || [])[1]);
+          document.getElementById('result-menu').click();
+          return { hud, result };
+        })()`);
+        assert(timerConsistent.hud >= 1 && timerConsistent.hud === timerConsistent.result, `minesweeper: HUD/result timer rounding mismatch ${JSON.stringify(timerConsistent)}`);
       }
     },
     {
@@ -444,6 +533,8 @@ try {
           const cv = document.getElementById('gameCanvas');
           const stats = document.getElementById('stats');
           const start = document.getElementById('btn-start');
+          game.togglePause();
+          const introPauseBlocked = !game.paused;
           start.focus();
           const space = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
           start.dispatchEvent(space);
@@ -453,13 +544,16 @@ try {
             canvasTabbable: cv ? cv.tabIndex === 0 : false,
             canvasHelp: !!document.getElementById('canvas-help'),
             statsLive: stats ? stats.getAttribute('aria-live') : null,
+            introPauseBlocked,
             nativeSpacePreserved: !space.defaultPrevented
           };
         })()`);
         assert(a11y.canvasRole === 'application' && a11y.canvasLabel && a11y.canvasTabbable && a11y.canvasHelp, 'panda-lemmings: interaktive Canvas-Tastatursemantik fehlt');
-        assert(a11y.statsLive === 'polite' && a11y.nativeSpacePreserved, 'panda-lemmings: Live-Status oder native Button-Aktivierung fehlerhaft');
+        assert(a11y.statsLive === 'polite' && a11y.nativeSpacePreserved && a11y.introPauseBlocked, 'panda-lemmings: Live-Status, Pause-Guard oder native Button-Aktivierung fehlerhaft');
         const keyboardAssignment = await evaluate(`(async () => {
+          game.paused = true;
           document.getElementById('btn-start').click();
+          const startUnpaused = !game.paused;
           if (!game.world.pandas.length) game.world.spawn();
           game.selectSkill('bomber');
           const canvas = document.getElementById('gameCanvas');
@@ -469,11 +563,12 @@ try {
           const before = game.world.pool.bomber;
           canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
           const assigned = game.world.pool.bomber === before - 1;
+          const idAnnounced = selectedId === 1 && /Panda 1/.test(document.getElementById('game-announcement').textContent);
           game.completed.add(0); game.totalSaved = 12; game.totalLost = 1; game.levelSaved.set(0, 12); game.levelLost.set(0, 1); game.saveProgress();
           const stored = JSON.parse(localStorage.getItem('panda-lemmings-progress-v1'));
-          return { selectedId, assigned, focused: document.activeElement === canvas, stored: stored && stored.completed.includes(0) && stored.totalSaved === 12 };
+          return { selectedId, assigned, idAnnounced, startUnpaused, focused: document.activeElement === canvas, stored: stored && stored.completed.includes(0) && stored.totalSaved === 12 };
         })()`);
-        assert(keyboardAssignment.selectedId != null && keyboardAssignment.assigned && keyboardAssignment.focused, `panda-lemmings: keyboard-only assignment failed ${JSON.stringify(keyboardAssignment)}`);
+        assert(keyboardAssignment.selectedId != null && keyboardAssignment.assigned && keyboardAssignment.focused && keyboardAssignment.startUnpaused && keyboardAssignment.idAnnounced, `panda-lemmings: keyboard-only assignment/start/ID failed ${JSON.stringify(keyboardAssignment)}`);
         assert(keyboardAssignment.stored, 'panda-lemmings: campaign progress was not persisted');
         for (const viewport of [{width:375,height:667},{width:414,height:736},{width:667,height:375},{width:736,height:414}]) {
           await cdp.send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: true });

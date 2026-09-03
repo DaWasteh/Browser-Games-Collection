@@ -38,6 +38,9 @@
   let messageType = '';
   let autoNarrate = false;
   let fallbackSpeaking = false;
+  let narrationToken = 0;
+  let narrationTimer = null;
+  let narrationSceneId = null;
 
   function loadState() {
     try {
@@ -267,6 +270,12 @@
   }
 
   function stopNarration() {
+    narrationToken += 1;
+    if (narrationTimer !== null) {
+      window.clearTimeout(narrationTimer);
+      narrationTimer = null;
+    }
+    narrationSceneId = null;
     audio.pause();
     audio.currentTime = 0;
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
@@ -279,7 +288,8 @@
     return voices.find((voice) => /conrad|male|stefan|markus/i.test(voice.name)) || voices[0] || null;
   }
 
-  function speakFallback(scene) {
+  function speakFallback(scene, token) {
+    if (token !== narrationToken || !autoNarrate || currentScene().id !== scene.id) return;
     if (!('speechSynthesis' in window)) {
       setMessage('Auf diesem Gerät ist leider keine Sprachausgabe verfügbar.', 'error');
       autoNarrate = false;
@@ -298,11 +308,13 @@
 
   function playNarration(scene) {
     stopNarration();
+    const token = narrationToken;
+    narrationSceneId = scene.id;
     audio.src = scene.audio;
     const attempt = audio.play();
     if (attempt && typeof attempt.catch === 'function') {
       attempt.catch(() => {
-        if (!fallbackSpeaking) speakFallback(scene);
+        if (token === narrationToken && !fallbackSpeaking) speakFallback(scene, token);
       });
     }
   }
@@ -332,7 +344,13 @@
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       document.querySelector('.game-shell').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
     }
-    if (autoNarrate) window.setTimeout(() => playNarration(scene), 120);
+    if (autoNarrate) {
+      const token = narrationToken;
+      narrationTimer = window.setTimeout(() => {
+        narrationTimer = null;
+        if (token === narrationToken && autoNarrate && currentScene().id === scene.id) playNarration(scene);
+      }, 120);
+    }
   }
 
   elements.continue.addEventListener('click', () => {
@@ -368,7 +386,8 @@
   });
 
   audio.addEventListener('error', () => {
-    if (autoNarrate && !fallbackSpeaking) speakFallback(currentScene());
+    const scene = currentScene();
+    if (autoNarrate && !fallbackSpeaking && narrationSceneId === scene.id) speakFallback(scene, narrationToken);
   });
 
   function closeReset() {

@@ -800,6 +800,7 @@
         .game-collection-link { position: fixed; left: 12px; bottom: 12px; z-index: 10000; padding: 8px 12px; border: 1px solid #00ff88; border-radius: 999px; background: rgba(0,0,0,.88); color: #fff; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,.45); }
         .game-collection-link:hover { filter: brightness(1.35); }
         .game-collection-link:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        .game-collection-link[inert] { visibility: hidden; }
     </style>
 </head>
 <body data-theme="cyberpunk">
@@ -846,7 +847,7 @@
         </div>
 
         <div class="game-container">
-            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <canvas id="gameCanvas" width="800" height="600" tabindex="0" role="application" aria-label="Snake-Spielfeld. Spieler 1 steuert mit Pfeiltasten, Spieler 2 im Mehrspielermodus mit W A S D."></canvas>
 
             <!-- Main Menu -->
             <div class="overlay" id="mainMenu" role="dialog" aria-modal="true" aria-label="Hauptmenü">
@@ -913,6 +914,7 @@
                     [↑/↓] Tempo | [1,2,3,4] Addons | [ALT GR] 1/2 Spieler | [+/-] Style<br>
                     [LEERTASTE] = Spiel Starten | [M] Mute | [S] SFX | [U] Musik<br>
                 </p>
+                <a class="game-collection-link" href="../index.html" aria-label="Vom Snake-Menü zur Spieleauswahl">← Spieleauswahl</a>
             </div>
 
             <!-- Game Over -->
@@ -927,6 +929,7 @@
                 <p class="legend" id="keyboardLegendGO" style="margin-top:12px;">
                     [LEERTASTE] = Retry | [STRG] = Hauptmenü
                 </p>
+                <a class="game-collection-link" href="../index.html" aria-label="Vom Ergebnis zur Spieleauswahl">← Spieleauswahl</a>
             </div>
 
             <!-- Pause Overlay -->
@@ -936,6 +939,7 @@
                 <p class="legend" id="pauseLegend" style="margin-top:10px;">
                     [P] / [ESC] / [LEERTASTE] = Weiter
                 </p>
+                <a class="game-collection-link" href="../index.html" aria-label="Aus der Pause zur Spieleauswahl">← Spieleauswahl</a>
             </div>
         </div>
 
@@ -1529,7 +1533,7 @@
         // Toggle Mute/SFX/Music via keyboard
         document.addEventListener('keydown', (event) => {
             const active = document.activeElement;
-            if (active && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) return;
+            if (active && /^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/.test(active.tagName)) return;
             const key = event.key.toLowerCase();
 
             // [M] toggles mute
@@ -1578,15 +1582,23 @@
         let gameState = 'MENU';
         // ── RAF LOOP (v0.4: replaced setInterval for jitter-free timing) ──
         let rafId         = null;
-        let gameSpeed     = 100;   // ms per tick
-        let lastFrameTime = 0;
+        let gameSpeed      = 100;   // ms per tick
+        let lastFrameTime  = 0;
+        let tickAccumulator = 0;
 
         function runLoop(timestamp) {
             if (gameState !== 'PLAYING') return;
-            if (timestamp - lastFrameTime >= gameSpeed) {
-                lastFrameTime = timestamp;
+            if (lastFrameTime === 0) lastFrameTime = timestamp;
+            const elapsed = Math.max(0, Math.min(250, timestamp - lastFrameTime));
+            lastFrameTime = timestamp;
+            tickAccumulator += elapsed;
+            let steps = 0;
+            while (tickAccumulator >= gameSpeed && gameState === 'PLAYING' && steps < 8) {
                 update();
+                tickAccumulator -= gameSpeed;
+                steps++;
             }
+            if (steps === 8 && tickAccumulator >= gameSpeed) tickAccumulator %= gameSpeed;
             if (gameState === 'PLAYING') rafId = requestAnimationFrame(runLoop);
         }
 
@@ -1859,6 +1871,7 @@
             document.getElementById('mainMenu').style.display    = 'none';
             document.getElementById('gameOver').style.display    = 'none';
             document.getElementById('pauseOverlay').style.display = 'none';
+            document.getElementById('gameCanvas').focus({ preventScroll: true });
             gameState   = 'PLAYING';
             isNewRecord = false;
             frameCount  = 0;
@@ -1901,6 +1914,7 @@
 
             stopLoop();
             lastFrameTime = 0;
+            tickAccumulator = 0;
 
             // AudioContext erst vollständig resumt, dann Musik + SFX starten
             initAudio().then(() => {
@@ -1944,10 +1958,12 @@
         function resumeGame() {
             if (gameState !== 'PAUSED') return;
             playSoundResume();
-            closeSnakeModal(true);
+            closeSnakeModal(false);
             document.getElementById('pauseOverlay').style.display = 'none';
-            gameState     = 'PLAYING';
-            lastFrameTime = 0;
+            document.getElementById('gameCanvas').focus({ preventScroll: true });
+            gameState      = 'PLAYING';
+            lastFrameTime  = 0;
+            tickAccumulator = 0;
             startMusic(); // Musik passend zum aktiven Audio-Setting fortsetzen
             rafId = requestAnimationFrame(runLoop);
         }
@@ -2976,12 +2992,19 @@
             // Formularelemente (z. B. Theme-/Modus-Select) nicht captieren:
             // Pfeiltasten sollen das Dropdown navigieren, nicht die Schwierigkeit ändern.
             const ae = document.activeElement;
-            if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+            // P/Escape bleiben Dialogbefehle, auch wenn der Fokus auf einem
+            // nativen Pause-Button liegt. Leertaste aktiviert dort den Button selbst.
+            if (gameState === 'PAUSED' && (key === 'p' || key === 'P' || key === 'Escape')) {
+                event.preventDefault();
+                resumeGame();
+                return;
+            }
+            if (ae && /^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/.test(ae.tagName)) return;
             if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(key)) event.preventDefault();
 
             // ── PAUSE state: any resume key ──
             if (gameState === 'PAUSED') {
-                if (key === 'p' || key === 'P' || key === 'Escape' || key === ' ') resumeGame();
+                if (key === ' ') resumeGame();
                 return;
             }
 

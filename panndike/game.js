@@ -29,6 +29,7 @@
   let hintMove = null;
   let hintTimer = 0;
   let pendingAction = null;
+  let confirmReturnFocus = null;
   let pendingFocusKey = '';
   let winRecorded = false;
   let resizeTimer = 0;
@@ -164,7 +165,7 @@
     resumeClock();
     render();
     say(state.dealType === 'daily'
-      ? `Tagesdeal ${todayKey()} gestartet. Viel Erfolg!`
+      ? `Tagesdeal ${dailyKeyForState(state)} gestartet. Viel Erfolg!`
       : 'Neue Partie: Wähle eine offene Karte oder ziehe vom Talon.');
     saveGame();
   }
@@ -174,8 +175,14 @@
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
 
-  function yesterdayKey() {
-    const date = new Date();
+  function dailyKeyForState(gameState) {
+    const match = /^daily-(\d{4}-\d{2}-\d{2})$/.exec(String(gameState && gameState.seed || ''));
+    return match ? match[1] : todayKey();
+  }
+
+  function previousDayKey(dateKey) {
+    const parts = String(dateKey).split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
     date.setDate(date.getDate() - 1);
     return todayKey(date);
   }
@@ -194,6 +201,7 @@
   function requestAction(action) {
     if (state && state.status === 'playing' && state.moves > 0) {
       pendingAction = action;
+      confirmReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       ui.confirmText.textContent = action.kind === 'restart'
         ? 'Alle Züge dieser Partie werden verworfen und derselbe Deal wird neu ausgeteilt.'
         : 'Die aktuelle Partie wird durch einen neuen Deal ersetzt.';
@@ -525,7 +533,7 @@
     ui.time.textContent = formatTime(currentElapsedMs());
     ui.foundationCount.textContent = `${E.foundationCount(state)} / 52`;
     ui.drawLabel.textContent = `Zieh ${state.drawCount}`;
-    ui.dealCode.textContent = state.dealType === 'daily' ? `☀ ${todayKey().slice(5)}` : E.dealCode(state);
+    ui.dealCode.textContent = state.dealType === 'daily' ? `☀ ${dailyKeyForState(state).slice(5)}` : E.dealCode(state);
     ui.dealCode.title = `Deal-Code ${E.dealCode(state)}`;
     ui.drawMode.value = String(state.drawCount);
     ui.drawMode.disabled = state.moves > 0 || state.status !== 'playing';
@@ -551,10 +559,11 @@
       stats.bestScore = Math.max(stats.bestScore, state.score);
       if (stats.bestTimeMs == null || total < stats.bestTimeMs) stats.bestTimeMs = total;
       if (state.dealType === 'daily') {
-        const today = todayKey();
-        if (stats.lastDailyWin !== today) {
-          stats.dailyStreak = stats.lastDailyWin === yesterdayKey() ? stats.dailyStreak + 1 : 1;
-          stats.lastDailyWin = today;
+        const dealDay = dailyKeyForState(state);
+        // Ein wiederhergestelltes älteres Tagesdeal darf eine neuere Serie nicht zurückdatieren.
+        if ((!stats.lastDailyWin || dealDay > stats.lastDailyWin) && stats.lastDailyWin !== dealDay) {
+          stats.dailyStreak = stats.lastDailyWin === previousDayKey(dealDay) ? stats.dailyStreak + 1 : 1;
+          stats.lastDailyWin = dealDay;
         }
       }
       winRecorded = true;
@@ -665,10 +674,18 @@
     say(`Partie mit Zieh-${drawCount}-Regel neu ausgeteilt.`);
   });
 
-  ui.confirmCancel.addEventListener('click', () => { pendingAction = null; ui.confirm.hidden = true; });
+  function closeConfirm() {
+    pendingAction = null;
+    ui.confirm.hidden = true;
+    if (confirmReturnFocus && confirmReturnFocus.isConnected) confirmReturnFocus.focus({ preventScroll: true });
+    confirmReturnFocus = null;
+  }
+
+  ui.confirmCancel.addEventListener('click', closeConfirm);
   ui.confirmOk.addEventListener('click', () => {
     const action = pendingAction;
     pendingAction = null;
+    confirmReturnFocus = null;
     ui.confirm.hidden = true;
     if (action) executeAction(action);
   });
@@ -691,8 +708,12 @@
   window.addEventListener('pagehide', () => { pauseClock(); saveGame(); });
 
   document.addEventListener('keydown', event => {
-    if (event.target.matches('input, select, textarea')) return;
     const key = event.key.toLowerCase();
+    if (!ui.confirm.hidden || !ui.result.hidden) {
+      if (key === 'escape' && !ui.confirm.hidden) { event.preventDefault(); closeConfirm(); }
+      return;
+    }
+    if (event.target instanceof Element && event.target.matches('input, select, textarea, button, a')) return;
     if (key === 'escape') {
       if (selected) { selected = null; render(); say('Auswahl aufgehoben.'); }
       return;

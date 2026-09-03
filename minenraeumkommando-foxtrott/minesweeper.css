@@ -376,6 +376,7 @@ body {
 }
 .back-link:hover { background: var(--bg-2); }
 .back-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.back-link[inert] { visibility: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
     * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

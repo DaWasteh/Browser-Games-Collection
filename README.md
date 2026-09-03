@@ -22,9 +22,9 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | ♠️ **Panndike** | [`panndike/`](panndike/) | Zeitungsartiges Klondike mit Tagesdeal, Deal-Codes, Drag/Touch, Hinweisen und Foundations |
 | ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit Deal-Nummern und Supermoves |
 | 💣 **Minenräumkommando Foxtrott** | [`minenraeumkommando-foxtrott/`](minenraeumkommando-foxtrott/) | Minesweeper mit sicherem Erstklick und Chording |
-| 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit Tages- und Zufallsmodus |
+| 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit 739 Lösungen, Tages-/Zufallsmodus und optionalem Knifflig-Modus |
 | 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku mit Notizen, Hinweisen und drei Schwierigkeitsgraden |
-| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Kompakte Sperrfeld-Kreuzworträtsel mit 464 deutschen/bairischen Einträgen |
+| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Kompakte Sperrfeld-Kreuzworträtsel mit 659 deutschen/bairischen Einträgen |
 | 🀄 **Pahjong** | [`pahjong/`](pahjong/) | Mahjong-Solitaire im echten 144-Stein-Turtle-Layout mit Anleitung, Zoom und lösbaren Deals |
 | 🐛 **Maulkorbraupen – Das Spiel** | [`maulkorbraupen-das-spiel/`](maulkorbraupen-das-spiel/) | Vertontes Textadventure mit sieben Kapiteln und Werk-Rätseln |
 
@@ -63,6 +63,38 @@ node pandakreuzwort/smoke-test.cjs
 node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
 ```
+
+## ✨ Neu in v1.6
+
+### Inhalte und Oberfläche
+
+- **Pandakreuzwort** umfasst jetzt **659 redaktionelle Einträge** (576 Deutsch,
+  83 Bairisch). Die mobile Worteingabe lässt Cursor und IME-Komposition unberührt,
+  statt den aktiven Text nach jedem Zeichen mit Platzhaltern zu überschreiben.
+  Laufende v1.5-Rätsel bleiben über den eingefrorenen Altdatenbestand spielbar.
+- **Texttl** wächst auf **739 Lösungen und 789 gültige Ratewörter**. Der neue
+  optionale Modus **Knifflig** erzwingt bereits aufgedeckte grüne und gelbe Hinweise.
+  Historische Tageswörter bleiben durch einen eingefrorenen v1-Pool unverändert;
+  der erweiterte Tagespool beginnt am 4. September 2026 (UTC).
+- **Pahjong** erhält einen plastischeren Holzrahmen-/Filztisch-Look für Panda-,
+  Nacht- und Kontrastansicht. Seine Rückgängig-Historie speichert kompakte Aktionen
+  statt kompletter Kopien aller 144 Steine.
+
+### Stabilität und Bedienung
+
+- Neustart und Moduswechsel in Texttl sind während der finalen Auswertung gesperrt;
+  Statistikereignisse sind idempotent und gegen parallele Tabs abgesichert.
+- Canvas, Dialoge und Tastatursteuerung wurden vereinheitlicht: Sand Game besitzt
+  einen sichtbaren Tastatur-Zeichenpunkt, Pong kontinuierliche W/S- und Pfeiltasten-
+  Steuerung, und globale Spielkürzel lösen nicht mehr hinter offenen Dialogen aus.
+- Game of Life bleibt nach einem größenneutralen Resize aktiv, Snake verarbeitet
+  alle aufgelaufenen Simulationsticks, Panda Lemmings startet zuverlässig ungepaust,
+  und Minesweeper verwendet in HUD und Ergebnis dieselbe volle-Sekunden-Regel.
+- Weitere Korrekturen betreffen leere Spider-Spalten, native Dialogbuttons in
+  Pandadoku, historische Tagesdeal-Datumsangaben in Panndike, verzögerte Erzählung
+  in Maulkorbraupen sowie präzisere ARIA-Auswahlzustände in Pandataire.
+- Die automatisierten Logik- und Browser-Suites prüfen alle 16 Spiele einschließlich
+  IME, Tastatur-Canvas, Modal-Fokus, Timing-Akkumulatoren und kompakter Undo-Historie.
 
 ## ✨ Neu in v1.5
 

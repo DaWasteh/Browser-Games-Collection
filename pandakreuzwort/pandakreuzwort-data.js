@@ -15,7 +15,7 @@
         ? logic.normalizeGridAnswer
         : function (v) { return String(v || '').toUpperCase(); };
 
-    var DATASET_VERSION = '2026-08-v1.5';
+    var DATASET_VERSION = '2026-08-v1.6';
 
     // displayAnswer = natürliche Schreibweise; gridAnswer wird berechnet.
     var RAW = [
@@ -508,15 +508,229 @@
         ['sieg', 'Sieg', 'Erfolgreicher Ausgang eines Wettkampfs', 1]
     ];
 
+    // v1.6: zusätzliche alltagsnahe, naturwissenschaftliche und kulturelle
+    // Begriffe. Kurze und lange Antworten sorgen für variablere Kreuzungen.
+    var MORE_DE = [
+        // Digitales, Technik und Medien
+        ['computer', 'Computer', 'Elektronisches Gerät zur Datenverarbeitung', 1],
+        ['tastatur', 'Tastatur', 'Eingabegerät mit vielen Tasten', 1],
+        ['bildschirm', 'Bildschirm', 'Fläche zur visuellen Ausgabe', 1],
+        ['drucker', 'Drucker', 'Gerät, das Texte und Bilder auf Papier bringt', 1],
+        ['scanner', 'Scanner', 'Gerät zum digitalen Erfassen einer Vorlage', 2],
+        ['router', 'Router', 'Gerät, das Daten zwischen Netzen weiterleitet', 2],
+        ['server', 'Server', 'Rechner, der Dienste im Netz bereitstellt', 2],
+        ['daten', 'Daten', 'Digital gespeicherte Informationen', 1],
+        ['datei', 'Datei', 'Benannte Sammlung digitaler Daten', 1],
+        ['ordner', 'Ordner', 'Ablage für Dokumente oder Dateien', 1],
+        ['programm', 'Programm', 'Folge von Anweisungen für einen Rechner', 1],
+        ['browser', 'Browser', 'Programm zum Anzeigen von Internetseiten', 1],
+        ['internet', 'Internet', 'Weltweites Netz verbundener Rechner', 1],
+        ['netzwerk', 'Netzwerk', 'Verbund mehrerer Geräte oder Personen', 2],
+        ['kabel', 'Kabel', 'Ummantelte Leitung für Strom oder Signale', 1],
+        ['stecker', 'Stecker', 'Verbindungsstück am Ende einer Leitung', 1],
+        ['batterie', 'Batterie', 'Speicher, der elektrische Energie liefert', 1],
+        ['akku', 'Akku', 'Wiederaufladbarer Stromspeicher', 1],
+        ['sensor', 'Sensor', 'Bauteil zum Erfassen einer Messgröße', 2],
+        ['roboter', 'Roboter', 'Programmierbare Maschine für selbstständige Aufgaben', 1],
+        ['satellit', 'Satellit', 'Körper, der einen größeren Himmelskörper umkreist', 2],
+        ['antenne', 'Antenne', 'Bauteil zum Senden oder Empfangen von Funkwellen', 2],
+        ['signal', 'Signal', 'Zeichen, das eine Information übermittelt', 1],
+        ['pixel', 'Pixel', 'Kleinster Bildpunkt einer digitalen Anzeige', 1],
+        ['cursor', 'Cursor', 'Bewegliche Positionsmarke auf dem Bildschirm', 2],
+        ['taste', 'Taste', 'Drückbares Bedienelement', 1],
+        ['quellcode', 'Quellcode', 'Für Menschen lesbarer Text eines Programms', 2],
+        ['algorithmus', 'Algorithmus', 'Eindeutige Folge von Lösungsschritten', 3],
+        ['speicher', 'Speicher', 'Ort zum Aufbewahren von Daten oder Energie', 1],
+        ['prozessor', 'Prozessor', 'Zentrale Recheneinheit eines Computers', 2],
+        ['monitor', 'Monitor', 'Elektronisches Anzeigegerät', 1],
+        ['smartphone', 'Smartphone', 'Mobiltelefon mit Computerfunktionen', 1],
+        ['tablet', 'Tablet', 'Flacher tragbarer Computer mit Touchscreen', 1],
+        ['podcast', 'Podcast', 'Abonnierbare Reihe gesprochener Medienbeiträge', 2],
+        ['funk', 'Funk', 'Drahtlose Übertragung durch elektromagnetische Wellen', 2],
+        ['software', 'Software', 'Programme und Daten eines Computersystems', 2],
+
+        // Wohnen, Stadt und Handwerk
+        ['sofa', 'Sofa', 'Gepolstertes Sitzmöbel für mehrere Personen', 1],
+        ['regal', 'Regal', 'Offenes Möbel mit mehreren Böden', 1],
+        ['schrank', 'Schrank', 'Möbel mit Türen und Stauraum', 1],
+        ['spiegel', 'Spiegel', 'Glatte Fläche, die ein Bild zurückwirft', 1],
+        ['teppich', 'Teppich', 'Gewebter Belag für einen Fußboden', 1],
+        ['vorhang', 'Vorhang', 'Bewegliche Stoffbahn vor einem Fenster', 1],
+        ['kissen', 'Kissen', 'Weiche gefüllte Unterlage für Kopf oder Rücken', 1],
+        ['decke', 'Decke', 'Wärmende Stofflage zum Zudecken', 1],
+        ['matratze', 'Matratze', 'Gepolsterte Unterlage eines Bettes', 1],
+        ['besen', 'Besen', 'Reinigungsgerät mit Borsten an einem Stiel', 1],
+        ['eimer', 'Eimer', 'Offenes Gefäß mit Henkel', 1],
+        ['buerste', 'Bürste', 'Gerät mit Borsten zum Reinigen oder Pflegen', 1],
+        ['schwamm', 'Schwamm', 'Saugfähiger Helfer beim Reinigen', 1],
+        ['handtuch', 'Handtuch', 'Tuch zum Abtrocknen', 1],
+        ['balkon', 'Balkon', 'Aus einer Hauswand ragende Plattform', 1],
+        ['treppe', 'Treppe', 'Folge von Stufen zwischen zwei Höhen', 1],
+        ['keller', 'Keller', 'Unterirdisches Geschoss eines Gebäudes', 1],
+        ['garage', 'Garage', 'Geschützter Abstellraum für Fahrzeuge', 1],
+        ['zaun', 'Zaun', 'Abgrenzung aus Pfosten, Latten oder Draht', 1],
+        ['gehweg', 'Gehweg', 'Wegstreifen für Menschen zu Fuß', 1],
+        ['platz', 'Platz', 'Freie Fläche innerhalb eines Ortes', 1],
+        ['park', 'Park', 'Öffentliche Grünanlage', 1],
+        ['apotheke', 'Apotheke', 'Geschäft zur Abgabe von Arzneimitteln', 1],
+        ['post', 'Post', 'Dienst zum Befördern von Briefen und Paketen', 1],
+        ['polizei', 'Polizei', 'Staatliche Organisation für öffentliche Sicherheit', 1],
+        ['feuerwehr', 'Feuerwehr', 'Hilfsorganisation zum Löschen und Retten', 1],
+        ['hotel', 'Hotel', 'Haus mit Zimmern für zahlende Gäste', 1],
+        ['restaurant', 'Restaurant', 'Gaststätte mit Speisen nach Bestellung', 1],
+        ['bibliothek', 'Bibliothek', 'Ort zum Sammeln und Ausleihen von Büchern', 2],
+        ['werkstatt', 'Werkstatt', 'Raum zum Herstellen und Reparieren', 1],
+        ['fabrik', 'Fabrik', 'Anlage zur industriellen Herstellung von Waren', 1],
+        ['krankenhaus', 'Krankenhaus', 'Einrichtung zur stationären Behandlung', 1],
+        ['kindergarten', 'Kindergarten', 'Betreuungseinrichtung vor der Schulzeit', 1],
+        ['spielplatz', 'Spielplatz', 'Anlage mit Geräten für Kinder', 1],
+        ['dorf', 'Dorf', 'Kleine ländliche Siedlung', 1],
+        ['stadt', 'Stadt', 'Große geschlossene Siedlung', 1],
+
+        // Wetter, Landschaft, Pflanzen und Tierkörper
+        ['blitz', 'Blitz', 'Kurze elektrische Entladung am Himmel', 1],
+        ['donner', 'Donner', 'Schall, der einem Blitz folgt', 1],
+        ['hagel', 'Hagel', 'Niederschlag aus Eiskörnern', 1],
+        ['frost', 'Frost', 'Temperaturzustand unter dem Gefrierpunkt', 1],
+        ['tau', 'Tau', 'Morgendliche Wassertropfen auf kühlen Flächen', 1],
+        ['klima', 'Klima', 'Typischer Wetterverlauf einer Region über lange Zeit', 2],
+        ['jahreszeit', 'Jahreszeit', 'Einer von vier Abschnitten des Jahres', 1],
+        ['fruehling', 'Frühling', 'Jahreszeit zwischen Winter und Sommer', 1],
+        ['sommer', 'Sommer', 'Wärmste Jahreszeit', 1],
+        ['herbst', 'Herbst', 'Jahreszeit der reifen Früchte und fallenden Blätter', 1],
+        ['winter', 'Winter', 'Kälteste Jahreszeit', 1],
+        ['lawine', 'Lawine', 'Schnell talwärts gleitende Schnee- oder Gesteinsmasse', 2],
+        ['fels', 'Fels', 'Große zusammenhängende Gesteinsmasse', 1],
+        ['kies', 'Kies', 'Lose Mischung kleiner abgerundeter Steine', 1],
+        ['sand', 'Sand', 'Lockeres Material aus sehr kleinen Gesteinskörnern', 1],
+        ['lehm', 'Lehm', 'Formbarer Boden aus Ton, Schluff und Sand', 2],
+        ['humus', 'Humus', 'Nährstoffreiche organische Bodenschicht', 2],
+        ['knospe', 'Knospe', 'Noch geschlossene junge Blüte oder Sprossanlage', 1],
+        ['bluete', 'Blüte', 'Fortpflanzungsorgan einer Blütenpflanze', 1],
+        ['samen', 'Samen', 'Pflanzliche Anlage für einen neuen Keimling', 1],
+        ['frucht', 'Frucht', 'Aus einer Blüte entstandener Pflanzenteil', 1],
+        ['rinde', 'Rinde', 'Äußere Schutzschicht eines Baumstamms', 1],
+        ['ast', 'Ast', 'Starker seitlicher Teil eines Baumes', 1],
+        ['zweig', 'Zweig', 'Dünner Ast eines Baumes oder Strauches', 1],
+        ['wurzel', 'Wurzel', 'Pflanzenteil zur Verankerung und Stoffaufnahme', 1],
+        ['stamm', 'Stamm', 'Tragende Hauptachse eines Baumes', 1],
+        ['fluegel', 'Flügel', 'Körperteil zum Fliegen', 1],
+        ['feder', 'Feder', 'Leichte Hornstruktur im Gefieder eines Vogels', 1],
+        ['schuppe', 'Schuppe', 'Kleine feste Platte auf Fischhaut', 1],
+        ['horn', 'Horn', 'Harter Kopfschmuck mancher Huftiere', 1],
+        ['pfote', 'Pfote', 'Fuß eines Tieres mit Ballen oder Krallen', 1],
+        ['schnabel', 'Schnabel', 'Hornige Mundpartie eines Vogels', 1],
+        ['tatze', 'Tatze', 'Kräftige Pfote eines großen Raubtiers', 1],
+        ['kieme', 'Kieme', 'Atmungsorgan vieler Wassertiere', 2],
+        ['panzer', 'Panzer', 'Harte schützende Körperhülle mancher Tiere', 1],
+        ['kokon', 'Kokon', 'Schützende Hülle einer Insektenpuppe', 2],
+
+        // Essen und Geschmack
+        ['marmelade', 'Marmelade', 'Süßer Brotaufstrich aus eingekochten Früchten', 1],
+        ['joghurt', 'Joghurt', 'Gesäuertes Milchprodukt', 1],
+        ['sahne', 'Sahne', 'Fettreicher Bestandteil der Milch', 1],
+        ['quark', 'Quark', 'Frischer säuerlicher Milchkäse', 1],
+        ['wurst', 'Wurst', 'Gewürzte Masse in einer länglichen Hülle', 1],
+        ['schinken', 'Schinken', 'Gepökeltes oder geräuchertes Fleischstück', 1],
+        ['fleisch', 'Fleisch', 'Essbares Muskelgewebe von Tieren', 1],
+        ['gemuese', 'Gemüse', 'Essbare Teile krautiger Pflanzen', 1],
+        ['obst', 'Obst', 'Essbare Früchte und Samen mehrjähriger Pflanzen', 1],
+        ['paprika', 'Paprika', 'Hohles Gemüse in Grün, Gelb oder Rot', 1],
+        ['brokkoli', 'Brokkoli', 'Grünes Kohlgemüse mit vielen kleinen Röschen', 1],
+        ['spinat', 'Spinat', 'Grünes Blattgemüse', 1],
+        ['rettich', 'Rettich', 'Scharf schmeckende essbare Wurzel', 1],
+        ['kuerbis', 'Kürbis', 'Große Frucht mit harter Schale', 1],
+        ['melone', 'Melone', 'Große saftige Frucht mit dicker Schale', 1],
+        ['pfirsich', 'Pfirsich', 'Samtige Steinfrucht', 1],
+        ['mango', 'Mango', 'Süße tropische Steinfrucht', 1],
+        ['ananas', 'Ananas', 'Tropische Sammelfrucht mit Blattschopf', 1],
+        ['nuss', 'Nuss', 'Frucht mit harter Schale und essbarem Kern', 1],
+        ['mandel', 'Mandel', 'Essbarer Kern einer Steinfrucht', 1],
+        ['zimt', 'Zimt', 'Gewürz aus getrockneter Baumrinde', 1],
+        ['vanille', 'Vanille', 'Aromatisches Gewürz aus Orchideenschoten', 1],
+        ['essig', 'Essig', 'Saure Würzflüssigkeit', 1],
+        ['oel', 'Öl', 'Fettige Flüssigkeit zum Kochen oder Schmieren', 1],
+        ['senf', 'Senf', 'Scharfe Würzpaste aus gemahlenen Körnern', 1],
+        ['sosse', 'Soße', 'Flüssige oder sämige Beilage zu einer Speise', 1],
+        ['braten', 'Braten', 'Im Ofen oder Topf gegartes Fleischstück', 1],
+        ['eintopf', 'Eintopf', 'Komplette Mahlzeit aus einem einzigen Topf', 1],
+        ['muesli', 'Müsli', 'Mischung aus Getreideflocken und weiteren Zutaten', 1],
+        ['fruehstueck', 'Frühstück', 'Erste Mahlzeit des Tages', 1],
+        ['dessert', 'Dessert', 'Süßer Abschluss einer Mahlzeit', 1],
+        ['rezept', 'Rezept', 'Anleitung zum Zubereiten einer Speise', 1],
+        ['aroma', 'Aroma', 'Charakteristischer Duft oder Geschmack', 2],
+        ['herd', 'Herd', 'Küchengerät mit Kochstellen', 1],
+        ['schuessel', 'Schüssel', 'Tiefes rundes Gefäß zum Servieren', 1],
+        ['becher', 'Becher', 'Trinkgefäß ohne Stiel', 1],
+
+        // Sprache, Wissen, Gefühle und Tätigkeiten
+        ['sprache', 'Sprache', 'System aus Lauten und Zeichen zur Verständigung', 1],
+        ['dialekt', 'Dialekt', 'Regionale Ausprägung einer Sprache', 2],
+        ['buchstabe', 'Buchstabe', 'Einzelnes Zeichen eines Alphabets', 1],
+        ['zeichen', 'Zeichen', 'Sichtbares oder hörbares Mittel mit Bedeutung', 1],
+        ['komma', 'Komma', 'Satzzeichen für eine kurze Gliederungspause', 1],
+        ['punkt', 'Punkt', 'Satzzeichen am Ende einer Aussage', 1],
+        ['titel', 'Titel', 'Name eines Werks oder einer Veröffentlichung', 1],
+        ['seite', 'Seite', 'Ein Blattbereich in einem Buch', 1],
+        ['zeitung', 'Zeitung', 'Regelmäßig erscheinende Sammlung aktueller Berichte', 1],
+        ['nachricht', 'Nachricht', 'Übermittelte neue Information', 1],
+        ['wissen', 'Wissen', 'Gesamtheit verstandener Kenntnisse', 1],
+        ['idee', 'Idee', 'Neuer Einfall oder gedanklicher Entwurf', 1],
+        ['gedanke', 'Gedanke', 'Bewusster Inhalt des Denkens', 1],
+        ['erinnerung', 'Erinnerung', 'Im Gedächtnis bewahrtes Erlebnis', 1],
+        ['traum', 'Traum', 'Bildhaftes Erleben während des Schlafs', 1],
+        ['hoffnung', 'Hoffnung', 'Zuversicht auf einen günstigen Ausgang', 1],
+        ['geduld', 'Geduld', 'Fähigkeit, ruhig warten zu können', 1],
+        ['neugier', 'Neugier', 'Wunsch, etwas Unbekanntes zu erfahren', 1],
+        ['humor', 'Humor', 'Fähigkeit, Komisches wahrzunehmen', 1],
+        ['laecheln', 'Lächeln', 'Freundlicher Gesichtsausdruck mit gehobenen Mundwinkeln', 1],
+        ['lachen', 'Lachen', 'Hörbarer Ausdruck von Freude oder Belustigung', 1],
+        ['weinen', 'Weinen', 'Tränen als Ausdruck starker Gefühle vergießen', 1],
+        ['helfen', 'Helfen', 'Jemanden bei einer Aufgabe unterstützen', 1],
+        ['teilen', 'Teilen', 'Etwas in mehrere Teile geben oder zerlegen', 1],
+        ['lernen', 'Lernen', 'Wissen oder Fähigkeiten erwerben', 1],
+        ['pruefen', 'Prüfen', 'Etwas sorgfältig auf Richtigkeit untersuchen', 1],
+        ['bauen', 'Bauen', 'Aus Teilen ein Werk errichten', 1],
+        ['sammeln', 'Sammeln', 'Mehrere Dinge zusammentragen', 1],
+        ['suchen', 'Suchen', 'Sich bemühen, etwas zu finden', 1],
+        ['finden', 'Finden', 'Etwas Gesuchtes oder Unbekanntes entdecken', 1],
+        ['drehen', 'Drehen', 'Um eine Achse bewegen', 1],
+        ['werfen', 'Werfen', 'Etwas mit Schwung durch die Luft bewegen', 1],
+        ['ziehen', 'Ziehen', 'Etwas durch Zugkraft bewegen', 1],
+        ['druecken', 'Drücken', 'Kraft gegen eine Fläche ausüben', 1],
+        ['oeffnen', 'Öffnen', 'Einen Zugang frei machen', 1],
+        ['schliessen', 'Schließen', 'Einen offenen Zugang verschließen', 1],
+        ['fluestern', 'Flüstern', 'Sehr leise sprechen', 1],
+        ['klettern', 'Klettern', 'Sich mit Händen und Füßen nach oben bewegen', 1],
+        ['schwimmen', 'Schwimmen', 'Sich aus eigener Kraft im Wasser bewegen', 1],
+        ['wandern', 'Wandern', 'Eine längere Strecke zu Fuß zurücklegen', 1],
+        ['forschen', 'Forschen', 'Planmäßig nach neuen Erkenntnissen suchen', 2],
+        ['messen', 'Messen', 'Eine Größe mit einer Einheit vergleichen', 1],
+        ['wiegen', 'Wiegen', 'Das Gewicht von etwas bestimmen', 1],
+        ['zeichnen', 'Zeichnen', 'Linien zu einem Bild oder Plan verbinden', 1],
+        ['rechnen', 'Rechnen', 'Zahlen nach Regeln verarbeiten', 1],
+        ['erzaehlen', 'Erzählen', 'Ein Geschehen in Worten wiedergeben', 1],
+        ['entdecken', 'Entdecken', 'Etwas bislang Unbekanntes auffinden', 1],
+        ['erfinden', 'Erfinden', 'Etwas Neues gedanklich schaffen', 1],
+        ['vergleichen', 'Vergleichen', 'Gemeinsamkeiten und Unterschiede untersuchen', 2],
+        ['beobachten', 'Beobachten', 'Etwas aufmerksam über längere Zeit wahrnehmen', 1],
+        ['entscheiden', 'Entscheiden', 'Zwischen mehreren Möglichkeiten wählen', 2]
+    ];
+
     function profilesForDifficulty(level) {
         return level === 1 ? ['leicht', 'mittel', 'schwer'] : level === 2 ? ['mittel', 'schwer'] : ['schwer'];
     }
-    EXTRA_DE.forEach(function (item) {
+    function appendGerman(item) {
         RAW.push({
             id: 'de-' + item[0], language: 'de', displayAnswer: item[1], clue: item[2],
             difficulty: item[3], allowedProfiles: profilesForDifficulty(item[3])
         });
-    });
+    }
+    EXTRA_DE.forEach(appendGerman);
+    // v1.5-Speicherstände müssen weiterhin aus genau ihrer damaligen Wortbank
+    // rekonstruiert werden können; neue Begriffe werden erst danach angehängt.
+    var LEGACY_V15_ENTRY_COUNT = RAW.length;
+    MORE_DE.forEach(appendGerman);
 
     var REVIEW = Object.freeze({ status: 'project-reviewed', reviewerRole: 'project-editor', reviewDate: '2026-08-26' });
     var SOURCE = Object.freeze({ kind: 'project-editorial' });
@@ -541,9 +755,14 @@
         return Object.freeze(entry);
     });
 
+    var legacyDatasets = Object.freeze({
+        '2026-08-v1.5': Object.freeze(entries.slice(0, LEGACY_V15_ENTRY_COUNT))
+    });
+
     var dataset = Object.freeze({
         schemaVersion: 2,
         datasetVersion: DATASET_VERSION,
+        legacyDatasets: legacyDatasets,
         editorialPolicy: Object.freeze({
             clueStyle: 'kurz, grammatisch vollständig, ohne direkte Antwortnennung',
             normalization: 'NFC; Ä/Ö/Ü→AE/OE/UE; ß→SS; Trennzeichen entfallen im Gitter',

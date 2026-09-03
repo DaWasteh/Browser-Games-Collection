@@ -51,6 +51,21 @@
       touch-action: none;
       z-index: 1;
     }
+    canvas:focus-visible { outline: 3px solid var(--accent); outline-offset: -4px; }
+    .keyboard-cursor {
+      position: fixed;
+      z-index: 3;
+      width: clamp(10px, var(--cursor-w, 10px), 22px);
+      height: clamp(10px, var(--cursor-h, 10px), 22px);
+      border: 2px solid #fff;
+      border-radius: 3px;
+      box-shadow: 0 0 0 2px #071018, 0 0 12px rgba(76, 201, 240, .9);
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -50%);
+    }
+    canvas:focus + .keyboard-cursor,
+    .keyboard-cursor.is-visible { opacity: 1; }
 
     .sr-only {
       position: absolute;
@@ -340,7 +355,10 @@
 
 <a class="game-collection-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
 <main class="game-shell" aria-label="Sand-Game-Simulationsfläche">
-  <canvas id="c" role="img" aria-label="Interaktive Pixel-Simulation: mit Maus oder Touch Materialien zeichnen"></canvas>
+  <canvas id="c" role="application" tabindex="0" aria-describedby="canvas-help canvas-status" aria-label="Interaktive Partikelsimulation"></canvas>
+  <span id="keyboard-cursor" class="keyboard-cursor" aria-hidden="true"></span>
+  <p id="canvas-help" class="sr-only">Mit den Pfeiltasten den Zeichenpunkt bewegen, mit Umschalt schneller. Leertaste oder Enter platziert das gewählte Material. Rücktaste oder Entfernen radiert.</p>
+  <p id="canvas-status" class="sr-only" role="status" aria-live="polite"></p>
 </main>
 
 <button id="floatingToggleUI" class="ui-toggle" type="button" aria-controls="ui" aria-expanded="false" title="Werkzeugleiste anzeigen">☰</button>
@@ -6502,6 +6520,7 @@ function resize() {
     pix = img.data;
   }
   renderDirty = true;
+  updateKeyboardCursor(false);
 }
 
 function buildUI() {
@@ -6529,6 +6548,7 @@ function buildUI() {
     btn.onclick = () => {
       curMat = m.id;
       buildUI();
+      updateKeyboardCursor(true);
     };
     
     let containerKey;
@@ -6548,6 +6568,7 @@ function buildUI() {
 let isDrawing = false, isErasing = false;
 let activePointerId = null;
 let lastPointerX = 0, lastPointerY = 0, hasPointer = false;
+let keyboardX = 0, keyboardY = 0;
 
 // Materialgebundene Zellwerte zentral zurücksetzen. Dadurch erbt frisch
 // gemaltes Wasser weder Salz noch Strahlung/Pflanzenzustand einer früheren Zelle.
@@ -6940,7 +6961,68 @@ function stopActivePointer(e) {
   }
 }
 
+function updateKeyboardCursor(announce) {
+  if (!W || !H) return;
+  keyboardX = Math.max(0, Math.min(W - 1, keyboardX));
+  keyboardY = Math.max(0, Math.min(H - 1, keyboardY));
+  const cursor = document.getElementById('keyboard-cursor');
+  if (cursor) {
+    const visible = document.activeElement === canvas;
+    cursor.classList.toggle('is-visible', visible);
+    if (visible) cursor.style.opacity = '1';
+    else cursor.style.removeProperty('opacity');
+    cursor.style.left = `${((keyboardX + 0.5) / W) * 100}%`;
+    cursor.style.top = `${((keyboardY + 0.5) / H) * 100}%`;
+    cursor.style.setProperty('--cursor-w', `${100 / W}vw`);
+    cursor.style.setProperty('--cursor-h', `${100 / H}vh`);
+  }
+  if (announce) {
+    const material = isErasing ? 'Radierer' : (MATS[curMat] ? MATS[curMat].name : 'Material');
+    const status = document.getElementById('canvas-status');
+    if (status) status.textContent = `${material}, Spalte ${keyboardX + 1} von ${W}, Zeile ${keyboardY + 1} von ${H}.`;
+  }
+}
+
 function bindCanvasPointerInput(targetCanvas) {
+  targetCanvas.addEventListener('focus', () => {
+    const cursor = document.getElementById('keyboard-cursor');
+    if (cursor) {
+      cursor.classList.add('is-visible');
+      cursor.style.opacity = '1';
+    }
+    if (!W || !H) return;
+    if (keyboardX === 0 && keyboardY === 0) {
+      keyboardX = Math.floor(W / 2);
+      keyboardY = Math.floor(H / 2);
+    }
+    updateKeyboardCursor(true);
+  });
+  targetCanvas.addEventListener('blur', () => {
+    const cursor = document.getElementById('keyboard-cursor');
+    if (cursor) {
+      cursor.classList.remove('is-visible');
+      cursor.style.removeProperty('opacity');
+    }
+  });
+  targetCanvas.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 10 : 1;
+    if (e.key === 'ArrowLeft') keyboardX -= step;
+    else if (e.key === 'ArrowRight') keyboardX += step;
+    else if (e.key === 'ArrowUp') keyboardY -= step;
+    else if (e.key === 'ArrowDown') keyboardY += step;
+    else if (e.key === 'Home') { keyboardX = Math.floor(W / 2); keyboardY = Math.floor(H / 2); }
+    else if (e.key === ' ' || e.key === 'Enter') {
+      paintAt(keyboardX, keyboardY);
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      const previousErasing = isErasing;
+      isErasing = true;
+      paintAt(keyboardX, keyboardY);
+      isErasing = previousErasing;
+    } else return;
+    e.preventDefault();
+    e.stopPropagation();
+    updateKeyboardCursor(true);
+  });
   targetCanvas.addEventListener("pointerdown", e => {
     if (activePointerId != null || (e.button !== 0 && e.button !== 2)) return;
     e.preventDefault();
@@ -7228,6 +7310,7 @@ function initUI() {
     if (mapped !== undefined) {
       curMat = mapped;
       buildUI();
+      updateKeyboardCursor(document.activeElement === canvas);
     }
   });
 }

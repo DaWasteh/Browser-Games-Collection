@@ -45,8 +45,26 @@
     return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
-  function snapshot() { return { state: E.clone(state), elapsedMs: currentElapsedMs() }; }
-  function pushHistory() { history.push(snapshot()); if (history.length > MAX_HISTORY) history.shift(); }
+  function remember(entry) {
+    history.push(entry);
+    if (history.length > MAX_HISTORY) history.shift();
+  }
+  function pairUndoEntry(firstId, secondId) {
+    return {
+      kind: 'pair', firstId, secondId,
+      moves: state.moves, shuffles: state.shuffles, status: state.status,
+      elapsedMs: currentElapsedMs()
+    };
+  }
+  function shuffleUndoEntry() {
+    return {
+      kind: 'shuffle',
+      faceUids: state.cards.map(card => card.face.uid),
+      moves: state.moves, shuffles: state.shuffles, status: state.status,
+      solutionPlan: Array.isArray(state.solutionPlan) ? state.solutionPlan.flat() : [],
+      elapsedMs: currentElapsedMs()
+    };
+  }
   function clearHint() { hintIds = []; if (hintTimer) clearTimeout(hintTimer); hintTimer = 0; }
 
   function saveGame() {
@@ -128,10 +146,11 @@
       return;
     }
 
-    pushHistory();
+    const undoEntry = pairUndoEntry(selected, id);
     const origin = { x: second.x, y: second.y, z: second.z };
     const result = E.removePair(state, selected, id);
-    if (!result.ok) { history.pop(); selected = null; render(); say('Dieses Paar kann gerade nicht entfernt werden.'); return; }
+    if (!result.ok) { selected = null; render(); say('Dieses Paar kann gerade nicht entfernt werden.'); return; }
+    remember(undoEntry);
     selected = null;
     focusId = nearestFree(origin);
     pendingFocus = true;
@@ -171,9 +190,10 @@
 
   function shuffleRemaining() {
     if (state.status === 'won') return;
-    pushHistory();
+    const undoEntry = shuffleUndoEntry();
     const result = E.shuffleRemaining(state);
-    if (!result.ok) { history.pop(); say('Die Reststeine konnten nicht sicher neu verteilt werden.'); return; }
+    if (!result.ok) { say('Die Reststeine konnten nicht sicher neu verteilt werden.'); return; }
+    remember(undoEntry);
     selected = null; clearHint(); focusId = E.freeIds(state)[0] ?? null;
     resumeClock(); pendingFocus = true; render();
     say('Reststeine neu verteilt: Eine vollständige lösbare Fortsetzung ist geprüft.');
@@ -184,7 +204,19 @@
     const previous = history.pop();
     if (!previous) { say('Noch kein Zug zum Rückgängigmachen.'); return; }
     pauseClock();
-    state = previous.state;
+    if (previous.kind === 'pair') {
+      state.cards[previous.firstId].removed = false;
+      state.cards[previous.secondId].removed = false;
+    } else if (previous.kind === 'shuffle') {
+      const faces = new Map(state.cards.map(card => [card.face.uid, card.face]));
+      previous.faceUids.forEach((uid, index) => { state.cards[index].face = faces.get(uid); });
+      const flatPlan = previous.solutionPlan;
+      state.solutionPlan = [];
+      for (let i = 0; i < flatPlan.length; i += 2) state.solutionPlan.push([flatPlan[i], flatPlan[i + 1]]);
+    }
+    state.moves = previous.moves;
+    state.shuffles = previous.shuffles;
+    state.status = previous.status;
     elapsedMs = previous.elapsedMs;
     selected = null; clearHint(); ui.result.hidden = true;
     focusId = E.freeIds(state)[0] ?? null;
@@ -333,8 +365,9 @@
   ui.zoomFit.addEventListener('click', () => setZoom(0));
 
   document.addEventListener('keydown', event => {
-    if (event.target instanceof Element && event.target.matches('input, select, textarea')) return;
+    if (event.target instanceof Element && (event.target.matches('input, select, textarea, a') || (event.target.matches('button') && !event.target.matches('#board .tile')))) return;
     const key = event.key.toLowerCase();
+    if (!ui.result.hidden) return;
     if (key === 'escape') { if (selected != null) { selected = null; clearHint(); render(); say('Auswahl aufgehoben.'); } return; }
     if (key === 'h') { event.preventDefault(); showHint(); }
     else if (key === 'm') { event.preventDefault(); shuffleRemaining(); }
@@ -363,7 +396,9 @@
       pairs: E.matchingPairs(state).length,
       status: state.status,
       seed: state.seed,
-      zoom: ZOOM_LEVELS[zoomIndex]
+      zoom: ZOOM_LEVELS[zoomIndex],
+      undoDepth: history.length,
+      undoBytes: JSON.stringify(history).length
     }),
     newGame: seed => newGame(seed),
     shuffleRemaining,

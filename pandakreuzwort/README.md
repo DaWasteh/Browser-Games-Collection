@@ -5,6 +5,22 @@ Abhängigkeiten. Die kompakten Raster verwenden sichtbare dunkle Sperrfelder,
 weiße Buchstabenfelder sowie getrennte Hinweise für **waagrecht** und
 **senkrecht**. Wählbar sind Deutsch und Bairisch sowie vier Schwierigkeitsgrade.
 
+## Neu in v1.6
+
+- Wortbank auf **659 redaktionelle Einträge** erweitert
+  - 576 standarddeutsche Antworten
+  - 83 bairische Antworten mit Region und standarddeutscher Bedeutung
+- Datensatzversion `2026-08-v1.6`; gespeicherte Raster werden weiterhin aus Seed,
+  Sprachprofil und Version reproduzierbar neu erzeugt und validiert
+- die vollständige v1.5-Wortbank bleibt als eingefrorener Kompatibilitätssatz
+  enthalten, damit laufende v1.5-Rätsel samt Eingaben, Hinweisen und Timer fortbestehen
+- aktive Worteingabe wird während des Tippens nicht mehr mit `·`-Platzhaltern
+  überschrieben; Cursorposition und fortlaufende Eingabe bleiben stabil
+- IME-Komposition (unter anderem Bildschirmtastatur und Spracheingabe) wird erst
+  nach `compositionend` ins Raster übernommen
+- Generator-, Qualitäts-, Profil-, Speicher- und Browsertests decken die größere
+  Wortbank sowie Cursor-/IME-Regressionen ab
+
 ## Neu in v1.5
 
 - Wortbank von 189 auf **464 redaktionelle Einträge** erweitert

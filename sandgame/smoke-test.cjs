@@ -84,11 +84,15 @@ assert.match(source, /nearestMaterialCache/);
 assert.match(source, /new Map\(\)/);
 
 // Markup/Touch-Verträge.
-assert.match(html, /<canvas id="c" role="img"/);
+assert.match(html, /<canvas id="c" role="application"[^>]+tabindex="0"/);
+assert.match(html, /id="keyboard-cursor"/);
+assert.match(html, /id="canvas-status"[^>]+aria-live="polite"/);
+assert.match(source, /function updateKeyboardCursor/);
+assert.match(source, /function bindCanvasPointerInput/);
 assert.match(html, /id="gpuToggle"/);
 assert.match(html, /id="gpuStatus"/);
 assert.match(html, /@media \(max-width: 720px\)[\s\S]*button \{ min-height: 44px/);
 assert.match(html, /prefers-reduced-motion/);
 assert.doesNotMatch(html, /<script[^>]+src=/, 'keine externen Scripts');
 
-console.log('smoke ok (Tickbudget, Crop, Zellreset, Wind-Aktivliste, Fallback, Pointer, Resize)');
+console.log('smoke ok (Tickbudget, Crop, Zellreset, Wind-Aktivliste, Fallback, Pointer/Tastatur, Resize)');

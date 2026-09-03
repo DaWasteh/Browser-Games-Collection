@@ -355,7 +355,7 @@
         <div class="ai-score" id="ai-score-container"><span id="ai-score-label">CPU</span>: <span id="ai-score">0</span></div>
     </div>
     <div id="controls-info">
-        <strong>Spieler 1:</strong> Maus/Touch links | <strong>Spieler 2 (2P):</strong> Pfeiltasten ↑↓ oder Touch rechts<br>
+        <strong>Spieler 1:</strong> Maus/Touch links oder W/S | <strong>Spieler 2 (2P):</strong> Pfeiltasten ↑↓ oder Touch rechts<br>
         Erst wer 5 Punkte erreicht, gewinnt!
     </div>
 
@@ -447,6 +447,7 @@
         const FIXED_DT = 1000 / 60;
         let lastFrameTime = 0;
         let simAccumulator = 0;
+        const keyboard = { p1Up: false, p1Down: false, p2Up: false, p2Down: false };
 
         // === Sounds ===
         // Zuverlässige, assetfreie Töne via WebAudio (die alten data:-URIs endeten
@@ -721,6 +722,11 @@
         }
 
         function movePlayer1() {
+            // Im 2P-Modus ermöglichen W/S eine kontinuierliche Tastatursteuerung.
+            if (gameMode === '2p') {
+                const direction = Number(keyboard.p1Down) - Number(keyboard.p1Up);
+                if (direction) player1.targetY = player1.y + player1.height / 2 + direction * 70;
+            }
             // Bewegung zuerst, dann beschneiden (verhindert einframigen Überstand).
             const diff = player1.targetY - (player1.y + player1.height / 2);
             player1.y += diff * 0.1;
@@ -777,6 +783,8 @@
             } else {
                 // 2-player mode movement
                 const center = player2.y + player2.height / 2;
+                const direction = Number(keyboard.p2Down) - Number(keyboard.p2Up);
+                if (direction) player2.targetY = center + direction * 70;
                 const diff = player2.targetY - center;
                 player2.y += diff * 0.1; // Smooth movement
                 
@@ -886,6 +894,7 @@
             player2.y = canvas.height / 2 - player2.height / 2;
             player1.targetY = player1.y + player1.height / 2;
             player2.targetY = player2.y + player2.height / 2;
+            clearKeyboardInput();
 
             resetBall();
             // Menü-/Ergebniszeit darf beim Replay nicht als Catch-up in den
@@ -1036,22 +1045,26 @@
             }
             if (!gameRunning || gameMode !== '2p') return;
 
-            // targetY = gewünschte Paddle-Mitte, damit ↑ und ↓ beide funktionieren.
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                player2.targetY = player2.y + player2.height / 2 - 60;
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                player2.targetY = player2.y + player2.height / 2 + 60;
-            }
+            if (e.key === 'w' || e.key === 'W') keyboard.p1Up = true;
+            else if (e.key === 's' || e.key === 'S') keyboard.p1Down = true;
+            else if (e.key === 'ArrowUp') { e.preventDefault(); keyboard.p2Up = true; }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); keyboard.p2Down = true; }
         }
 
         function handleKeyUp(e) {
-            if (!gameRunning || gameMode !== '2p') return;
+            if (e.key === 'w' || e.key === 'W') keyboard.p1Up = false;
+            else if (e.key === 's' || e.key === 'S') keyboard.p1Down = false;
+            else if (e.key === 'ArrowUp') keyboard.p2Up = false;
+            else if (e.key === 'ArrowDown') keyboard.p2Down = false;
 
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                player2.targetY = player2.y + player2.height / 2;
-            }
+            if (!keyboard.p1Up && !keyboard.p1Down) player1.targetY = player1.y + player1.height / 2;
+            if (!keyboard.p2Up && !keyboard.p2Down) player2.targetY = player2.y + player2.height / 2;
+        }
+
+        function clearKeyboardInput() {
+            keyboard.p1Up = keyboard.p1Down = keyboard.p2Up = keyboard.p2Down = false;
+            player1.targetY = player1.y + player1.height / 2;
+            player2.targetY = player2.y + player2.height / 2;
         }
 
         function handleTouchStart(e) {
@@ -1150,6 +1163,7 @@
         canvas.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('keydown', handleKeyDown);
         document.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('blur', clearKeyboardInput);
         canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
         canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
         canvas.addEventListener('touchend', handleTouchEnd);

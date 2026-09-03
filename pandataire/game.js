@@ -243,7 +243,8 @@
       btn.className = cls;
       btn.disabled = card.removed || !free || state.status !== 'playing';
       btn.setAttribute('aria-label', cardLabel(card));
-      btn.setAttribute('aria-pressed', state.selectedId === card.id ? 'true' : 'false');
+      if (ruleset.playStyle === 'pair') btn.setAttribute('aria-pressed', state.selectedId === card.id ? 'true' : 'false');
+      else btn.removeAttribute('aria-pressed');
       btn.replaceChildren();
       if (!card.removed && !faceDown) {
         var r = document.createElement('span');

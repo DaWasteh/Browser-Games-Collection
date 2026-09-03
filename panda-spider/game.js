@@ -154,7 +154,9 @@
       column.forEach((card, index) => { wrapper.append(makeCardButton(card, columnIndex, index, top)); top += card.faceUp ? 2.05 : 1.05; });
       maximumHeight = Math.max(maximumHeight, top + 4.5);
       wrappers.push(wrapper);
-      wrapper.addEventListener('click', event => { if (event.target === wrapper && state.selected) moveTo(columnIndex); });
+      wrapper.addEventListener('click', event => {
+        if (state.selected && !event.target.closest('.card')) moveTo(columnIndex);
+      });
       wrapper.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && state.selected) { event.preventDefault(); moveTo(columnIndex); } });
       els.tableau.append(wrapper);
     });

@@ -1074,7 +1074,12 @@ class Game {
   }
 
   bindUI(){
-    $('btn-start').addEventListener('click',()=>{ this.sfx.ac(); hide('intro-overlay'); this.world.begin(); });
+    $('btn-start').addEventListener('click',()=>{
+      this.sfx.ac();
+      this.paused=false; setTxt('btn-pause','⏸');
+      this.last=performance.now(); this.acc=0;
+      hide('intro-overlay'); this.world.begin();
+    });
     $('btn-retry').addEventListener('click',()=>this.loadLevel(this.level,false));
     $('btn-next').addEventListener('click',()=>this.loadLevel(Math.min(LEVELS.length-1,this.level+1),true));
     $('btn-again').addEventListener('click',()=>{
@@ -1242,7 +1247,7 @@ class Game {
     if(!panda){ this.cyclePanda(1); return; }
     if(this.world.canAssign(panda,this.selected)){
       this.world.assign(panda,this.selected); this.refreshSkills(); this.refreshHUD();
-      this.announceGame(`${SKILL_DE[this.selected][1]} an Panda ${panda.id+1} vergeben.`);
+      this.announceGame(`${SKILL_DE[this.selected][1]} an Panda ${panda.id} vergeben.`);
     }else{
       this.sfx.play('no'); this.announceGame(`${SKILL_DE[this.selected][1]} kann diesem Panda gerade nicht zugewiesen werden.`);
     }
@@ -1288,6 +1293,10 @@ class Game {
   }
 
   togglePause(){
+    if(!this.world||!this.world.started||this.world.finished||overlayOpen()){
+      this.announceGame('Pause ist erst während eines laufenden Levels verfügbar.');
+      return;
+    }
     this.paused=!this.paused;
     setTxt('btn-pause',this.paused?'▶':'⏸');
     if(!this.paused){ this.last=performance.now(); this.acc=0; }
@@ -1377,7 +1386,7 @@ class Game {
     ctx.beginPath(); ctx.arc(panda.x+PW/2,panda.y+PH/2,12,0,TAU); ctx.stroke();
     ctx.fillStyle='rgba(8,12,18,.85)'; ctx.fillRect(panda.x-2,panda.y-16,22,12);
     ctx.fillStyle='#ffe2ad'; ctx.font='bold 8px system-ui,sans-serif'; ctx.textAlign='center';
-    ctx.fillText('P'+(panda.id+1),panda.x+9,panda.y-7); ctx.textAlign='left';
+    ctx.fillText('P'+panda.id,panda.x+9,panda.y-7); ctx.textAlign='left';
     ctx.restore();
   }
 

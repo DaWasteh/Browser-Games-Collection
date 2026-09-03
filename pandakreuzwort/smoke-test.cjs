@@ -5,6 +5,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const L = require('./pandakreuzwort-logic.js');
 const DATA = require('./pandakreuzwort-data.js');
 
@@ -32,11 +33,20 @@ const dv = L.validateDataset(DATA);
 assert.equal(dv.ok, true, 'Dataset gültig: ' + JSON.stringify(dv.errors));
 const deEntries = DATA.entries.filter(e => e.language === 'de');
 const barEntries = DATA.entries.filter(e => e.language === 'bar');
-assert.ok(deEntries.length >= 380, 'mindestens 380 Deutsch-Einträge (' + deEntries.length + ')');
+assert.ok(deEntries.length >= 570, 'deutlich erweiterte deutsche Wortbank (' + deEntries.length + ')');
 assert.ok(barEntries.length >= 80, 'mindestens 80 Bairisch-Einträge (' + barEntries.length + ')');
-assert.ok(DATA.entries.length >= 460, 'mindestens 460 Einträge insgesamt (' + DATA.entries.length + ')');
+assert.ok(DATA.entries.length >= 650, 'mindestens 650 Einträge insgesamt (' + DATA.entries.length + ')');
+assert.equal(DATA.datasetVersion, '2026-08-v1.6', 'Wortbank-Version v1.6');
 assert.equal(DATA.schemaVersion, 2, 'redaktionelles Datenschema v2');
 assert.ok(DATA.editorialPolicy && DATA.editorialPolicy.normalization, 'Editorial Policy dokumentiert');
+const legacyV15 = DATA.legacyDatasets && DATA.legacyDatasets['2026-08-v1.5'];
+assert.ok(Array.isArray(legacyV15) && Object.isFrozen(legacyV15), 'v1.5-Wortbank für bestehende Speicherstände eingefroren');
+assert.equal(legacyV15.length, 464, 'v1.5-Wortbank bleibt vollständig');
+const legacyDigest = crypto.createHash('sha256').update(JSON.stringify(legacyV15.map(e => [
+    e.id, e.language, e.displayAnswer, e.gridAnswer, e.clue, e.difficulty,
+    e.allowedProfiles, e.region || '', e.standardGerman || ''
+]))).digest('hex');
+assert.equal(legacyDigest, '8a0bf84dd499fd5329692d83ab6e5fc149a4ebe7a466a955248b15a83fd3898e', 'v1.5-Wortbank-Reihenfolge/Inhalt historisch stabil');
 
 // Eindeutige IDs und Antworten, NFC, erlaubte Grapheme, Hinweis vorhanden,
 // reviewed, ausschließlich project-editorial; Bairisch mit Region + Standarddeutsch.
@@ -328,6 +338,11 @@ assert.match(uiJs, /scheduleSave/, 'Eingaben werden entprellt persistiert (sched
 assert.match(uiJs, /pagehide/, 'pagehide sichert ausstehende Eingaben');
 assert.match(uiJs, /flushSave/, 'flushSave leert den Entprell-Timer');
 assert.match(uiJs, /parseWordDraft/, 'positionssichere Wort-Eingabe vorhanden');
+assert.match(uiJs, /document\.activeElement === wordInput/, 'aktive Wort-Eingabe wird nicht mit Platzhaltern überschrieben');
+assert.match(uiJs, /compositionstart/, 'IME-Komposition wird berücksichtigt');
+assert.match(uiJs, /DATA\.legacyDatasets\[data\.datasetVersion\]/, 'v1.5-Speicherstände nutzen ihre eingefrorene Wortbank');
+assert.match(uiJs, /activeDatasetVersion/, 'aktive Speicher-/Generatorversion bleibt am sichtbaren Rätsel');
+assert.match(uiJs, /seed = puzzle\.seed/, 'Neustart während ausstehender Generierung übernimmt keine fremde Metadaten');
 assert.match(uiJs, /saveVersion: 3/, 'minimales Speicherschema v3');
 assert.doesNotMatch(uiJs, /placements:\s*puzzle\.placements/, 'abgeleitete Platzierungen werden nicht gespeichert');
 // Won-Status und verstrichene Zeit werden persistiert (status-Feld im Save).

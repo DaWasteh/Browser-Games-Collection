@@ -17,6 +17,7 @@
     var modeLabelEl = document.getElementById('mode-label');
     var modeDailyBtn = document.getElementById('mode-daily');
     var modeRandomBtn = document.getElementById('mode-random');
+    var hardModeBtn = document.getElementById('hard-mode');
     var restartBtn = document.getElementById('restart-btn');
     var helpBtn = document.getElementById('help-btn');
     var statsBtn = document.getElementById('stats-btn');
@@ -32,7 +33,10 @@
 
     // --- localStorage (defensiv, Safari-Privatmodus wirft) ---
     var LS_STATS = 'texttl_stats';
+    var LS_STATS_BASE = 'texttl_stats_base_v1';
+    var LS_RESULT_PREFIX = 'texttl_result_v1:';
     var LS_DAILY = 'texttl_daily';
+    var LS_HARD = 'texttl_hard_mode';
     function lsGet(key) {
         try { return window.localStorage.getItem(key); } catch (e) { return null; }
     }
@@ -43,18 +47,92 @@
         try { window.localStorage.removeItem(key); } catch (e) { return false; }
     }
 
-    function loadStats() {
-        var raw = lsGet(LS_STATS);
+    function parseStats(raw) {
         if (!raw) return L.emptyStats();
+        try { return L.cloneStats(JSON.parse(raw)); }
+        catch (e) { return L.emptyStats(); }
+    }
+
+    function ensureStatsBase() {
+        var raw = lsGet(LS_STATS_BASE);
+        if (raw) return parseStats(raw);
+        // Einmalige Migration: Die bisherige Aggregat-Statistik wird zur Basis;
+        // neue Resultate liegen kollisionsfrei in je einem eigenen Storage-Key.
+        var base = parseStats(lsGet(LS_STATS));
+        lsSet(LS_STATS_BASE, JSON.stringify(base));
+        return base;
+    }
+
+    function loadResultEvents() {
+        var randomEvents = [];
+        var dailyEvents = Object.create(null);
         try {
-            var parsed = JSON.parse(raw);
-            return L.cloneStats(parsed); // validiert & ergänzt Felder
-        } catch (e) {
-            return L.emptyStats();
+            for (var i = 0; i < window.localStorage.length; i++) {
+                var key = window.localStorage.key(i);
+                if (!key || key.indexOf(LS_RESULT_PREFIX) !== 0) continue;
+                var event;
+                try { event = JSON.parse(window.localStorage.getItem(key)); }
+                catch (_parseError) { continue; }
+                if (!event || (event.mode !== 'daily' && event.mode !== 'random')) continue;
+                if (typeof event.won !== 'boolean' || !Number.isInteger(event.attempts) || event.attempts < 1 || event.attempts > MAX_ROWS) continue;
+                if (event.mode === 'daily') {
+                    if (!Number.isFinite(event.dayKey)) continue;
+                    // Mehrere Tabs dürfen dasselbe Tagesrätsel unabhängig beenden.
+                    // Pro Tag zählt deterministisch ein Sieg (mit dem besten
+                    // Versuch) vor einer Niederlage – niemals die Ankunftsreihenfolge.
+                    var previous = dailyEvents[event.dayKey];
+                    if (!previous || (event.won && !previous.won) ||
+                        (event.won === previous.won && event.attempts < previous.attempts)) {
+                        dailyEvents[event.dayKey] = event;
+                    }
+                } else {
+                    randomEvents.push(event);
+                }
+            }
+        } catch (e) { return []; }
+        randomEvents.sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+        var days = Object.keys(dailyEvents).map(Number).sort(function (a, b) { return a - b; });
+        for (var d = 0; d < days.length; d++) randomEvents.push(dailyEvents[days[d]]);
+        return randomEvents;
+    }
+
+    function loadStats() {
+        var base = ensureStatsBase();
+        var stats = L.cloneStats(base);
+        var events = loadResultEvents();
+        for (var i = 0; i < events.length; i++) {
+            var event = events[i];
+            // Die migrierte Basis enthält bereits alle Tageswertungen bis zu
+            // ihrem letzten Tag. Ältere Event-Keys dürfen sie nicht doppeln.
+            if (event.mode === 'daily' && base.dailySolvedKey != null && event.dayKey <= base.dailySolvedKey) continue;
+            stats = L.recordResult(stats, event);
         }
+        return stats;
     }
     function saveStats(stats) {
-        return lsSet(LS_STATS, JSON.stringify(stats));
+        return lsSet(LS_STATS, JSON.stringify(stats)); // abwärtskompatibler Cache
+    }
+
+    function recordStatsResult(options, gameId) {
+        // Tagesresultate verwenden getrennte, unveränderliche Keys pro Ausgang.
+        // So kann kein Tab den Ausgang eines anderen Tabs überschreiben; der
+        // Reducer oben wählt anschließend unabhängig von der Schreibreihenfolge.
+        var identity = options.mode === 'daily'
+            ? ('daily-' + options.dayKey + '-' + (options.won ? 'win' : 'loss') + '-' + options.attempts)
+            : String(gameId || ('legacy-' + Date.now()));
+        var eventKey = LS_RESULT_PREFIX + identity;
+        if (lsGet(eventKey) === null) {
+            lsSet(eventKey, JSON.stringify({
+                mode: options.mode,
+                won: !!options.won,
+                attempts: options.attempts,
+                dayKey: options.mode === 'daily' ? options.dayKey : null,
+                createdAt: Date.now()
+            }));
+        }
+        var stats = loadStats();
+        saveStats(stats);
+        return stats;
     }
 
     function loadDaily() {
@@ -77,10 +155,19 @@
         if (saved.status === 'lost') {
             if (guesses.length !== MAX_ROWS || solvedAt !== -1) return null;
         }
-        return { key: key, puzzleNumber: saved.puzzleNumber, solution: solution, guesses: guesses, status: saved.status };
+        // Knifflig darf auch erst mitten in einer Partie aktiviert werden.
+        // Frühere freie Versuche deshalb beim Laden nicht rückwirkend ablehnen.
+        var hardMode = saved.hardMode === true;
+        return { key: key, puzzleNumber: saved.puzzleNumber, solution: solution, guesses: guesses, status: saved.status, hardMode: hardMode };
     }
-    function saveDaily(state) {
+    function saveDaily(state, force) {
         if (!state) return lsRemove(LS_DAILY);
+        if (!force && state.status !== 'won') {
+            var existing = validateDailySave(loadDaily(), state.key, state.solution);
+            // Ein später abschließender Verlust oder Zwischenstand aus einem
+            // anderen Tab darf einen bereits gespeicherten Sieg nicht herabstufen.
+            if (existing && existing.status === 'won') return true;
+        }
         return lsSet(LS_DAILY, JSON.stringify(state));
     }
 
@@ -94,12 +181,24 @@
         keyStates: Object.create(null), // Buchstabe -> 'correct'|'present'|'absent'
         dailyKey: null,             // epochDays für Tagesmodus
         puzzleNumber: null,         // kosmetisch
+        hardMode: lsGet(LS_HARD) === '1', // aufgedeckte Hinweise sind verpflichtend
+        gameId: '',                 // idempotenter Statistik-Event-Key je Partie
         accepting: true             // Eingaben erlaubt?
     };
     var lastGame = null;            // {mode,puzzleNumber,won,attempts,rows,solution} für Teilen
     var overlayReturnFocus = null;
     var toastTimer = null;
     var gameVersion = 0;            // invalidiert ausstehende Animations-Timer bei Neustart/Moduswechsel
+
+    function newGameId() {
+        try {
+            var values = new Uint32Array(2);
+            window.crypto.getRandomValues(values);
+            return 'random-' + values[0].toString(36) + '-' + values[1].toString(36);
+        } catch (e) {
+            return 'random-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9);
+        }
+    }
 
     // --- Bewegungs-Präferenz ---
     var reducedMotion = false;
@@ -253,6 +352,13 @@
         var stats = loadStats();
         hudStreakEl.textContent = String(stats.currentStreak || 0);
         hudWinsEl.textContent = String(stats.won || 0);
+        hardModeBtn.setAttribute('aria-pressed', state.hardMode ? 'true' : 'false');
+        hardModeBtn.textContent = state.hardMode ? '◆ Knifflig' : '◇ Knifflig';
+        var resolving = state.status === 'playing' && !state.accepting;
+        hardModeBtn.disabled = resolving;
+        restartBtn.disabled = resolving;
+        modeDailyBtn.disabled = resolving;
+        modeRandomBtn.disabled = resolving;
     }
 
     // ============================================================
@@ -297,6 +403,10 @@
             flashError('Nicht im Wörterbuch');
             return;
         }
+        if (state.hardMode && state.guesses.length) {
+            var violation = L.hardModeViolation(guess, state.guesses, state.solution);
+            if (violation) { flashError(violation); return; }
+        }
 
         var grades = L.evaluate(guess, state.solution);
         var version = gameVersion;
@@ -307,6 +417,7 @@
         state.guesses.push(guess);
         state.current = [];
         state.accepting = false;
+        renderHud();
         if (state.mode === 'daily') {
             var committedStatus = L.isWin(grades) ? 'won' : (state.guesses.length >= MAX_ROWS ? 'lost' : 'playing');
             saveDaily({
@@ -314,7 +425,8 @@
                 puzzleNumber: state.puzzleNumber,
                 solution: state.solution,
                 guesses: state.guesses.slice(),
-                status: committedStatus
+                status: committedStatus,
+                hardMode: state.hardMode
             });
         }
         animateRow(rowIndex, grades, letters, version, function () {
@@ -381,20 +493,12 @@
         state.accepting = false;
         var attempts = state.guesses.length;
 
-        var stats = loadStats();
-        var already = (state.mode === 'daily')
-            ? L.dailyAlreadySolved(stats, state.dailyKey)
-            : false;
-
-        if (!already) {
-            stats = L.recordResult(stats, {
-                mode: state.mode,
-                won: won,
-                attempts: attempts,
-                dayKey: (state.mode === 'daily') ? state.dailyKey : null
-            });
-            saveStats(stats);
-        }
+        var stats = recordStatsResult({
+            mode: state.mode,
+            won: won,
+            attempts: attempts,
+            dayKey: (state.mode === 'daily') ? state.dailyKey : null
+        }, state.gameId);
 
         // rows für Teilen (jeweils Bewertung pro Versuch)
         var rows = state.guesses.map(function (g) { return L.evaluate(g, state.solution); });
@@ -404,7 +508,8 @@
             won: won,
             attempts: attempts,
             rows: rows,
-            solution: state.solution
+            solution: state.solution,
+            hardMode: state.hardMode
         };
 
         if (state.mode === 'daily') {
@@ -413,7 +518,8 @@
                 puzzleNumber: state.puzzleNumber,
                 solution: state.solution,
                 guesses: state.guesses.slice(),
-                status: state.status
+                status: state.status,
+                hardMode: state.hardMode
             });
         }
 
@@ -565,7 +671,8 @@
             puzzleNumber: lastGame.puzzleNumber,
             won: lastGame.won,
             attempts: lastGame.attempts,
-            rows: lastGame.rows
+            rows: lastGame.rows,
+            hardMode: lastGame.hardMode
         });
         copyToClipboard(text).then(function (ok) {
             announce(ok ? 'In die Zwischenablage kopiert!' : 'Kopieren fehlgeschlagen – Text zum Teilen in der Statusmeldung.');
@@ -614,13 +721,19 @@
         state.accepting = true;
     }
 
+    function isResolvingGuess() {
+        return state.status === 'playing' && !state.accepting;
+    }
+
     function startDaily() {
+        if (isResolvingGuess()) { announce('Bitte warte kurz, bis der Versuch ausgewertet ist.'); return; }
         gameVersion++;
         state.mode = 'daily';
         var now = new Date();
         state.dailyKey = L.dayKey(now);
         state.puzzleNumber = L.puzzleNumber(now);
         state.solution = L.dailyWord(now);
+        state.gameId = 'daily-' + state.dailyKey;
 
         var saved = validateDailySave(loadDaily(), state.dailyKey, state.solution);
         if (saved) {
@@ -628,6 +741,8 @@
             state.guesses = saved.guesses.slice();
             state.current = [];
             state.status = saved.status;
+            state.hardMode = saved.hardMode;
+            lsSet(LS_HARD, state.hardMode ? '1' : '0');
             state.accepting = (state.status === 'playing');
             // keyStates aus gespeicherten guesses ableiten
             state.keyStates = Object.create(null);
@@ -644,13 +759,9 @@
             if (state.status !== 'playing') {
                 // Ein Reload während der letzten Flip-Animation darf den bereits
                 // atomar gespeicherten Endstand nicht aus der Statistik verlieren.
-                var restoredStats = loadStats();
-                if (!L.dailyAlreadySolved(restoredStats, state.dailyKey)) {
-                    restoredStats = L.recordResult(restoredStats, {
-                        mode: 'daily', won: state.status === 'won', attempts: state.guesses.length, dayKey: state.dailyKey
-                    });
-                    saveStats(restoredStats);
-                }
+                recordStatsResult({
+                    mode: 'daily', won: state.status === 'won', attempts: state.guesses.length, dayKey: state.dailyKey
+                }, state.gameId);
                 // lastGame wiederherstellen, damit Teilen funktioniert
                 lastGame = {
                     mode: 'daily',
@@ -658,7 +769,8 @@
                     won: state.status === 'won',
                     attempts: state.guesses.length,
                     rows: state.guesses.map(function (g) { return L.evaluate(g, state.solution); }),
-                    solution: state.solution
+                    solution: state.solution,
+                    hardMode: state.hardMode
                 };
                 announce(state.status === 'won'
                     ? 'Tagesrätsel bereits gelöst. Morgen gibt es ein neues Wort.'
@@ -674,7 +786,8 @@
                 puzzleNumber: state.puzzleNumber,
                 solution: state.solution,
                 guesses: [],
-                status: 'playing'
+                status: 'playing',
+                hardMode: state.hardMode
             });
             renderAll();
             modeLabelEl.textContent = 'Tagesrätsel #' + (state.puzzleNumber || '') + ' · 5 Buchstaben · 6 Versuche';
@@ -684,9 +797,11 @@
     }
 
     function startRandom() {
+        if (isResolvingGuess()) { announce('Bitte warte kurz, bis der Versuch ausgewertet ist.'); return; }
         gameVersion++;
         state.mode = 'random';
         state.solution = L.randomWord();
+        state.gameId = newGameId();
         state.dailyKey = null;
         state.puzzleNumber = null;
         resetBoardState();
@@ -697,10 +812,14 @@
     }
 
     function restartCurrent() {
+        // Die letzte Flip-Sequenz muss erst ihren atomar gespeicherten Endstand
+        // verbuchen, bevor ein Neustart den Tages-Speicher überschreiben darf.
+        if (isResolvingGuess()) { announce('Bitte warte kurz, bis der Versuch ausgewertet ist.'); return; }
         // Gleiche Lösung noch einmal üben (keine Statistikänderung beim bloßen Reset).
         if (!state.solution) return;
         gameVersion++;
         resetBoardState();
+        state.gameId = state.mode === 'daily' ? ('daily-' + state.dailyKey) : newGameId();
         if (state.mode === 'daily') {
             // Auch nach Reload bleibt der Neustart frisch; die Statistik wird
             // ausschließlich in finishGame/recordResult verändert.
@@ -709,13 +828,34 @@
                 puzzleNumber: state.puzzleNumber,
                 solution: state.solution,
                 guesses: [],
-                status: 'playing'
-            });
+                status: 'playing',
+                hardMode: state.hardMode
+            }, true);
         }
         lastGame = null;
         hideOverlay();
         renderAll();
         announce('Neustart – dasselbe Wort, frische Versuche.');
+    }
+
+    function toggleHardMode() {
+        if (isResolvingGuess()) { announce('Bitte warte kurz, bis der Versuch ausgewertet ist.'); return; }
+        state.hardMode = !state.hardMode;
+        lsSet(LS_HARD, state.hardMode ? '1' : '0');
+        if (state.mode === 'daily' && state.status === 'playing') {
+            saveDaily({
+                key: state.dailyKey,
+                puzzleNumber: state.puzzleNumber,
+                solution: state.solution,
+                guesses: state.guesses.slice(),
+                status: state.status,
+                hardMode: state.hardMode
+            });
+        }
+        renderHud();
+        announce(state.hardMode
+            ? 'Knifflig aktiv: Alle grünen und gelben Hinweise sind verpflichtend.'
+            : 'Knifflig aus: Freies Raten ist wieder erlaubt.');
     }
 
     function setModeButtons(mode) {
@@ -793,6 +933,7 @@
             startRandom();
         });
         restartBtn.addEventListener('click', restartCurrent);
+        hardModeBtn.addEventListener('click', toggleHardMode);
 
         helpBtn.addEventListener('click', function () {
             rulesEl.open = !rulesEl.open;

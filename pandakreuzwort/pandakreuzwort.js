@@ -9,6 +9,8 @@
     if (typeof window === 'undefined') return;
     var L = window.PandakreuzwortLogic;
     var DATA = window.PandakreuzwortData;
+    var activeEntries = DATA.entries;
+    var activeDatasetVersion = DATA.datasetVersion;
     var $ = function (id) { return document.getElementById(id); };
 
     var KEYBOARD_ROWS = [
@@ -35,6 +37,7 @@
     var clueButtons = { across: [], down: [] };
     var genToken = 0;
     var elapsed = 0, runningSince = null, timerId = null;
+    var composingWord = false;
 
     // DOM-Referenzen
     var boardEl, messageEl, wordInput, wordLabel, keyboardEl, acrossList, downList;
@@ -411,8 +414,8 @@
         return slots;
     }
 
-    function onWordInput() {
-        if (status !== 'playing') return;
+    function onWordInput(event) {
+        if (status !== 'playing' || composingWord || (event && event.isComposing)) return;
         var pl = activePlacement();
         if (!pl) return;
         var cells = placementCells(pl);
@@ -423,13 +426,16 @@
             else delete board[k];
             delete errors[k];
         }
-        syncWordInput();
+        // Während der Nutzer tippt, darf der Eingabewert nicht mit Platzhaltern
+        // zurückgeschrieben werden: Das würde den Cursor ans Ende versetzen und IME
+        // (z. B. Bildschirmtastaturen oder Spracheingabe) unterbrechen.
         render();
         checkWin();
         scheduleSave();
     }
 
-    function syncWordInput() {
+    function syncWordInput(force) {
+        if (!force && document.activeElement === wordInput) return;
         var pl = activePlacement();
         if (!pl) { wordInput.value = ''; wordInput.removeAttribute('maxlength'); wordLabel.textContent = 'Aktuelles Wort vollständig eingeben'; return; }
         var cells = placementCells(pl);
@@ -509,6 +515,17 @@
     function restart() {
         genToken++;
         if (!puzzle) return;
+        // Falls gerade eine neue asynchrone Generierung angefordert wurde,
+        // gehört „Neustart“ weiterhin zum tatsächlich sichtbaren Rätsel.
+        seed = puzzle.seed;
+        language = puzzle.language;
+        difficulty = puzzle.difficulty;
+        activeDatasetVersion = puzzle.datasetVersion;
+        activeEntries = activeDatasetVersion === DATA.datasetVersion
+            ? DATA.entries
+            : DATA.legacyDatasets[activeDatasetVersion];
+        $('lang-select').value = language;
+        for (var profile of L.PROFILE_NAMES) $('diff-' + profile).setAttribute('aria-pressed', String(profile === difficulty));
         board = {}; errors = {}; hinted = {};
         selected = null; direction = 'across';
         hintsLeft = L.PROFILES[difficulty].hints; hintsUsed = 0; mistakes = 0;
@@ -535,6 +552,8 @@
     function newGame(newSeed) {
         if (newSeed == null) newSeed = generateSeed();
         seed = newSeed;
+        activeEntries = DATA.entries;
+        activeDatasetVersion = DATA.datasetVersion;
         generate();
     }
 
@@ -545,17 +564,17 @@
             if (token !== genToken) return;
             var p = L.generatePuzzle({
                 seed: seed, language: language, difficulty: difficulty,
-                entries: DATA.entries, datasetVersion: DATA.datasetVersion
+                entries: activeEntries, datasetVersion: activeDatasetVersion
             });
-            var v = L.validatePuzzle(p, DATA.entries);
+            var v = L.validatePuzzle(p, activeEntries);
             if (!v.ok || !p.qualityPassed) {
                 // Sicherheitsnetz: sollte nie passieren; Fallback mit anderem Seed.
                 seed = generateSeed();
                 p = L.generatePuzzle({
                     seed: seed, language: language, difficulty: difficulty,
-                    entries: DATA.entries, datasetVersion: DATA.datasetVersion
+                    entries: activeEntries, datasetVersion: activeDatasetVersion
                 });
-                v = L.validatePuzzle(p, DATA.entries);
+                v = L.validatePuzzle(p, activeEntries);
                 if (!v.ok || !p.qualityPassed) {
                     // Beide Versuche ungültig → sicher scheitern, kein kaputtes Rätsel zeigen.
                     announce('Rätselgenerierung fehlgeschlagen. Bitte „Neues Spiel“ starten.');
@@ -603,7 +622,7 @@
             var data = {
                 saveVersion: 3,
                 seed: seed, language: language, difficulty: difficulty,
-                datasetVersion: DATA.datasetVersion, generatorVersion: L.GENERATOR_VERSION,
+                datasetVersion: activeDatasetVersion, generatorVersion: L.GENERATOR_VERSION,
                 board: board, errors: errors, hinted: hinted,
                 selected: selected ? { r: selected.r, c: selected.c } : null,
                 direction: direction,
@@ -631,7 +650,16 @@
             var raw = window.localStorage.getItem(STORAGE_KEY);
             if (!raw) return false;
             var data = JSON.parse(raw);
-            if (!data || data.saveVersion !== 3 || data.datasetVersion !== DATA.datasetVersion || data.generatorVersion !== L.GENERATOR_VERSION) return false;
+            if (!data || data.saveVersion !== 3 || data.generatorVersion !== L.GENERATOR_VERSION) return false;
+            if (data.datasetVersion === DATA.datasetVersion) {
+                activeEntries = DATA.entries;
+                activeDatasetVersion = DATA.datasetVersion;
+            } else if (DATA.legacyDatasets && Array.isArray(DATA.legacyDatasets[data.datasetVersion])) {
+                activeEntries = DATA.legacyDatasets[data.datasetVersion];
+                activeDatasetVersion = data.datasetVersion;
+            } else {
+                return false;
+            }
             if (typeof data.seed !== 'string' || !data.seed || data.seed.length > 128) return false;
             language = data.language === 'bar' ? 'bar' : data.language === 'de' ? 'de' : '';
             difficulty = L.PROFILES[data.difficulty] ? data.difficulty : '';
@@ -639,9 +667,9 @@
             seed = data.seed;
             puzzle = L.generatePuzzle({
                 seed: seed, language: language, difficulty: difficulty,
-                entries: DATA.entries, datasetVersion: DATA.datasetVersion
+                entries: activeEntries, datasetVersion: activeDatasetVersion
             });
-            var validation = L.validatePuzzle(puzzle, DATA.entries);
+            var validation = L.validatePuzzle(puzzle, activeEntries);
             if (!validation.ok || !puzzle.qualityPassed) return false;
 
             board = {}; errors = {}; hinted = {};
@@ -770,14 +798,20 @@
         $('help-close').addEventListener('click', function () { $('help').hidden = true; });
         $('result-new-btn').addEventListener('click', function () { newGame(); });
         $('result-close-btn').addEventListener('click', function () { $('result').hidden = true; });
+        wordInput.addEventListener('compositionstart', function () { composingWord = true; });
+        wordInput.addEventListener('compositionend', function () {
+            composingWord = false;
+            // CompositionEvent.isComposing kann am Ende noch true melden. Ohne
+            // Event verarbeiten, sobald der IME-Text vollständig feststeht.
+            onWordInput();
+        });
         wordInput.addEventListener('input', onWordInput);
-        wordInput.addEventListener('focus', function () { syncWordInput(); wordInput.select(); });
+        wordInput.addEventListener('focus', function () { syncWordInput(true); wordInput.select(); });
 
         document.addEventListener('keydown', function (e) {
             var tag = (e.target && e.target.tagName) || '';
             if (!$('result').hidden) {
                 if (e.key === 'Escape') { e.preventDefault(); $('result').hidden = true; }
-                else if (e.key === 'Enter') { e.preventDefault(); newGame(); }
                 return;
             }
             if (!$('help').hidden) {

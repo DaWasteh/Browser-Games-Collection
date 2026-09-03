@@ -587,10 +587,10 @@ $('result-close-btn').addEventListener('click', () => { $('result').hidden = tru
 
 document.addEventListener('keydown', (e) => {
   const tag = (e.target && e.target.tagName) || '';
-  // Win modal open: Enter = new game, Escape = close.
+  // Im Ergebnisdialog bleiben Buttons vollständig nativ bedienbar.
+  // Nur Escape ist ein globaler Dialogbefehl; Enter aktiviert den fokussierten Button.
   if ($('result').hidden === false) {
     if (e.key === 'Escape') { e.preventDefault(); $('result').hidden = true; }
-    else if (e.key === 'Enter') { e.preventDefault(); newGame(); }
     return;
   }
   // While paused: only P / Escape resume.
