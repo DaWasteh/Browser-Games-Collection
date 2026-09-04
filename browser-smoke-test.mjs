@@ -11,7 +11,7 @@ if (nodeMajor < 22 || typeof fetch !== 'function' || typeof WebSocket !== 'funct
 }
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
-const games = ['panda-spider', 'pandacell', 'pandadoku', 'pandakreuzwort', 'pandataire', 'panndike', 'texttl'];
+const games = ['panda-bubbles', 'des-pandas-juwelen', 'panda-spider', 'pandacell', 'pandadoku', 'pandakreuzwort', 'pandataire', 'panndike', 'texttl', 'pahjong'];
 const mime = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.css', 'text/css; charset=utf-8'],
@@ -197,8 +197,12 @@ try {
     assert(shell.backText.includes('Spieleübersicht'), `${game}: overview link is missing`);
     assert(shell.backPath.endsWith('/index.html'), `${game}: overview target is wrong`);
     assert(!shell.bodyOverflow, `${game}: page has unintended horizontal body overflow at 375px`);
+    if (game === 'panda-bubbles' || game === 'des-pandas-juwelen') {
+      const bootFocusStayedAtPageStart = await evaluate(`document.activeElement === document.body`);
+      assert(bootFocusStayedAtPageStart, `${game}: boot unexpectedly moved focus into the game`);
+    }
 
-    if (game === 'pandataire' || game === 'pandakreuzwort' || game === 'texttl') {
+    if (game === 'panda-bubbles' || game === 'des-pandas-juwelen' || game === 'pandataire' || game === 'pandakreuzwort' || game === 'texttl') {
       const dialogFocus = await evaluate(`(async () => {
         const dialog = document.querySelector('#result, #result-overlay');
         const opener = document.querySelector('#new-game, #new-btn, #stats-btn');
@@ -217,17 +221,17 @@ try {
     }
 
     const responsiveViewports = [
-      { width: 320, height: 568, mobile: true },
-      { width: 375, height: 812, mobile: true },
-      { width: 414, height: 896, mobile: true },
-      { width: 600, height: 960, mobile: true },
-      { width: 768, height: 1024, mobile: false },
-      { width: 1024, height: 768, mobile: false },
-      { width: 1366, height: 768, mobile: false }
+      { width: 320, height: 568, mobile: true, deviceScaleFactor: 2 },
+      { width: 375, height: 812, mobile: true, deviceScaleFactor: 3 },
+      { width: 414, height: 896, mobile: true, deviceScaleFactor: 2 },
+      { width: 667, height: 375, mobile: true, deviceScaleFactor: 2 },
+      { width: 768, height: 1024, mobile: false, deviceScaleFactor: 1 },
+      { width: 1024, height: 768, mobile: false, deviceScaleFactor: 1 },
+      { width: 1366, height: 768, mobile: false, deviceScaleFactor: 1 }
     ];
     for (const viewport of responsiveViewports) {
       const { width } = viewport;
-      await cdp.send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1 });
+      await cdp.send('Emulation.setDeviceMetricsOverride', viewport);
       for (const style of ['panda', 'night', 'contrast']) {
         const appearance = await evaluate(`(() => {
           const picker = document.querySelector('.game-style-control select');
@@ -329,6 +333,275 @@ try {
         return { cards: cards.length, beforeStock: bottom <= stockTop + 1, tableauHeight: document.querySelector('#tableau').getBoundingClientRect().height };
       })()`);
       assert(deepLayout.cards >= 90 && deepLayout.beforeStock, `panda-spider: deep columns overlap stock/controls ${JSON.stringify(deepLayout)}`);
+    }
+
+    if (game === 'panda-bubbles') {
+      const bubbles = await evaluate(`(async () => {
+        PandaBubbles.newGame('browser-bubbles');
+        const first = PandaBubbles.getState();
+        const signature = first.board.map(row => row.join(',')).join('|') + '/' + first.current + '/' + first.next;
+        PandaBubbles.newGame('browser-bubbles');
+        const repeated = PandaBubbles.getState();
+        const repeatedSignature = repeated.board.map(row => row.join(',')).join('|') + '/' + repeated.current + '/' + repeated.next;
+        const canvas = document.querySelector('#game-canvas');
+        const accessibleState = {
+          queue: document.querySelector('#current-name').textContent.length > 0 && document.querySelector('#next-name').textContent.length > 0,
+          board: /Reihe 1:.*Spalte 1/.test(document.querySelector('#board-description').textContent),
+          describedBy: (canvas.getAttribute('aria-describedby') || '').includes('board-description')
+        };
+        canvas.focus();
+        PandaBubbles.setAim(0);
+        const left = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true });
+        canvas.dispatchEvent(left);
+        const keyboardAim = PandaBubbles.getState().aim;
+        const keyboardAimAccessible = /links/.test(canvas.getAttribute('aria-label') || '');
+        PandaBubbles.setAim(1.15);
+        const bankPath = PandaBubbles.getAimPath();
+        const beforeSwap = PandaBubbles.getState();
+        const namesBeforeSwap = {
+          current: document.querySelector('#current-name').textContent,
+          next: document.querySelector('#next-name').textContent
+        };
+        const swapped = PandaBubbles.swap();
+        const afterSwap = PandaBubbles.getState();
+        const swapNamesUpdated = document.querySelector('#current-name').textContent === namesBeforeSwap.next &&
+          document.querySelector('#next-name').textContent === namesBeforeSwap.current;
+
+        PandaBubbles.newGame('browser-bubbles-shot');
+        PandaBubbles.setAim(0);
+        canvas.focus();
+        const shotKey = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
+        canvas.dispatchEvent(shotKey);
+        for (let i = 0; i < 50 && PandaBubbles.getState().projectile; i++) await new Promise(resolve => setTimeout(resolve, 60));
+        const afterKeyboardShot = PandaBubbles.getState();
+
+        const rect = canvas.getBoundingClientRect();
+        canvas.dispatchEvent(new PointerEvent('pointerdown', {
+          pointerId: 71, pointerType: 'touch', isPrimary: true, button: 0,
+          clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height * .25,
+          bubbles: true, cancelable: true
+        }));
+        for (let i = 0; i < 50 && PandaBubbles.getState().projectile; i++) await new Promise(resolve => setTimeout(resolve, 60));
+        const afterPointerShot = PandaBubbles.getState();
+
+        PandaBubbles.newGame('pop-0');
+        const bubblesBeforePop = PandaBubbles.getState().board.flat().filter(Boolean).length;
+        PandaBubbles.setAim(-1);
+        PandaBubbles.shoot();
+        for (let i = 0; i < 80 && PandaBubbles.getState().projectile; i++) await new Promise(resolve => setTimeout(resolve, 35));
+        const burstState = PandaBubbles.getState();
+        const burstAnimated = burstState.particles > 0 && burstState.power > 0 && burstState.board.flat().filter(Boolean).length < bubblesBeforePop;
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const burstSettled = PandaBubbles.getState().particles === 0;
+
+        const pause = document.querySelector('#pause-btn');
+        pause.focus();
+        pause.click();
+        await new Promise(resolve => setTimeout(resolve, 30));
+        const pauseReport = {
+          paused: PandaBubbles.getState().status === 'paused',
+          focused: document.activeElement?.id === 'resume-btn',
+          controlsInert: document.querySelector('.control-card').inert
+        };
+        document.querySelector('#resume-btn').click();
+        await new Promise(resolve => setTimeout(resolve, 30));
+        pauseReport.resumed = PandaBubbles.getState().status === 'playing';
+        pauseReport.controlsRestored = !document.querySelector('.control-card').inert;
+        pauseReport.canvasFocused = document.activeElement === canvas;
+
+        const soundButton = document.querySelector('#sound-btn');
+        if (!PandaBubbles.getState().sound) soundButton.click();
+        soundButton.click();
+        const muted = PandaBubbles.getState();
+        soundButton.click();
+        const audioMute = !muted.sound && muted.audioMuted && PandaBubbles.getState().sound;
+
+        const controlsTallEnough = [...document.querySelectorAll('.queue button, .controls button')]
+          .every(button => button.getBoundingClientRect().height >= 44);
+        return {
+          deterministic: signature === repeatedSignature,
+          rows: first.board.map(row => row.length),
+          colors: new Set(first.board.flat()).size,
+          keyboardAim: left.defaultPrevented && keyboardAim < 0 && keyboardAimAccessible,
+          bankPreview: bankPath.length > 5 && bankPath.some(point => point.banked) && bankPath.at(-1)?.hit === 'bubble',
+          swap: swapped && afterSwap.current === beforeSwap.next && afterSwap.next === beforeSwap.current && swapNamesUpdated,
+          accessibleState,
+          audioMute,
+          keyboardShot: shotKey.defaultPrevented && afterKeyboardShot.shots === 1 && !afterKeyboardShot.projectile && afterKeyboardShot.status === 'playing',
+          pointerShot: afterPointerShot.shots === 2 && !afterPointerShot.projectile && afterPointerShot.status === 'playing',
+          burstAnimated,
+          burstSettled,
+          pauseReport,
+          controlsTallEnough,
+          canvasRole: canvas.getAttribute('role'),
+          canvasTabbable: canvas.tabIndex === 0
+        };
+      })()`);
+      assert(bubbles.deterministic, 'panda-bubbles: seeded board/queue is not deterministic');
+      assert(JSON.stringify(bubbles.rows) === JSON.stringify([10, 9, 10, 9, 10, 9]) && bubbles.colors >= 4, `panda-bubbles: initial field is malformed ${JSON.stringify(bubbles)}`);
+      assert(bubbles.keyboardAim && bubbles.bankPreview && bubbles.swap, `panda-bubbles: aim/bank/swap controls failed ${JSON.stringify(bubbles)}`);
+      assert(Object.values(bubbles.accessibleState).every(Boolean), `panda-bubbles: nonvisual board/queue state is incomplete ${JSON.stringify(bubbles.accessibleState)}`);
+      assert(bubbles.audioMute, 'panda-bubbles: mute did not silence the shared audio bus immediately');
+      assert(bubbles.keyboardShot && bubbles.pointerShot, `panda-bubbles: keyboard/touch shot did not settle ${JSON.stringify(bubbles)}`);
+      assert(bubbles.burstAnimated && bubbles.burstSettled, `panda-bubbles: pop animation/power feedback failed ${JSON.stringify(bubbles)}`);
+      assert(Object.values(bubbles.pauseReport).every(Boolean), `panda-bubbles: pause focus/inert contract failed ${JSON.stringify(bubbles.pauseReport)}`);
+      assert(bubbles.controlsTallEnough && bubbles.canvasRole === 'application' && bubbles.canvasTabbable, 'panda-bubbles: accessible controls/canvas contract failed');
+    }
+
+    if (game === 'des-pandas-juwelen') {
+      await cdp.send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+      await delay(40);
+      const jewels = await evaluate(`(async () => {
+        PandaJewels.newGame('browser-check');
+        const initial = PandaJewels.getState();
+        const signature = JewelsLogic.boardSignature(initial.board);
+        PandaJewels.newGame('browser-check');
+        const deterministic = signature === JewelsLogic.boardSignature(PandaJewels.getState().board);
+        const roving = document.querySelectorAll('#board .cell[tabindex="0"]').length;
+        const firstCell = document.querySelector('#board .cell');
+        firstCell.focus();
+        const arrow = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+        firstCell.dispatchEvent(arrow);
+        const keyboardMoved = arrow.defaultPrevented && document.activeElement?.dataset.index === '1';
+        const selectKey = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
+        document.activeElement.dispatchEvent(selectKey);
+        const keyboardSelected = selectKey.defaultPrevented && PandaJewels.getState().selected?.col === 1;
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        const escapeCleared = PandaJewels.getState().selected === null;
+        const hint = PandaJewels.hint();
+        const hinted = document.querySelectorAll('#board .cell.hinted').length;
+
+        let state = PandaJewels.getState();
+        let invalidPair = null;
+        for (let row = 0; row < 8 && !invalidPair; row++) for (let col = 0; col < 8 && !invalidPair; col++) {
+          const from = { row, col };
+          for (const to of [{ row, col: col + 1 }, { row: row + 1, col }]) {
+            if (JewelsLogic.inBounds(state.board, to) && !JewelsLogic.isProductiveSwap(state.board, from, to, false)) { invalidPair = { from, to }; break; }
+          }
+        }
+        const movesBeforeInvalid = state.moves;
+        const pendingInvalid = PandaJewels.swap(invalidPair.from, invalidPair.to);
+        await Promise.resolve();
+        const validDuringInvalid = JewelsLogic.findValidMoves(state.board)[0];
+        const reenteredInvalidAnimation = await PandaJewels.swap(validDuringInvalid.from, validDuringInvalid.to);
+        const invalidAccepted = await pendingInvalid;
+        const invalidSafe = !invalidAccepted && !reenteredInvalidAnimation && PandaJewels.getState().moves === movesBeforeInvalid &&
+          PandaJewels.getState().status === 'playing' && document.querySelectorAll('#board .cell.invalid').length === 0;
+
+        state = PandaJewels.getState();
+        const swipeMove = JewelsLogic.findValidMoves(state.board)[0];
+        const swipeIndex = swipeMove.from.row * 8 + swipeMove.from.col;
+        const swipeCell = document.querySelectorAll('#board .cell')[swipeIndex];
+        const swipeRect = swipeCell.getBoundingClientRect();
+        const dx = (swipeMove.to.col - swipeMove.from.col) * swipeRect.width * .55;
+        const dy = (swipeMove.to.row - swipeMove.from.row) * swipeRect.height * .55;
+        const turnsBeforeSwipe = state.turns;
+        swipeCell.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 81, pointerType: 'touch', isPrimary: true, button: 0, clientX: swipeRect.left + swipeRect.width / 2, clientY: swipeRect.top + swipeRect.height / 2, bubbles: true, cancelable: true }));
+        swipeCell.dispatchEvent(new PointerEvent('pointerup', { pointerId: 81, pointerType: 'touch', isPrimary: true, button: 0, clientX: swipeRect.left + swipeRect.width / 2 + dx, clientY: swipeRect.top + swipeRect.height / 2 + dy, bubbles: true, cancelable: true }));
+        for (let i = 0; i < 80 && (PandaJewels.getState().status === 'resolving' || PandaJewels.getState().turns === turnsBeforeSwipe); i++) await new Promise(resolve => setTimeout(resolve, 20));
+        const swipeWorked = PandaJewels.getState().turns === turnsBeforeSwipe + 1;
+
+        for (let i = 0; i < 8 && PandaJewels.getState().charge < 5 && PandaJewels.getState().status === 'playing'; i++) {
+          const current = PandaJewels.getState();
+          const move = JewelsLogic.findValidMoves(current.board)[0];
+          await PandaJewels.swap(move.from, move.to);
+        }
+        const charged = PandaJewels.getState();
+        let remote = null;
+        let invalidRemote = null;
+        if (charged.status === 'playing' && charged.charge >= 5) {
+          const positions = charged.board.flatMap((row, rowIndex) => row.map((_gem, colIndex) => ({ row: rowIndex, col: colIndex })));
+          outer: for (let i = 0; i < positions.length; i++) for (let j = i + 1; j < positions.length; j++) {
+            if (!JewelsLogic.isAdjacent(positions[i], positions[j])) {
+              if (!remote && JewelsLogic.isProductiveSwap(charged.board, positions[i], positions[j], true)) remote = { from: positions[i], to: positions[j] };
+              if (!invalidRemote && !JewelsLogic.isProductiveSwap(charged.board, positions[i], positions[j], true)) invalidRemote = { from: positions[i], to: positions[j] };
+              if (remote && invalidRemote) break outer;
+            }
+          }
+        }
+        const remoteMovesBefore = charged.moves;
+        const activated = remote && invalidRemote ? PandaJewels.activatePower() : false;
+        const invalidRemoteAccepted = activated ? await PandaJewels.swap(invalidRemote.from, invalidRemote.to) : true;
+        const afterInvalidRemote = PandaJewels.getState();
+        const invalidRemotePreserved = !invalidRemoteAccepted && afterInvalidRemote.charge === 5 && afterInvalidRemote.powerMode && afterInvalidRemote.moves === remoteMovesBefore;
+        const remoteWorked = remote && invalidRemotePreserved ? await PandaJewels.swap(remote.from, remote.to) : false;
+        const final = PandaJewels.getState();
+        const soundButton = document.querySelector('#sound-btn');
+        if (!PandaJewels.getState().sound) soundButton.click();
+        soundButton.click();
+        const muted = PandaJewels.getState();
+        soundButton.click();
+        const audioMute = !muted.sound && muted.audioMuted && PandaJewels.getState().sound;
+
+        async function playRound(seed) {
+          PandaJewels.newGame(seed);
+          for (let turn = 0; turn < 30 && PandaJewels.getState().status === 'playing'; turn++) {
+            const roundState = PandaJewels.getState();
+            const move = JewelsLogic.findValidMoves(roundState.board)[0];
+            await PandaJewels.swap(move.from, move.to);
+          }
+          const ended = PandaJewels.getState();
+          return { status: ended.status, moves: ended.moves, score: ended.score, target: ended.target };
+        }
+        const lossBranch = await playRound('outcome-0');
+        const winBranch = await playRound('outcome-5');
+
+        const controlsTallEnough = [...document.querySelectorAll('.panda-power button, .controls button')].every(button => button.getBoundingClientRect().height >= 44);
+        const smallestCell = Math.min(...[...document.querySelectorAll('#board .cell')].map(cell => cell.getBoundingClientRect().width));
+        const gridRows = [...document.querySelectorAll('#board > [role="row"]')];
+        return {
+          deterministic,
+          count: initial.board.flat().length,
+          matchFree: JewelsLogic.findMatches(initial.board).cells.length === 0,
+          playable: JewelsLogic.findValidMoves(initial.board).length > 0,
+          roving,
+          keyboardMoved,
+          keyboardSelected,
+          escapeCleared,
+          hintValid: !!hint && hinted === 2,
+          invalidSafe,
+          swipeWorked,
+          charged: charged.charge >= 5,
+          remoteFound: !!remote && !!invalidRemote,
+          invalidRemotePreserved,
+          remoteUsed: activated && remoteWorked && final.moves === remoteMovesBefore - 1 && final.charge < 5 && !final.powerMode,
+          finalStable: JewelsLogic.findMatches(final.board).cells.length === 0 && JewelsLogic.findValidMoves(final.board).length > 0,
+          audioMute,
+          lossBranch,
+          winBranch,
+          controlsTallEnough,
+          smallestCell,
+          gridStructure: gridRows.length === 8 && gridRows.every(row => row.querySelectorAll(':scope > [role="gridcell"]').length === 8),
+          ariaLabels: [...document.querySelectorAll('#board .cell')].every(cell => /Zeile/.test(cell.getAttribute('aria-label') || ''))
+        };
+      })()`);
+      await cdp.send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+      await delay(40);
+      const comboAnimation = await evaluate(`(async () => {
+        PandaJewels.newGame('combo-4');
+        const move = JewelsLogic.findValidMoves(PandaJewels.getState().board)[0];
+        const turn = PandaJewels.swap(move.from, move.to);
+        const seen = new Set();
+        for (let i = 0; i < 110 && PandaJewels.getState().status === 'resolving'; i++) {
+          const popup = document.querySelector('#combo-pop');
+          if (!popup.hidden) seen.add(popup.textContent);
+          await new Promise(resolve => setTimeout(resolve, 30));
+        }
+        const accepted = await turn;
+        await new Promise(resolve => setTimeout(resolve, 700));
+        return { accepted, seen: [...seen], hiddenAfterLatestTimer: document.querySelector('#combo-pop').hidden };
+      })()`);
+      assert(comboAnimation.accepted && comboAnimation.seen.includes('2× Kaskade!') && comboAnimation.seen.includes('3× Kaskade!') && comboAnimation.hiddenAfterLatestTimer,
+        `des-pandas-juwelen: combo animation timer race ${JSON.stringify(comboAnimation)}`);
+      assert(jewels.deterministic && jewels.count === 64 && jewels.matchFree && jewels.playable, `des-pandas-juwelen: initial board contract failed ${JSON.stringify(jewels)}`);
+      assert(jewels.roving === 1 && jewels.keyboardMoved && jewels.keyboardSelected && jewels.escapeCleared && jewels.hintValid, `des-pandas-juwelen: keyboard/hint contract failed ${JSON.stringify(jewels)}`);
+      assert(jewels.invalidSafe && jewels.swipeWorked, `des-pandas-juwelen: invalid/touch swap contract failed ${JSON.stringify(jewels)}`);
+      assert(jewels.charged && jewels.remoteFound && jewels.invalidRemotePreserved && jewels.remoteUsed, `des-pandas-juwelen: Panda-Pfote remote swap failed ${JSON.stringify(jewels)}`);
+      assert(jewels.audioMute, 'des-pandas-juwelen: mute did not silence the shared audio bus immediately');
+      assert(jewels.lossBranch.status === 'lost' && jewels.lossBranch.moves === 0 && jewels.lossBranch.score < jewels.lossBranch.target &&
+        jewels.winBranch.status === 'won' && jewels.winBranch.score >= jewels.winBranch.target,
+        `des-pandas-juwelen: terminal win/loss branches failed ${JSON.stringify({ loss: jewels.lossBranch, win: jewels.winBranch })}`);
+      assert(jewels.finalStable && jewels.controlsTallEnough && jewels.smallestCell >= 36 && jewels.gridStructure && jewels.ariaLabels, `des-pandas-juwelen: stable/responsive/a11y contract failed ${JSON.stringify(jewels)}`);
     }
 
     if (game === 'pandadoku') {
@@ -986,6 +1259,26 @@ try {
     }
   }
 
+  await navigate('index.html');
+  const launcher = await evaluate(`(async () => {
+    const cards = [...document.querySelectorAll('main.grid > a.card')];
+    const hrefs = cards.map(card => card.getAttribute('href'));
+    const responses = await Promise.all(hrefs.map(async href => {
+      try { return (await fetch(href, { cache: 'no-store' })).ok; } catch (_error) { return false; }
+    }));
+    return {
+      count: cards.length,
+      unique: new Set(hrefs).size,
+      allTargetsLoad: responses.every(Boolean),
+      hasBubbles: hrefs.includes('panda-bubbles/index.html') && cards.some(card => card.textContent.includes('Panda: Jäger der Blasen')),
+      hasJewels: hrefs.includes('des-pandas-juwelen/index.html') && cards.some(card => card.textContent.includes('Des Pandas Juwelen')),
+      version: document.querySelector('footer')?.textContent || '',
+      overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+    };
+  })()`);
+  assert(launcher.count === 18 && launcher.unique === 18 && launcher.allTargetsLoad, `launcher: expected 18 unique loadable games ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 1.7') && !launcher.overflow, `launcher: v1.7 integration is incomplete ${JSON.stringify(launcher)}`);
+
   await navigate('pahjong/index.html');
   const pahjongUi = await evaluate(`(async () => {
     const result = document.querySelector('#result');
@@ -1109,7 +1402,7 @@ try {
   assert(pahjongKeys.compactHistory, 'pahjong: undo history still stores full 144-tile state clones');
   assert(pahjongKeys.won && pahjongKeys.resultFocused && pahjongKeys.terminalUndo, `pahjong: full solution/result/terminal undo failed ${JSON.stringify(pahjongKeys)}`);
 
-  console.log(`browser smoke ok (${games.length} styled games plus Pahjong UI, 7 Phone/Tablet/Desktop-Viewports × 3 styles, navigation, contrast, focus)`);
+  console.log(`browser smoke ok (${games.length} styled games, 18 launcher games, 7 Phone portrait/landscape, Tablet/Desktop-Viewports at DPR 1–3 × 3 styles, navigation, contrast, focus)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();

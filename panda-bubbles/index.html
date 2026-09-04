@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ecf8f3">
+  <title>Panda: Jäger der Blasen – Bubble Shooter</title>
+  <meta name="description" content="Moderner Bubble Shooter mit Bandenwürfen, Bambusblase, Sound und flüssigen Animationen – komplett offline.">
+  <script src="../shared/game-shell.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/game-shell.css">
+  <script src="bubble-logic.js" defer></script>
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a href="../index.html" class="back-link">← Spieleübersicht</a>
+    <div class="title-row">
+      <span class="panda-mark" aria-hidden="true">🐼</span>
+      <div>
+        <h1>Panda: Jäger der Blasen</h1>
+        <p>Verbinde drei Farben – clevere Bandenwürfe laden die Bambusblase.</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hud" aria-label="Spielstand">
+      <div><span>Punkte</span><strong id="score">0</strong></div>
+      <div><span>Bestwert</span><strong id="high-score">0</strong></div>
+      <div><span>Fehlwürfe</span><strong id="misses">● ● ● ● ●</strong></div>
+      <div class="power-stat">
+        <span>Bambusblase</span>
+        <strong id="power-label">0 %</strong>
+        <div class="power-track" aria-hidden="true"><span id="power-fill"></span></div>
+      </div>
+    </section>
+
+    <p id="message" class="message" role="status" aria-live="polite">Zielen und die erste Blase abschießen.</p>
+
+    <div class="game-layout">
+      <section class="game-card" aria-label="Bubble-Shooter-Spielfeld">
+        <div id="canvas-wrap" class="canvas-wrap">
+          <canvas id="game-canvas" width="600" height="760" tabindex="0" role="application" aria-label="Blasenfeld. Mit Pfeiltasten zielen, mit Leertaste schießen." aria-describedby="canvas-help board-description queue-description"></canvas>
+          <div class="danger-label" aria-hidden="true">Bambusgrenze</div>
+          <div id="pause-overlay" class="stage-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="pause-title">
+            <div class="overlay-card">
+              <span class="overlay-panda" aria-hidden="true">🐼</span>
+              <h2 id="pause-title">Kurze Bambuspause</h2>
+              <p>Das Spielfeld wartet auf dich.</p>
+              <button id="resume-btn" type="button" class="primary">▶ Weiterspielen</button>
+            </div>
+          </div>
+        </div>
+        <p id="canvas-help" class="sr-only">Bewege die Ziellinie mit den Pfeiltasten. Leertaste oder Enter schießt. Mit S tauschst du die aktuelle und nächste Blase.</p>
+        <p id="board-description" class="sr-only">Das Blasenfeld wird geladen.</p>
+      </section>
+
+      <aside class="control-card" aria-label="Spielsteuerung">
+        <div id="queue-description" class="queue" aria-label="Blasenvorschau">
+          <div>
+            <span>Jetzt</span>
+            <canvas id="current-preview" width="72" height="72" aria-hidden="true"></canvas>
+            <strong id="current-name">Rosa</strong>
+          </div>
+          <button id="swap-btn" type="button" aria-label="Aktuelle und nächste Blase tauschen" title="Blasen tauschen (S)">⇄</button>
+          <div>
+            <span>Danach</span>
+            <canvas id="next-preview" width="72" height="72" aria-hidden="true"></canvas>
+            <strong id="next-name">Blau</strong>
+          </div>
+        </div>
+
+        <div class="aim-hint" aria-hidden="true">
+          <span>↖</span><strong>Zielen</strong><span>↗</span>
+        </div>
+
+        <div class="controls" role="group" aria-label="Aktionen">
+          <button id="pause-btn" type="button">⏸ Pause</button>
+          <button id="sound-btn" type="button" aria-pressed="true">🔊 Ton an</button>
+          <button id="new-btn" type="button">↻ Neues Spiel</button>
+        </div>
+
+        <div class="special-note">
+          <span aria-hidden="true">🎋</span>
+          <p><strong>Panda-Spezial:</strong> Ein erfolgreicher Bandenwurf lädt extra Energie. Bei 100 % wird die nächste Kugel zur Bambusblase und nimmt beim Auftreffen die beste Farbe an.</p>
+        </div>
+      </aside>
+    </div>
+
+    <details class="rules">
+      <summary>Regeln &amp; Steuerung</summary>
+      <div class="rules-grid">
+        <p>Schieße auf mindestens zwei gleichfarbige Blasen. Gruppen ab drei platzen; alles, was danach nicht mehr an der Decke hängt, fällt herunter. Nach fünf erfolglosen Würfen rückt eine neue Reihe nach.</p>
+        <ul>
+          <li><strong>Maus/Touch:</strong> Im Feld zielen und zum Schießen tippen.</li>
+          <li><strong>Tastatur:</strong> <kbd>←</kbd>/<kbd>→</kbd> zielen, <kbd>Leertaste</kbd>/<kbd>Enter</kbd> schießen, <kbd>S</kbd> tauschen, <kbd>P</kbd> pausieren, <kbd>N</kbd> neu starten.</li>
+          <li>Pralle an einer Seitenwand ab und räume eine Gruppe ab, um mehr Bambusenergie und Bonuspunkte zu erhalten.</li>
+          <li>Das Spiel endet, wenn eine Blase die gestrichelte Bambusgrenze erreicht.</li>
+        </ul>
+      </div>
+    </details>
+
+    <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="result-card">
+        <span id="result-icon" class="result-icon" aria-hidden="true">🐼</span>
+        <h2 id="result-title">Bambushain gerettet!</h2>
+        <p id="result-text"></p>
+        <div class="result-actions">
+          <button id="result-new-btn" type="button" class="primary">Noch eine Runde</button>
+          <button id="result-close-btn" type="button">Ergebnis ansehen</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer><small>Offline spielbar · Sound wird erst nach der ersten Eingabe aktiviert.</small></footer>
+</body>
+</html>

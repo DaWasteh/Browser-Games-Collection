@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f0ff">
+  <title>Des Pandas Juwelen – Match 3</title>
+  <meta name="description" content="Elegantes Match-3-Spiel mit Spezialjuwelen, Kaskaden, Panda-Pfote, Sound und Animationen – komplett offline.">
+  <script src="../shared/game-shell.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/game-shell.css">
+  <script src="jewels-logic.js" defer></script>
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a href="../index.html" class="back-link">← Spieleübersicht</a>
+    <div class="title-row">
+      <span class="panda-mark" aria-hidden="true">🐼</span>
+      <div>
+        <h1>Des Pandas Juwelen</h1>
+        <p>Kristalle tauschen, Kaskaden bauen und den Schatzgarten zum Leuchten bringen.</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hud" aria-label="Spielstand">
+      <div><span>Punkte</span><strong id="score">0</strong></div>
+      <div><span>Ziel</span><strong id="target">9.000</strong></div>
+      <div><span>Züge</span><strong id="moves">24</strong></div>
+      <div><span>Bestwert</span><strong id="high-score">0</strong></div>
+    </section>
+    <div class="goal-track" role="progressbar" aria-label="Fortschritt zum Rundenziel" aria-valuemin="0" aria-valuemax="9000" aria-valuenow="0">
+      <span id="goal-fill"></span>
+    </div>
+
+    <p id="message" class="message" role="status" aria-live="polite">Wähle zwei benachbarte Juwelen.</p>
+
+    <div class="game-layout">
+      <section class="board-card" aria-label="Juwelen-Spielfeld">
+        <div id="board" class="board" role="grid" aria-label="Juwelenfeld, acht mal acht" aria-rowcount="8" aria-colcount="8"></div>
+        <div id="combo-pop" class="combo-pop" hidden aria-hidden="true"></div>
+      </section>
+
+      <aside class="control-card" aria-label="Spielsteuerung">
+        <section class="panda-power" aria-labelledby="power-title">
+          <div class="power-head">
+            <span aria-hidden="true">🐾</span>
+            <div>
+              <h2 id="power-title">Panda-Pfote</h2>
+              <p id="power-copy">Kaskaden sammeln</p>
+            </div>
+          </div>
+          <div id="power-leaves" class="power-leaves" aria-label="Panda-Pfote: 0 von 5 geladen">
+            <span>◇</span><span>◇</span><span>◇</span><span>◇</span><span>◇</span>
+          </div>
+          <button id="power-btn" type="button" disabled aria-pressed="false">🐾 Fern-Tausch</button>
+        </section>
+
+        <div class="controls" role="group" aria-label="Aktionen">
+          <button id="hint-btn" type="button">💡 Hinweis</button>
+          <button id="sound-btn" type="button" aria-pressed="true">🔊 Ton an</button>
+          <button id="new-btn" type="button">↻ Neues Spiel</button>
+        </div>
+
+        <section class="special-legend" aria-label="Spezialjuwelen">
+          <h2>Spezialjuwelen</h2>
+          <div><span class="mini line" aria-hidden="true">4</span><p><strong>Viererreihe</strong><br>räumt eine Linie</p></div>
+          <div><span class="mini bomb" aria-hidden="true">✦</span><p><strong>T- oder L-Form</strong><br>sprengt 3 × 3</p></div>
+          <div><span class="mini prism" aria-hidden="true">5</span><p><strong>Fünferreihe</strong><br>erzeugt ein Prisma</p></div>
+        </section>
+      </aside>
+    </div>
+
+    <details class="rules">
+      <summary>Regeln &amp; Steuerung</summary>
+      <div class="rules-grid">
+        <p>Tausche benachbarte Juwelen und bilde waagerecht oder senkrecht Reihen aus mindestens drei gleichen Farben. Ungültige Züge springen zurück und kosten keinen Zug. Erreiche das Punkteziel, bevor die Züge aufgebraucht sind.</p>
+        <ul>
+          <li><strong>Maus/Touch:</strong> Juwelen nacheinander antippen oder in die gewünschte Richtung wischen.</li>
+          <li><strong>Tastatur:</strong> Mit <kbd>Pfeiltasten</kbd> bewegen, mit <kbd>Enter</kbd>/<kbd>Leertaste</kbd> auswählen, <kbd>H</kbd> zeigt einen Zug, <kbd>N</kbd> startet neu.</li>
+          <li>Vierer-, Fünfer- sowie T-/L-Reihen erzeugen Liniensteine, Prismen und Pfotenbomben.</li>
+          <li><strong>Panda-Pfote:</strong> Jede Kaskadenstufe lädt ein Blatt. Bei fünf Blättern darfst du einmal zwei beliebige Juwelen tauschen – der Tausch muss weiterhin eine Reihe bilden.</li>
+        </ul>
+      </div>
+    </details>
+
+    <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
+      <div class="result-card">
+        <span id="result-icon" class="result-icon" aria-hidden="true">🐼💎</span>
+        <h2 id="result-title">Schatzgarten erleuchtet!</h2>
+        <p id="result-text"></p>
+        <div class="result-actions">
+          <button id="result-new-btn" type="button" class="primary">Noch eine Runde</button>
+          <button id="result-close-btn" type="button">Ergebnis ansehen</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer><small>Offline spielbar · Keine externen Grafiken oder Bibliotheken.</small></footer>
+</body>
+</html>

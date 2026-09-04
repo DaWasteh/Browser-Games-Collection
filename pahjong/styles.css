@@ -247,6 +247,7 @@ html[data-game-style="contrast"] .board-shell { border-color: #fff; box-shadow: 
 
 @media (max-width: 430px) {
   .site-header h1 { font-size: 2.15rem; }
+  .zoom-controls button { min-width: 0; padding-inline: .2rem; font-size: .76rem; }
   .hud { grid-template-columns: 1fr 1fr; }
   .hud div:nth-child(3), .hud div:nth-child(5) { border-left: 0; }
   .hud div:nth-child(n + 3) { border-top: 1px solid var(--line); }

@@ -14,6 +14,8 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | 🧱 **Tetris** | [`tetris/`](tetris/) | Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen |
 | 🐍 **Snake Ultimate** | [`snake-ultimate/`](snake-ultimate/) | Erweitertes Snake mit lokalem Multiplayer, 8 Themes und Addons |
 | 🏓 **Pong** | [`pong/`](pong/) | Das klassische Duell – gegen die KI oder zu zweit |
+| 🫧 **Panda: Jäger der Blasen** | [`panda-bubbles/`](panda-bubbles/) | Bubble Shooter mit Bandenbonus, fallenden Gruppen und Bambusblase |
+| 💎 **Des Pandas Juwelen** | [`des-pandas-juwelen/`](des-pandas-juwelen/) | Match 3 mit Kaskaden, Spezialkristallen und taktischer Panda-Pfote |
 | ⏳ **Sand Game Pro 2.2** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Active-Cell-Wind, Dirty Rendering und sicherem WebGL2/CPU-Fallback |
 | 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat, interaktiv auf Canvas |
 | 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Lemmings-inspiriertes Puzzle mit Pandas |
@@ -42,7 +44,7 @@ git clone https://github.com/DaWasteh/Browser-Games-Collection.git
 ## ✅ Tests
 
 Die browserbasierten Smoke-Tests benötigen **Node.js 22 oder neuer** sowie eine lokale
-Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 16 Spiele in
+Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 18 Spiele in
 sieben Phone-, Landscape-, Tablet- und Desktop-Viewports (DPR 1–3): Boot,
 Laufzeitfehler, Navigation, Overflow, Kontrast, Zielgrößen, Tastatur-/Touch-Bedienung,
 Dialogfokus, Persistenz und kritische Zustandswechsel. Zusätzliche Logiktests stressen
@@ -52,6 +54,8 @@ Zustandskorruption, Pointer-Abbruch, Renderer-Fallback und Simulations-Tickbudge
 ```bash
 node browser-smoke-test.mjs
 node classic-games-smoke.mjs
+node panda-bubbles/smoke-test.cjs
+node des-pandas-juwelen/smoke-test.cjs
 node pandataire/smoke-test.cjs
 node pahjong/smoke-test.cjs
 node panndike/smoke-test.cjs
@@ -63,6 +67,35 @@ node pandakreuzwort/smoke-test.cjs
 node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
 ```
+
+## ✨ Neu in v1.7
+
+### Zwei neue Panda-Spiele
+
+- **Panda: Jäger der Blasen** bringt einen vollständig responsiven Bubble Shooter
+  mit präziser Maus-, Touch- und Tastatursteuerung, sichtbarer Abprall-Vorschau,
+  Farbtausch, nachrückenden Reihen sowie animierten Platz-, Fall- und Flugphasen.
+  Erfolgreiche Bandenwürfe laden die **Bambusblase**, die beim Auftreffen
+  automatisch die dort stärkste Farbe annimmt.
+- **Des Pandas Juwelen** ergänzt ein zugbasiertes Match-3-Spiel mit garantierter
+  Startbewegung, automatischem Mischen festgefahrener Felder, Kaskadenwertung und
+  Liniensteinen, 3×3-Pfotenbomben sowie farblöschenden Prismen. Die aufladbare
+  **Panda-Pfote** erlaubt einmalig einen gültigen Fern-Tausch.
+
+### Oberfläche, Sound und Qualität
+
+- Beide Spiele verwenden die gemeinsame Panda-, Nacht- und Kontrastansicht,
+  schlanke responsive Bedienfelder, eigenständige Farbsymbole, Live-Status und
+  dialoggerechte Fokusführung. Der Bubble Shooter besitzt ein fokussierbares
+  Tastatur-Canvas; das Juwelenspiel ergänzt roving Grid-Fokus und Wischgesten.
+- Prozedural erzeugte Web-Audio-Effekte und reduzierte, bei Bedarf abschaltbare
+  Animationen begleiten Schüsse, Abpraller, Treffer, Kaskaden, Spezialsteine,
+  Siege und Niederlagen – ohne externe Assets oder Bibliotheken.
+- Neue deterministische Logik-Suites stressen Hexraster, Gruppenabwurf,
+  Andockgeometrie, Generatoren, gültige Züge, Spezialketten, Fern-Tausch,
+  Schwerkraft und tausende Kaskadenauflösungen. Die Browser-Suite deckt jetzt alle
+  **18 Spiele** ab; GitHub Pages wird erst nach den Logik- und Browser-Gates
+  veröffentlicht.
 
 ## ✨ Neu in v1.6
 

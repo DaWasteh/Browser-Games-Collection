@@ -7,16 +7,45 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          find . -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) -not -path './.git/*' -print0 |
+            xargs -0 -n1 node --check
+      - name: Run logic smoke tests
+        shell: bash
+        run: |
+          find . -name 'smoke-test.cjs' -not -path './.git/*' -print0 |
+            sort -z |
+            xargs -0 -n1 node
+      - name: Run browser smoke tests
+        run: |
+          node browser-smoke-test.mjs
+          node classic-games-smoke.mjs
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
