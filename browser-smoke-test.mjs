@@ -270,14 +270,18 @@ try {
           const activeControlContrasts = activeControlDetails.map(detail => detail.contrast).filter(value => value != null);
           const overflowers = [...document.querySelectorAll('body *')].filter(element => {
             const rect = element.getBoundingClientRect();
-            return rect.right > document.documentElement.clientWidth + 1 || rect.left < -1;
+            const overflowX = getComputedStyle(element).overflowX;
+            const leaksContent = element.clientWidth > 2 && element.scrollWidth > element.clientWidth + 1 && overflowX === 'visible';
+            return rect.right > document.documentElement.clientWidth + 1 || rect.left < -1 || leaksContent;
           }).slice(0, 5).map(element => ({
             tag: element.tagName,
             id: element.id,
             className: String(element.className || ''),
             left: Math.round(element.getBoundingClientRect().left),
             right: Math.round(element.getBoundingClientRect().right),
-            width: Math.round(element.getBoundingClientRect().width)
+            width: Math.round(element.getBoundingClientRect().width),
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth
           }));
           return {
             applied: document.documentElement.dataset.gameStyle,

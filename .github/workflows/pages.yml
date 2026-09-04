@@ -28,16 +28,16 @@ jobs:
         run: |
           find . -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) -not -path './.git/*' -print0 |
             xargs -0 -n1 node --check
+      - name: Run browser smoke tests
+        run: |
+          node browser-smoke-test.mjs
+          node classic-games-smoke.mjs
       - name: Run logic smoke tests
         shell: bash
         run: |
           find . -name 'smoke-test.cjs' -not -path './.git/*' -print0 |
             sort -z |
             xargs -0 -n1 node
-      - name: Run browser smoke tests
-        run: |
-          node browser-smoke-test.mjs
-          node classic-games-smoke.mjs
 
   deploy:
     needs: validate
