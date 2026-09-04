@@ -225,7 +225,7 @@ html[data-game-style="contrast"] .board-shell { border-color: #fff; box-shadow: 
 
 @keyframes hint-pulse { 50% { filter: brightness(1.18); transform: translateY(-5px) scale(1.05); } }
 
-@media (max-width: 760px) {
+@media (max-width: 800px) {
   .site-header, main, footer { width: min(100% - 1rem, 1180px); }
   .title-row { align-items: start; }
   .deal-badge { display: none; }
