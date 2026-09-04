@@ -318,21 +318,41 @@
     return clear;
   }
 
-  function collapseAndRefill(board, random, colorCount) {
+  function collapseAndRefillDetailed(board, random, colorCount) {
     var size = dimensions(board);
     var next = createEmptyBoard(size.rows, size.cols);
     var palette = GEM_TYPES.slice(0, colorCount || CONFIG.colorCount);
+    var movements = [];
     for (var col = 0; col < size.cols; col++) {
       var writeRow = size.rows - 1;
       for (var row = size.rows - 1; row >= 0; row--) {
-        if (board[row][col]) next[writeRow--][col] = cloneGem(board[row][col]);
+        if (!board[row][col]) continue;
+        next[writeRow][col] = cloneGem(board[row][col]);
+        movements.push({
+          from: { row: row, col: col },
+          to: { row: writeRow, col: col },
+          distance: writeRow - row,
+          spawned: false
+        });
+        writeRow--;
       }
+      var spawnCount = writeRow + 1;
       while (writeRow >= 0) {
         next[writeRow][col] = makeGem(palette[Math.floor(safeRandom(random) * palette.length)], null);
+        movements.push({
+          from: { row: writeRow - spawnCount, col: col },
+          to: { row: writeRow, col: col },
+          distance: spawnCount,
+          spawned: true
+        });
         writeRow--;
       }
     }
-    return next;
+    return { board: next, movements: movements };
+  }
+
+  function collapseAndRefill(board, random, colorCount) {
+    return collapseAndRefillDetailed(board, random, colorCount).board;
   }
 
   function createClearStep(board, initialKeys, creations, cascade, random, colorCount, matchedCells) {
@@ -347,7 +367,8 @@
       afterClear[cell.row][cell.col] = null;
     });
     for (var i = 0; i < creations.length; i++) afterClear[creations[i].row][creations[i].col] = cloneGem(creations[i].gem);
-    var afterFall = collapseAndRefill(afterClear, random, colorCount);
+    var collapse = collapseAndRefillDetailed(afterClear, random, colorCount);
+    var afterFall = collapse.board;
     var specialTriggers = cleared.filter(function (cell) { return !!cell.gem.special; }).length;
     var points = cleared.length * 60 * cascade + specialTriggers * 120 + creations.length * 90;
     return {
@@ -358,6 +379,14 @@
       before: before,
       afterClear: afterClear,
       afterFall: afterFall,
+      falls: collapse.movements.map(function (movement) {
+        return {
+          from: { row: movement.from.row, col: movement.from.col },
+          to: { row: movement.to.row, col: movement.to.col },
+          distance: movement.distance,
+          spawned: movement.spawned
+        };
+      }),
       score: points
     };
   }
@@ -498,6 +527,7 @@
     planCreations: planCreations,
     expandSpecials: expandSpecials,
     collapseAndRefill: collapseAndRefill,
+    collapseAndRefillDetailed: collapseAndRefillDetailed,
     reshuffleBoard: reshuffleBoard,
     resolveTurn: resolveTurn,
     boardSignature: boardSignature

@@ -6,9 +6,11 @@
 
   const $ = id => document.getElementById(id);
   const boardEl = $('board');
+  const effectsEl = $('board-effects');
   const STORAGE_KEY = 'des-pandas-juwelen-settings-v1';
   const SYMBOLS = Object.freeze({ jade: '▲', amber: '✦', ruby: '●', sapphire: '◆', amethyst: '✿', pearl: '⬟' });
   const NAMES = Object.freeze({ jade: 'Jade', amber: 'Bernstein', ruby: 'Rubin', sapphire: 'Saphir', amethyst: 'Amethyst', pearl: 'Perle' });
+  const GEM_HEX = Object.freeze({ jade: '#42d69e', amber: '#f5b72d', ruby: '#f05273', sapphire: '#3aa8ef', amethyst: '#966be8', pearl: '#dceaf1', prism: '#fff3a3' });
   const SPECIAL_NAMES = Object.freeze({ row: 'waagerechtes Linienjuwel', column: 'senkrechtes Linienjuwel', bomb: 'Pfotenbombe', prism: 'Panda-Prisma' });
 
   let random = Logic.seededRandom('boot');
@@ -18,6 +20,8 @@
   let saveTimer = 0;
   let hintTimer = 0;
   let comboTimer = 0;
+  let entranceTimer = 0;
+  let effectTimer = 0;
   let suppressClick = false;
   let pointerGesture = null;
   let turnToken = 0;
@@ -41,9 +45,12 @@
 
   const visual = {
     clearing: new Set(),
-    falling: new Set(),
-    swapping: new Set(),
-    invalid: new Set(),
+    falling: new Map(),
+    swapping: new Map(),
+    invalid: new Map(),
+    created: new Set(),
+    entering: new Set(),
+    victory: new Set(),
     hinted: new Set()
   };
 
@@ -117,6 +124,94 @@
   function motionTime(milliseconds) { return reducedMotion ? Math.min(12, milliseconds) : milliseconds; }
   function wait(milliseconds) { return new Promise(resolve => window.setTimeout(resolve, motionTime(milliseconds))); }
 
+  async function waitForMotion(names, fallback) {
+    if (reducedMotion || typeof boardEl.getAnimations !== 'function') {
+      await wait(fallback);
+      return;
+    }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const wanted = new Set(names);
+    const animations = boardEl.getAnimations({ subtree: true }).filter(animation => wanted.has(animation.animationName));
+    if (!animations.length) {
+      await wait(fallback);
+      return;
+    }
+    await Promise.race([
+      Promise.all(animations.map(animation => animation.finished.catch(() => {}))),
+      new Promise(resolve => window.setTimeout(resolve, fallback + 120))
+    ]);
+  }
+
+  function cellMotion(destination, source, amount = 1) {
+    const destinationRect = cells[indexOf(destination)].button.getBoundingClientRect();
+    const sourceRect = cells[indexOf(source)].button.getBoundingClientRect();
+    return {
+      x: (sourceRect.left - destinationRect.left) * amount,
+      y: (sourceRect.top - destinationRect.top) * amount
+    };
+  }
+
+  function cellEffectPoint(position) {
+    const cellRect = cells[indexOf(position)].button.getBoundingClientRect();
+    const hostRect = effectsEl.getBoundingClientRect();
+    return {
+      x: cellRect.left + cellRect.width / 2 - hostRect.left,
+      y: cellRect.top + cellRect.height / 2 - hostRect.top,
+      size: cellRect.width
+    };
+  }
+
+  function addEffect(className, point, properties = {}) {
+    if (reducedMotion) return null;
+    const effect = document.createElement('span');
+    effect.className = className;
+    effect.style.left = point.x + 'px';
+    effect.style.top = point.y + 'px';
+    effect.style.setProperty('--effect-size', point.size + 'px');
+    for (const [name, value] of Object.entries(properties)) effect.style.setProperty(name, String(value));
+    effectsEl.append(effect);
+    effect.addEventListener('animationend', () => effect.remove(), { once: true });
+    window.setTimeout(() => effect.remove(), 1400);
+    return effect;
+  }
+
+  function emitClearEffects(step) {
+    if (reducedMotion || !step.cleared.length) return;
+    let sumX = 0;
+    let sumY = 0;
+    for (const cell of step.cleared) {
+      const point = cellEffectPoint(cell);
+      const color = GEM_HEX[cell.gem.special === 'prism' ? 'prism' : cell.gem.color] || '#ffffff';
+      sumX += point.x;
+      sumY += point.y;
+      for (let shard = 0; shard < 3; shard++) {
+        const angle = ((cell.row * 17 + cell.col * 29 + shard * 120) % 360) + 'deg';
+        addEffect('jewel-shard', point, {
+          '--spark-color': color,
+          '--spark-angle': angle,
+          '--spark-distance': (point.size * (.52 + shard * .16)) + 'px',
+          '--spark-delay': (shard * 22) + 'ms'
+        });
+      }
+      if (cell.gem.special === 'row' || cell.gem.special === 'column') {
+        addEffect('special-beam ' + cell.gem.special, point, { '--spark-color': color });
+      } else if (cell.gem.special === 'bomb') {
+        addEffect('special-ring bomb', point, { '--spark-color': color });
+      } else if (cell.gem.special === 'prism') {
+        addEffect('special-ring prism', point, { '--spark-color': color });
+      }
+    }
+    addEffect('score-burst', {
+      x: sumX / step.cleared.length,
+      y: sumY / step.cleared.length,
+      size: cellEffectPoint(step.cleared[0]).size
+    }, { '--score-text': '"+' + formatScore(step.score) + '"' });
+    boardEl.classList.remove('cascade-impact');
+    void boardEl.offsetWidth;
+    boardEl.classList.add('cascade-impact');
+    window.setTimeout(() => boardEl.classList.remove('cascade-impact'), motionTime(360));
+  }
+
   function initAudio() {
     if (!state.sound) return null;
     try {
@@ -161,7 +256,10 @@
   function playSound(name, level = 1) {
     if (!state.sound) return;
     if (name === 'select') tone(460, .07, { to: 560, type: 'sine', gain: .025 });
-    else if (name === 'invalid') tone(190, .14, { to: 145, type: 'triangle', gain: .035 });
+    else if (name === 'swap') {
+      tone(330, .11, { to: 520, type: 'sine', gain: .026 });
+      tone(520, .1, { delay: .045, to: 390, type: 'triangle', gain: .02 });
+    } else if (name === 'invalid') tone(190, .14, { to: 145, type: 'triangle', gain: .035 });
     else if (name === 'match') {
       const base = 430 + Math.min(5, level) * 55;
       tone(base, .14, { to: base * 1.14, type: 'triangle', gain: .04 });
@@ -180,6 +278,9 @@
     visual.falling.clear();
     visual.swapping.clear();
     visual.invalid.clear();
+    visual.created.clear();
+    visual.entering.clear();
+    visual.victory.clear();
     if (!exceptHint) visual.hinted.clear();
   }
 
@@ -193,6 +294,9 @@
   }
 
   function render() {
+    const locked = state.status !== 'playing';
+    boardEl.classList.toggle('locked', locked);
+    boardEl.dataset.phase = state.status;
     for (let index = 0; index < cells.length; index++) {
       const position = positionOf(index);
       const key = positionKey(position);
@@ -201,15 +305,44 @@
       const selected = !!state.selected && state.selected.row === position.row && state.selected.col === position.col;
       cell.button.className = 'cell';
       if (selected) cell.button.classList.add('selected');
-      for (const name of ['clearing', 'falling', 'swapping', 'invalid', 'hinted']) {
+      for (const name of ['clearing', 'created', 'entering', 'victory', 'hinted']) {
         if (visual[name].has(key)) cell.button.classList.add(name);
       }
+      const fall = visual.falling.get(key);
+      const swap = visual.swapping.get(key);
+      const invalid = visual.invalid.get(key);
+      if (fall) {
+        cell.button.classList.add('falling');
+        if (fall.spawned) cell.button.classList.add('spawned');
+      }
+      if (swap) cell.button.classList.add('swapping');
+      if (invalid) cell.button.classList.add('invalid');
       cell.button.tabIndex = index === state.focusIndex ? 0 : -1;
       cell.button.setAttribute('aria-selected', String(selected));
       cell.button.setAttribute('aria-label', gemLabel(position, gemData));
-      cell.button.setAttribute('aria-disabled', String(state.status !== 'playing'));
+      cell.button.setAttribute('aria-disabled', String(locked));
 
       cell.gem.className = 'gem';
+      for (const property of ['--move-x', '--move-y', '--swap-duration', '--fall-y', '--fall-delay', '--fall-duration', '--victory-delay', '--enter-delay', '--shuffle-delay']) {
+        cell.gem.style.removeProperty(property);
+      }
+      cell.gem.style.setProperty('--idle-delay', ((index * 137) % 1900) + 'ms');
+      cell.gem.style.setProperty('--enter-delay', ((position.row + position.col) * 24) + 'ms');
+      cell.gem.style.setProperty('--shuffle-delay', (((position.row * 3 + position.col * 5) % 11) * 18) + 'ms');
+      if (fall) {
+        cell.gem.style.setProperty('--fall-y', (-fall.pixels) + 'px');
+        cell.gem.style.setProperty('--fall-delay', fall.delay + 'ms');
+        cell.gem.style.setProperty('--fall-duration', fall.duration + 'ms');
+      }
+      const exchange = swap || invalid;
+      if (exchange) {
+        cell.gem.style.setProperty('--move-x', exchange.x + 'px');
+        cell.gem.style.setProperty('--move-y', exchange.y + 'px');
+        cell.gem.style.setProperty('--swap-duration', (exchange.duration || 270) + 'ms');
+      }
+      if (visual.victory.has(key)) {
+        cell.gem.style.setProperty('--victory-delay', ((position.row + position.col) * 42) + 'ms');
+      }
       if (gemData) {
         if (gemData.special === 'prism') cell.gem.classList.add('gem-prism');
         else cell.gem.classList.add('gem-' + gemData.color);
@@ -247,18 +380,26 @@
 
     const blocked = state.status !== 'playing';
     $('hint-btn').disabled = blocked;
-    $('new-btn').disabled = state.status === 'resolving';
+    $('new-btn').disabled = state.status === 'resolving' || state.status === 'celebrating';
     $('sound-btn').setAttribute('aria-pressed', String(state.sound));
     $('sound-btn').textContent = state.sound ? '🔊 Ton an' : '🔇 Ton aus';
-    boardEl.setAttribute('aria-busy', String(state.status === 'resolving'));
+    boardEl.setAttribute('aria-busy', String(state.status === 'resolving' || state.status === 'celebrating'));
     scheduleSave();
   }
 
   function newGame(seed, shouldFocus = true) {
-    turnToken++;
+    const token = ++turnToken;
     clearTimeout(hintTimer);
     clearTimeout(comboTimer);
+    clearTimeout(entranceTimer);
+    clearTimeout(effectTimer);
     comboTimer = 0;
+    entranceTimer = 0;
+    effectTimer = 0;
+    pointerGesture = null;
+    effectsEl.replaceChildren();
+    boardEl.classList.remove('cascade-impact', 'shuffle-out', 'shuffle-in', 'level-complete', 'level-cleared', 'round-lost');
+    $('level-banner').hidden = true;
     state.seed = String(seed || ('juwelen-' + Date.now() + '-' + Math.floor(Math.random() * 1000000)));
     random = Logic.seededRandom(state.seed);
     state.board = Logic.createBoard({ random });
@@ -273,10 +414,18 @@
     state.turns = 0;
     state.largestCascade = 0;
     clearVisual();
+    for (let index = 0; index < Logic.CONFIG.rows * Logic.CONFIG.cols; index++) visual.entering.add(positionKey(positionOf(index)));
     $('result').hidden = true;
+    $('result').classList.remove('won', 'lost');
     $('combo-pop').hidden = true;
     announce('Wähle zwei benachbarte Juwelen.');
     render();
+    entranceTimer = window.setTimeout(() => {
+      if (token !== turnToken) return;
+      visual.entering.clear();
+      entranceTimer = 0;
+      render();
+    }, motionTime(720));
     if (shouldFocus) queueMicrotask(() => cells[0].button.focus({ preventScroll: true }));
   }
 
@@ -320,19 +469,100 @@
     }, motionTime(650));
   }
 
+  function exchangeMotions(from, to, amount = 1) {
+    const first = cellMotion(from, to, amount);
+    const second = cellMotion(to, from, amount);
+    const duration = Math.min(520, 250 + Math.hypot(first.x, first.y) * .42);
+    first.duration = duration;
+    second.duration = duration;
+    return new Map([
+      [positionKey(from), first],
+      [positionKey(to), second]
+    ]);
+  }
+
   async function animateInvalid(from, to, token) {
     visual.swapping.clear();
-    visual.invalid = new Set([positionKey(from), positionKey(to)]);
+    visual.invalid = exchangeMotions(from, to, state.powerMode ? .34 : 1);
     state.selected = null;
     playSound('invalid');
-    announce(state.powerMode ? 'Dieser Fern-Tausch bildet keine Reihe – die Panda-Pfote bleibt geladen.' : 'Dieser Tausch bildet keine Reihe und kostet keinen Zug.');
+    announce(state.powerMode ? 'Dieser Fern-Tausch bildet keine Reihe – die Panda-Pfote bleibt geladen.' : 'Dieser Tausch springt zurück und kostet keinen Zug.');
     render();
-    await wait(300);
+    await waitForMotion(['jewel-reject'], 390);
     if (token !== turnToken) return;
     visual.invalid.clear();
     state.status = 'playing';
     render();
     cells[indexOf(to)].button.focus({ preventScroll: true });
+  }
+
+  async function animateShuffle(nextBoard, token) {
+    clearVisual();
+    boardEl.classList.remove('shuffle-in');
+    boardEl.classList.add('shuffle-out');
+    render();
+    playSound('shuffle');
+    announce('Keine Züge mehr – der Panda mischt den Schatzgarten neu …');
+    await waitForMotion(['jewel-shuffle-out'], 460);
+    if (token !== turnToken) return false;
+    state.board = Logic.cloneBoard(nextBoard);
+    boardEl.classList.remove('shuffle-out');
+    boardEl.classList.add('shuffle-in');
+    render();
+    await waitForMotion(['jewel-shuffle-in'], 520);
+    boardEl.classList.remove('shuffle-in');
+    return token === turnToken;
+  }
+
+  function emitVictoryEffects() {
+    if (reducedMotion) return;
+    const host = effectsEl.getBoundingClientRect();
+    const board = boardEl.getBoundingClientRect();
+    const colors = Object.values(GEM_HEX);
+    for (let index = 0; index < 30; index++) {
+      addEffect('victory-confetti', {
+        x: board.left - host.left + board.width * ((index * 37) % 101) / 100,
+        y: board.top - host.top + board.height * (.12 + ((index * 19) % 24) / 100),
+        size: 8 + index % 5
+      }, {
+        '--spark-color': colors[index % colors.length],
+        '--confetti-x': ((index % 2 ? 1 : -1) * (24 + index % 7 * 8)) + 'px',
+        '--confetti-delay': ((index * 31) % 280) + 'ms',
+        '--confetti-turn': (180 + (index * 47) % 420) + 'deg'
+      });
+    }
+  }
+
+  async function celebrateWin(token) {
+    state.status = 'celebrating';
+    state.selected = null;
+    state.powerMode = false;
+    clearTimeout(comboTimer);
+    comboTimer = 0;
+    $('combo-pop').hidden = true;
+    clearVisual();
+    for (let index = 0; index < cells.length; index++) {
+      const position = positionOf(index);
+      if (state.board[position.row]?.[position.col]) visual.victory.add(positionKey(position));
+    }
+    boardEl.classList.add('level-complete');
+    $('level-banner').hidden = false;
+    announce('Ziel erreicht! Der Panda lässt den Schatzgarten aufleuchten.');
+    emitVictoryEffects();
+    render();
+    playSound('win');
+    await waitForMotion(['jewel-victory'], 1350);
+    if (token !== turnToken) return false;
+    state.board = Logic.createEmptyBoard(Logic.CONFIG.rows, Logic.CONFIG.cols);
+    clearVisual();
+    effectsEl.replaceChildren();
+    boardEl.classList.remove('level-complete');
+    boardEl.classList.add('level-cleared');
+    render();
+    await wait(180);
+    if (token !== turnToken) return false;
+    finishRound(true, { sound: false });
+    return true;
   }
 
   async function attemptSwap(from, to) {
@@ -342,20 +572,26 @@
     const usingPower = state.powerMode;
     state.status = 'resolving';
     state.focusIndex = indexOf(to);
-    visual.hinted.clear();
-    visual.invalid.clear();
-    visual.swapping = new Set([positionKey(from), positionKey(to)]);
-    render();
+    clearTimeout(hintTimer);
+    clearTimeout(entranceTimer);
+    hintTimer = 0;
+    entranceTimer = 0;
+    clearVisual();
 
     const result = Logic.resolveTurn(state.board, from, to, { allowRemote: usingPower, random });
-    await wait(170);
-    if (token !== turnToken) return false;
     if (!result.valid) {
       await animateInvalid(from, to, token);
       return false;
     }
 
-    state.board = result.steps[0]?.before || Logic.swapCells(state.board, from, to);
+    state.board = Logic.cloneBoard(result.steps[0]?.before || Logic.swapCells(state.board, from, to));
+    visual.swapping = exchangeMotions(from, to);
+    announce(usingPower ? 'Die Panda-Pfote tauscht zwei Juwelen …' : 'Juwelen tauschen …');
+    playSound('swap');
+    render();
+    await waitForMotion(['jewel-swap'], usingPower ? 520 : 290);
+    if (token !== turnToken) return false;
+
     state.moves--;
     state.turns++;
     state.selected = null;
@@ -368,65 +604,129 @@
       state.board = Logic.cloneBoard(step.before);
       visual.clearing = new Set(step.cleared.map(cell => positionKey(cell)));
       visual.falling.clear();
+      visual.created.clear();
       state.score += step.score;
       if (state.score > state.highScore) state.highScore = state.score;
       state.largestCascade = Math.max(state.largestCascade, step.cascade);
       showCombo(step.cascade);
-      playSound(step.created.length ? 'special' : 'match', step.cascade);
+      announce(step.cascade > 1
+        ? step.cascade + '× Kaskade – der Schatzgarten funkelt weiter!'
+        : step.cleared.length + ' Juwelen leuchten auf …');
+      const activatedSpecial = step.cleared.some(cell => !!cell.gem.special);
+      playSound(step.created.length || activatedSpecial ? 'special' : 'match', step.cascade);
       render();
-      await wait(235);
+      emitClearEffects(step);
+      const scoreStat = $('score').parentElement;
+      scoreStat.classList.remove('score-pop');
+      void scoreStat.offsetWidth;
+      scoreStat.classList.add('score-pop');
+      clearTimeout(effectTimer);
+      effectTimer = window.setTimeout(() => scoreStat.classList.remove('score-pop'), motionTime(420));
+      await waitForMotion(['jewel-crack'], 380);
       if (token !== turnToken) return false;
 
       state.board = Logic.cloneBoard(step.afterClear);
       visual.clearing.clear();
+      visual.created = new Set(step.created.map(creation => positionKey(creation)));
       render();
-      await wait(75);
+      if (step.created.length) await waitForMotion(['special-born'], 300);
+      else await wait(80);
       if (token !== turnToken) return false;
 
+      const firstRow = cells[0].button.getBoundingClientRect();
+      const secondRow = cells[Logic.CONFIG.cols].button.getBoundingClientRect();
+      const rowPitch = Math.max(firstRow.height, secondRow.top - firstRow.top);
+      const fallMap = new Map();
+      let fallFallback = 340;
+      for (const movement of step.falls || []) {
+        if (!movement.spawned && movement.distance <= 0) continue;
+        const delay = movement.to.col * 13 + (movement.spawned ? movement.to.row * 10 : 0);
+        const duration = 300 + Math.min(7, movement.distance) * 52;
+        fallFallback = Math.max(fallFallback, delay + duration);
+        fallMap.set(positionKey(movement.to), {
+          pixels: Math.max(rowPitch * movement.distance, rowPitch * .7),
+          distance: movement.distance,
+          spawned: movement.spawned,
+          delay,
+          duration
+        });
+      }
+      const createdDestinations = new Set();
+      for (const creation of step.created) {
+        const movement = (step.falls || []).find(item => !item.spawned && item.from.row === creation.row && item.from.col === creation.col);
+        createdDestinations.add(positionKey(movement ? movement.to : creation));
+      }
       state.board = Logic.cloneBoard(step.afterFall);
-      visual.falling = new Set(state.board.flatMap((row, rowIndex) => row.map((gem, colIndex) => gem ? rowIndex + ':' + colIndex : null)).filter(Boolean));
+      visual.falling = fallMap;
+      visual.created = createdDestinations;
       render();
-      await wait(285);
+      await waitForMotion(['jewel-fall'], fallFallback + 80);
+      if (token !== turnToken) return false;
       visual.falling.clear();
+      visual.created.clear();
+      render();
+      await wait(45);
     }
 
     if (token !== turnToken) return false;
-    state.board = Logic.cloneBoard(result.board);
+    const settledBoard = Logic.cloneBoard(result.board);
+    if (result.reshuffled) {
+      if (!await animateShuffle(settledBoard, token)) return false;
+    } else {
+      state.board = settledBoard;
+    }
     state.charge = Math.min(Logic.CONFIG.pandaCharge, state.charge + result.cascades);
-    state.status = 'playing';
     clearVisual();
-    render();
 
     if (state.score >= state.target) {
-      finishRound(true);
+      await celebrateWin(token);
     } else if (state.moves <= 0) {
       finishRound(false);
-    } else if (result.reshuffled) {
-      playSound('shuffle');
-      announce('Keine Züge mehr – der Panda hat das Feld automatisch gemischt.');
     } else {
+      state.status = 'playing';
+      render();
       const specialText = result.created ? ' · ' + result.created + ' Spezialjuwel' + (result.created === 1 ? '' : 'e') : '';
       const powerText = state.charge >= Logic.CONFIG.pandaCharge ? ' Die Panda-Pfote ist bereit!' : '';
-      announce('+' + formatScore(result.score) + ' Punkte · ' + result.cascades + ' Kaskadenstufe' + (result.cascades === 1 ? '' : 'n') + specialText + '.' + powerText);
+      const shuffleText = result.reshuffled ? ' Feld frisch gemischt.' : '';
+      announce('+' + formatScore(result.score) + ' Punkte · ' + result.cascades + ' Kaskadenstufe' + (result.cascades === 1 ? '' : 'n') + specialText + '.' + shuffleText + powerText);
       queueMicrotask(() => cells[state.focusIndex].button.focus({ preventScroll: true }));
     }
     return true;
   }
 
-  function finishRound(won) {
+  function finishRound(won, options = {}) {
+    clearTimeout(hintTimer);
+    clearTimeout(comboTimer);
+    clearTimeout(entranceTimer);
+    clearTimeout(effectTimer);
+    hintTimer = 0;
+    comboTimer = 0;
+    entranceTimer = 0;
+    effectTimer = 0;
+    pointerGesture = null;
+    $('combo-pop').hidden = true;
+    effectsEl.replaceChildren();
+    clearVisual();
+    boardEl.classList.remove('cascade-impact', 'shuffle-out', 'shuffle-in', 'level-complete');
+    boardEl.classList.toggle('round-lost', !won);
+    if (!won) $('level-banner').hidden = true;
     state.status = won ? 'won' : 'lost';
     state.selected = null;
     state.powerMode = false;
     if (state.score > state.highScore) state.highScore = state.score;
     saveSettings();
-    $('result-icon').textContent = won ? '🐼💎' : '🐼';
-    $('result-title').textContent = won ? 'Schatzgarten erleuchtet!' : 'Fast geschafft';
-    $('result-text').textContent = won
+    const summary = won
       ? formatScore(state.score) + ' Punkte mit ' + state.moves + ' übrigen Zügen. Größte Kaskade: ' + Math.max(1, state.largestCascade) + '×.'
       : formatScore(state.score) + ' von ' + formatScore(state.target) + ' Punkten. Beim nächsten Versuch wartet ein neues Feld.';
+    announce(won ? 'Runde geschafft – der Schatzgarten ist vollständig erleuchtet.' : 'Runde beendet – diesmal fehlten noch ein paar Funken.');
+    $('result-icon').textContent = won ? '🐼💎' : '🐼';
+    $('result-title').textContent = won ? 'Schatzgarten erleuchtet!' : 'Fast geschafft';
+    $('result-text').textContent = summary;
+    $('result').classList.toggle('won', won);
+    $('result').classList.toggle('lost', !won);
     $('result').hidden = false;
     render();
-    playSound(won ? 'win' : 'lose');
+    if (options.sound !== false) playSound(won ? 'win' : 'lose');
     queueMicrotask(() => $('result-new-btn').focus());
   }
 
@@ -466,6 +766,10 @@
   }
 
   function handleCellKeydown(event, index) {
+    if (state.status === 'resolving' || state.status === 'celebrating') {
+      if (event.key.startsWith('Arrow') || event.key === 'Enter' || event.key === ' ') event.preventDefault();
+      return;
+    }
     if (event.key === 'ArrowLeft') { event.preventDefault(); moveFocus(index, 0, -1); }
     else if (event.key === 'ArrowRight') { event.preventDefault(); moveFocus(index, 0, 1); }
     else if (event.key === 'ArrowUp') { event.preventDefault(); moveFocus(index, -1, 0); }

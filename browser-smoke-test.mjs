@@ -378,6 +378,8 @@ try {
         canvas.dispatchEvent(shotKey);
         for (let i = 0; i < 50 && PandaBubbles.getState().projectile; i++) await new Promise(resolve => setTimeout(resolve, 60));
         const afterKeyboardShot = PandaBubbles.getState();
+        for (let i = 0; i < 40 && PandaBubbles.getState().inputLocked; i++) await new Promise(resolve => setTimeout(resolve, 20));
+        const keyboardFeedbackSettled = !PandaBubbles.getState().inputLocked && PandaBubbles.getState().visualPhase === 'idle';
 
         const rect = canvas.getBoundingClientRect();
         canvas.dispatchEvent(new PointerEvent('pointerdown', {
@@ -388,30 +390,55 @@ try {
         for (let i = 0; i < 50 && PandaBubbles.getState().projectile; i++) await new Promise(resolve => setTimeout(resolve, 60));
         const afterPointerShot = PandaBubbles.getState();
 
+        PandaBubbles.newGame('pressure-ui-0');
+        const pressureAngles = [-1.1, -.55, 0, .55, 1.1];
+        let pressureSequenceValid = true;
+        for (let index = 0; index < pressureAngles.length; index++) {
+          PandaBubbles.setAim(pressureAngles[index]);
+          if (!PandaBubbles.shoot()) { pressureSequenceValid = false; break; }
+          for (let frame = 0; frame < 80 && PandaBubbles.getState().projectile; frame++) await new Promise(resolve => setTimeout(resolve, 25));
+          if (index < pressureAngles.length - 1) {
+            for (let frame = 0; frame < 40 && PandaBubbles.getState().inputLocked; frame++) await new Promise(resolve => setTimeout(resolve, 20));
+          }
+        }
+        const pressureStart = PandaBubbles.getState();
+        const pressureLocked = pressureSequenceValid && pressureStart.visualPhase === 'pressure' && pressureStart.inputLocked &&
+          pressureStart.boardShift?.offset < -1 && !PandaBubbles.shoot() && PandaBubbles.getState().shots === 5;
+        await new Promise(resolve => setTimeout(resolve, 700));
+        const pressureEnd = PandaBubbles.getState();
+        const pressureAnimated = pressureLocked && pressureEnd.visualPhase === 'idle' && !pressureEnd.inputLocked &&
+          pressureEnd.boardShift === null && pressureEnd.topParity === 1 && pressureEnd.misses === 5;
+
         PandaBubbles.newGame('pop-0');
         const bubblesBeforePop = PandaBubbles.getState().board.flat().filter(Boolean).length;
         PandaBubbles.setAim(-1);
         PandaBubbles.shoot();
         for (let i = 0; i < 80 && PandaBubbles.getState().projectile; i++) await new Promise(resolve => setTimeout(resolve, 35));
         const burstState = PandaBubbles.getState();
-        const burstAnimated = burstState.particles > 0 && burstState.power > 0 && burstState.board.flat().filter(Boolean).length < bubblesBeforePop;
-        await new Promise(resolve => setTimeout(resolve, 800));
-        const burstSettled = PandaBubbles.getState().particles === 0;
+        const burstAnimated = burstState.particles > 0 && burstState.popping > 0 && burstState.power > 0 && burstState.board.flat().filter(Boolean).length < bubblesBeforePop;
+        const feedbackLocked = burstState.inputLocked && !PandaBubbles.shoot() && PandaBubbles.getState().shots === burstState.shots;
 
         const pause = document.querySelector('#pause-btn');
         pause.focus();
         pause.click();
         await new Promise(resolve => setTimeout(resolve, 30));
+        const pausedClock = PandaBubbles.getState().effectClock;
+        const pausedPhase = PandaBubbles.getState().visualPhase;
+        await new Promise(resolve => setTimeout(resolve, 150));
         const pauseReport = {
           paused: PandaBubbles.getState().status === 'paused',
           focused: document.activeElement?.id === 'resume-btn',
-          controlsInert: document.querySelector('.control-card').inert
+          controlsInert: document.querySelector('.control-card').inert,
+          effectsFrozen: PandaBubbles.getState().effectClock === pausedClock && PandaBubbles.getState().visualPhase === pausedPhase
         };
         document.querySelector('#resume-btn').click();
         await new Promise(resolve => setTimeout(resolve, 30));
         pauseReport.resumed = PandaBubbles.getState().status === 'playing';
         pauseReport.controlsRestored = !document.querySelector('.control-card').inert;
         pauseReport.canvasFocused = document.activeElement === canvas;
+        await new Promise(resolve => setTimeout(resolve, 900));
+        const settledEffects = PandaBubbles.getState();
+        const burstSettled = settledEffects.particles === 0 && settledEffects.popping === 0 && !settledEffects.inputLocked;
 
         const soundButton = document.querySelector('#sound-btn');
         if (!PandaBubbles.getState().sound) soundButton.click();
@@ -431,9 +458,11 @@ try {
           swap: swapped && afterSwap.current === beforeSwap.next && afterSwap.next === beforeSwap.current && swapNamesUpdated,
           accessibleState,
           audioMute,
-          keyboardShot: shotKey.defaultPrevented && afterKeyboardShot.shots === 1 && !afterKeyboardShot.projectile && afterKeyboardShot.status === 'playing',
+          keyboardShot: shotKey.defaultPrevented && afterKeyboardShot.shots === 1 && !afterKeyboardShot.projectile && afterKeyboardShot.status === 'playing' && keyboardFeedbackSettled,
           pointerShot: afterPointerShot.shots === 2 && !afterPointerShot.projectile && afterPointerShot.status === 'playing',
+          pressureAnimated,
           burstAnimated,
+          feedbackLocked,
           burstSettled,
           pauseReport,
           controlsTallEnough,
@@ -441,13 +470,35 @@ try {
           canvasTabbable: canvas.tabIndex === 0
         };
       })()`);
+      const motionBeforeReduction = await evaluate(`(async () => {
+        PandaBubbles.newGame('pop-0');
+        PandaBubbles.setAim(-1);
+        PandaBubbles.shoot();
+        for (let i = 0; i < 80 && PandaBubbles.getState().projectile; i++) await new Promise(resolve => setTimeout(resolve, 30));
+        const state = PandaBubbles.getState();
+        return { effects: state.particles + state.popping + state.ripples, locked: state.inputLocked };
+      })()`);
+      await cdp.send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+      await delay(80);
+      const motionAfterReduction = await evaluate(`(() => {
+        const state = PandaBubbles.getState();
+        return {
+          effects: state.particles + state.falling + state.popping + state.snaps + state.ripples,
+          settled: state.visualPhase === 'idle' && !state.inputLocked
+        };
+      })()`);
+      await cdp.send('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+      await delay(40);
       assert(bubbles.deterministic, 'panda-bubbles: seeded board/queue is not deterministic');
       assert(JSON.stringify(bubbles.rows) === JSON.stringify([10, 9, 10, 9, 10, 9]) && bubbles.colors >= 4, `panda-bubbles: initial field is malformed ${JSON.stringify(bubbles)}`);
       assert(bubbles.keyboardAim && bubbles.bankPreview && bubbles.swap, `panda-bubbles: aim/bank/swap controls failed ${JSON.stringify(bubbles)}`);
       assert(Object.values(bubbles.accessibleState).every(Boolean), `panda-bubbles: nonvisual board/queue state is incomplete ${JSON.stringify(bubbles.accessibleState)}`);
       assert(bubbles.audioMute, 'panda-bubbles: mute did not silence the shared audio bus immediately');
       assert(bubbles.keyboardShot && bubbles.pointerShot, `panda-bubbles: keyboard/touch shot did not settle ${JSON.stringify(bubbles)}`);
-      assert(bubbles.burstAnimated && bubbles.burstSettled, `panda-bubbles: pop animation/power feedback failed ${JSON.stringify(bubbles)}`);
+      assert(bubbles.pressureAnimated, `panda-bubbles: pressure row did not animate and lock cleanly ${JSON.stringify(bubbles)}`);
+      assert(bubbles.burstAnimated && bubbles.feedbackLocked && bubbles.burstSettled, `panda-bubbles: pop animation/phase lock failed ${JSON.stringify(bubbles)}`);
+      assert(motionBeforeReduction.effects > 0 && motionBeforeReduction.locked && motionAfterReduction.effects === 0 && motionAfterReduction.settled,
+        `panda-bubbles: runtime reduced-motion cleanup failed ${JSON.stringify({ motionBeforeReduction, motionAfterReduction })}`);
       assert(Object.values(bubbles.pauseReport).every(Boolean), `panda-bubbles: pause focus/inert contract failed ${JSON.stringify(bubbles.pauseReport)}`);
       assert(bubbles.controlsTallEnough && bubbles.canvasRole === 'application' && bubbles.canvasTabbable, 'panda-bubbles: accessible controls/canvas contract failed');
     }
@@ -545,7 +596,18 @@ try {
             await PandaJewels.swap(move.from, move.to);
           }
           const ended = PandaJewels.getState();
-          return { status: ended.status, moves: ended.moves, score: ended.score, target: ended.target };
+          return {
+            status: ended.status,
+            moves: ended.moves,
+            score: ended.score,
+            target: ended.target,
+            boardEmpty: ended.board.flat().every(gem => !gem),
+            resultVisible: !document.querySelector('#result').hidden,
+            bannerVisible: !document.querySelector('#level-banner').hidden,
+            comboHidden: document.querySelector('#combo-pop').hidden,
+            transientCells: document.querySelectorAll('#board .clearing, #board .falling, #board .swapping, #board .invalid, #board .victory').length,
+            terminalMessage: /Runde (geschafft|beendet)/.test(document.querySelector('#message').textContent)
+          };
         }
         const lossBranch = await playRound('outcome-0');
         const winBranch = await playRound('outcome-5');
@@ -585,17 +647,39 @@ try {
         PandaJewels.newGame('combo-4');
         const move = JewelsLogic.findValidMoves(PandaJewels.getState().board)[0];
         const turn = PandaJewels.swap(move.from, move.to);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const swapping = [...document.querySelectorAll('#board .cell.swapping')];
+        const directionalSwap = swapping.length === 2 && swapping.every(cell => {
+          const gem = cell.querySelector('.gem');
+          return Math.abs(parseFloat(gem.style.getPropertyValue('--move-x')) || 0) + Math.abs(parseFloat(gem.style.getPropertyValue('--move-y')) || 0) > 1;
+        });
         const seen = new Set();
-        for (let i = 0; i < 110 && PandaJewels.getState().status === 'resolving'; i++) {
+        let selectiveFall = false;
+        let maxFallPixels = 0;
+        for (let i = 0; i < 140 && PandaJewels.getState().status === 'resolving'; i++) {
           const popup = document.querySelector('#combo-pop');
           if (!popup.hidden) seen.add(popup.textContent);
+          const falling = [...document.querySelectorAll('#board .cell.falling')];
+          if (falling.length) {
+            selectiveFall ||= falling.length < 64;
+            maxFallPixels = Math.max(maxFallPixels, ...falling.map(cell => Math.abs(parseFloat(cell.querySelector('.gem').style.getPropertyValue('--fall-y')) || 0)));
+          }
           await new Promise(resolve => setTimeout(resolve, 30));
         }
         const accepted = await turn;
         await new Promise(resolve => setTimeout(resolve, 700));
-        return { accepted, seen: [...seen], hiddenAfterLatestTimer: document.querySelector('#combo-pop').hidden };
+        const cellHeight = document.querySelector('#board .cell').getBoundingClientRect().height;
+        return {
+          accepted,
+          directionalSwap,
+          selectiveFall,
+          multiCellFall: maxFallPixels > cellHeight,
+          seen: [...seen],
+          hiddenAfterLatestTimer: document.querySelector('#combo-pop').hidden
+        };
       })()`);
-      assert(comboAnimation.accepted && comboAnimation.seen.includes('2× Kaskade!') && comboAnimation.seen.includes('3× Kaskade!') && comboAnimation.hiddenAfterLatestTimer,
+      assert(comboAnimation.accepted && comboAnimation.directionalSwap && comboAnimation.selectiveFall && comboAnimation.multiCellFall &&
+        comboAnimation.seen.includes('2× Kaskade!') && comboAnimation.seen.includes('3× Kaskade!') && comboAnimation.hiddenAfterLatestTimer,
         `des-pandas-juwelen: combo animation timer race ${JSON.stringify(comboAnimation)}`);
       assert(jewels.deterministic && jewels.count === 64 && jewels.matchFree && jewels.playable, `des-pandas-juwelen: initial board contract failed ${JSON.stringify(jewels)}`);
       assert(jewels.roving === 1 && jewels.keyboardMoved && jewels.keyboardSelected && jewels.escapeCleared && jewels.hintValid, `des-pandas-juwelen: keyboard/hint contract failed ${JSON.stringify(jewels)}`);
@@ -603,7 +687,9 @@ try {
       assert(jewels.charged && jewels.remoteFound && jewels.invalidRemotePreserved && jewels.remoteUsed, `des-pandas-juwelen: Panda-Pfote remote swap failed ${JSON.stringify(jewels)}`);
       assert(jewels.audioMute, 'des-pandas-juwelen: mute did not silence the shared audio bus immediately');
       assert(jewels.lossBranch.status === 'lost' && jewels.lossBranch.moves === 0 && jewels.lossBranch.score < jewels.lossBranch.target &&
-        jewels.winBranch.status === 'won' && jewels.winBranch.score >= jewels.winBranch.target,
+        jewels.lossBranch.resultVisible && jewels.lossBranch.comboHidden && jewels.lossBranch.transientCells === 0 && jewels.lossBranch.terminalMessage &&
+        jewels.winBranch.status === 'won' && jewels.winBranch.score >= jewels.winBranch.target && jewels.winBranch.boardEmpty &&
+        jewels.winBranch.resultVisible && jewels.winBranch.bannerVisible && jewels.winBranch.comboHidden && jewels.winBranch.transientCells === 0 && jewels.winBranch.terminalMessage,
         `des-pandas-juwelen: terminal win/loss branches failed ${JSON.stringify({ loss: jewels.lossBranch, win: jewels.winBranch })}`);
       assert(jewels.finalStable && jewels.controlsTallEnough && jewels.smallestCell >= 36 && jewels.gridStructure && jewels.ariaLabels, `des-pandas-juwelen: stable/responsive/a11y contract failed ${JSON.stringify(jewels)}`);
     }
@@ -1281,7 +1367,7 @@ try {
     };
   })()`);
   assert(launcher.count === 18 && launcher.unique === 18 && launcher.allTargetsLoad, `launcher: expected 18 unique loadable games ${JSON.stringify(launcher)}`);
-  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 1.7') && !launcher.overflow, `launcher: v1.7 integration is incomplete ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 1.8') && !launcher.overflow, `launcher: v1.8 integration is incomplete ${JSON.stringify(launcher)}`);
 
   await navigate('pahjong/index.html');
   const pahjongUi = await evaluate(`(async () => {

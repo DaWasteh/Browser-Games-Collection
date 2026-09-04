@@ -24,9 +24,17 @@ Jede abgearbeitete Kaskadenstufe lädt ein Blatt. Nach fünf Blättern lässt si
 
 Erreiche 9.000 Punkte innerhalb von 24 gültigen Zügen. Kaskaden multiplizieren die Punkte. Das Feld startet ohne fertige Reihen und besitzt garantiert mindestens einen gültigen Zug; falls später keiner mehr möglich ist, wird es automatisch neu gemischt.
 
+## Animationen und Rundenabschluss
+
+- Tauschaktionen bewegen die beiden Steine wirklich zwischen ihren Feldern; ungültige Züge federn sichtbar zurück.
+- Die Schwerkraft animiert ausschließlich bewegte und neu eingefüllte Juwelen über ihre tatsächliche Zeilendistanz.
+- Treffer erzeugen Kristallsplitter, Spezialsteine eigene Linien-/Wellen-Effekte und Kaskaden ein gestaffeltes Punktefeedback.
+- Beim Sieg leuchtet das gesamte Feld in einer Abschlusswelle auf und wird anschließend vollständig geleert. „Ergebnis ansehen“ führt deshalb in einen klaren, ruhigen Endzustand statt zurück in ein scheinbar noch laufendes Feld.
+- Auch automatisches Mischen sowie der Start einer neuen Runde besitzen eigene, eingabegesperrte Übergänge.
+
 ## Technik
 
-- `jewels-logic.js` – reine CommonJS-/Browser-Engine für Matches, Spezialsteine, Kaskaden, Schwerkraft und Mischbarkeit.
+- `jewels-logic.js` – reine CommonJS-/Browser-Engine für Matches, Spezialsteine, Kaskaden, Schwerkraft, Bewegungsmetadaten und Mischbarkeit.
 - `game.js` – barrierearme DOM-Steuerung, Wischgesten, Web-Audio-Sound und animierte Zugauflösung.
 - `styles.css` – responsive Kristalloptik für Panda-, Nacht- und Kontrastansicht.
 - `smoke-test.cjs` – deterministische Logik-, Spezialstein-, Generator- und Strukturtests.

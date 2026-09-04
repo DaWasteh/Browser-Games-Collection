@@ -68,6 +68,47 @@ node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
 ```
 
+## ✨ Neu in v1.8
+
+### Des Pandas Juwelen – sauberer Spielfluss
+
+- Juwelen tauschen nun ihre Plätze sichtbar per richtungsgenauer Bewegung; ungültige
+  Züge federn zurück, statt nur an derselben Stelle zu wackeln.
+- Die Engine liefert für jede Kaskade echte Quell-, Ziel- und Spawnpositionen.
+  Dadurch fallen ausschließlich bewegte oder neue Steine – über exakt die
+  zurückgelegte Zeilendistanz, gestaffelt und mit einem kleinen Landeeffekt.
+- Treffer besitzen Kristallsplitter und Punkte-Popups; Liniensteine, Bomben und
+  Prismen eigene Strahl-/Wellenanimationen. Auch Spezialstein-Erzeugung,
+  automatisches Mischen und Rundenstart sind klar getrennte Übergänge.
+- Ein Sieg endet jetzt in einer vollständigen Abschlusswelle: Das Spielfeld wird
+  sichtbar abgeräumt und bleibt nach „Ergebnis ansehen“ in einem ruhigen, leeren
+  Endzustand. Timer, Kombotext, Eingabesperre und Live-Status werden dabei sauber
+  abgeschlossen.
+
+### Panda: Jäger der Blasen – mehr Dynamik
+
+- Das Panda-Katapult folgt jetzt der tatsächlichen Zielrichtung und reagiert mit
+  Rückstoß, Mündungsring und Flugspur. Bewegte Zielpunkte, eine transparente
+  Einrastvorschau und ein eigener Bandenimpuls machen jeden Schuss besser lesbar.
+- Blasen rasten federnd ein, Gruppen platzen gestaffelt mit Ringen und Splittern,
+  lose Gruppen fallen rotierend und Punkte erscheinen direkt am Treffer. Die
+  Bambusblase erhielt zusätzlich eine echte schillernde Oberfläche.
+- Neue Druckreihen schieben das komplette Hexraster weich nach unten, statt es
+  springen zu lassen. Eine explizite Flug-/Treffer-/Fall-/Druck-/Abschlussphase
+  verhindert Eingaben zwischen Zuständen und lässt das letzte Trefferfeedback vor
+  dem Ergebnisdialog vollständig ausspielen.
+- Pause friert jetzt auch Partikel und Übergänge ein; ein Wechsel auf reduzierte
+  Bewegung räumt laufende Kosmetik sofort auf. Die neue kurze Querformatansicht
+  hält Spielfeld, Vorschau und Hauptaktionen auf Smartphone-Displays gemeinsam im
+  Blick.
+
+### Qualität
+
+- Die Logiktests prüfen Bewegungsmetadaten der Juwelenschwerkraft. Die Browser-Suite
+  kontrolliert zusätzlich richtungsgenaue Tauschaktionen, selektive Fallwege,
+  saubere Siegzustände, Druckreihen, Eingabesperren, pausierte Effekte und den
+  Wechsel zu reduzierter Bewegung.
+
 ## ✨ Neu in v1.7
 
 ### Zwei neue Panda-Spiele

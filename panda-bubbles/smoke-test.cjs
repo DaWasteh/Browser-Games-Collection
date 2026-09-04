@@ -252,11 +252,23 @@ assert.doesNotMatch(html, /onclick=/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(css, /min-height: 2\.75rem/);
 assert.match(css, /touch-action: none/);
-assert.match(css, /@keyframes card-in/);
+for (const animation of ['card-in', 'queue-swap-left', 'pressure-frame', 'victory-frame', 'loaded-breathe']) {
+  assert.match(css, new RegExp('@keyframes ' + animation), `${animation} animation exists`);
+}
+assert.match(css, /orientation: landscape/);
+assert.match(css, /max-height: 520px/);
 assert.match(game, /AudioContext \|\| window\.webkitAudioContext/);
 assert.match(game, /oscillator\.onended =/);
 assert.match(game, /requestAnimationFrame\(loop\)/);
 assert.match(game, /Logic\.traceShot/);
+assert.match(game, /function inputLocked\(\)/);
+assert.match(game, /function launchPoint\(/);
+assert.match(game, /ctx\.rotate\(state\.aim\)/);
+assert.match(game, /state\.boardShift = \{ elapsed: 0/);
+assert.match(game, /function queueRoundEnd\(/);
+assert.match(game, /state\.status = 'celebrating'/);
+assert.match(game, /state\.status !== 'paused'\) updateEffects/);
+assert.match(game, /visualPhase: state\.phase/);
 assert.match(game, /masterGain\.gain\.value = 0/);
 assert.match(game, /addEventListener\('pointerdown'/);
 assert.match(game, /preventDefault\(\)/);

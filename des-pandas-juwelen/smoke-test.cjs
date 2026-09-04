@@ -101,6 +101,8 @@ assert.equal(valid.valid, true);
 assert.ok(valid.cleared >= 3);
 assert.ok(valid.score >= 180);
 assert.ok(valid.steps.length >= 1);
+assert.equal(valid.steps[0].falls.length, 64, 'every settled destination has motion metadata');
+assert.equal(new Set(valid.steps[0].falls.map(move => `${move.to.row}:${move.to.col}`)).size, 64, 'fall destinations are unique');
 assert.equal(Logic.findMatches(valid.board).cells.length, 0);
 assert.ok(Logic.findValidMoves(valid.board).length > 0);
 assert.equal(Logic.boardSignature(base), baseSignature, 'valid resolution must not mutate input');
@@ -193,11 +195,21 @@ gravityBoard[0][0] = Logic.makeGem('jade', 'row');
 gravityBoard[2][0] = Logic.makeGem('ruby', null);
 gravityBoard[1][1] = Logic.makeGem('amber', null);
 const collapsed = Logic.collapseAndRefill(gravityBoard, () => 0, 4);
+const gravityDetail = Logic.collapseAndRefillDetailed(gravityBoard, () => 0, 4);
+assert.deepEqual(gravityDetail.board, collapsed, 'detailed gravity preserves the public board result');
 assert.equal(collapsed[2][0].color, 'jade');
 assert.equal(collapsed[2][0].special, 'row');
 assert.equal(collapsed[3][0].color, 'ruby');
 assert.equal(collapsed[3][1].color, 'amber');
 assert.ok(collapsed.flat().every(Boolean));
+assert.equal(gravityDetail.movements.length, 12);
+assert.equal(gravityDetail.movements.filter(move => move.spawned).length, 9);
+assert.ok(gravityDetail.movements.filter(move => move.spawned).every(move => move.from.row < 0 && move.distance > 0));
+assert.deepEqual(
+  gravityDetail.movements.find(move => !move.spawned && move.from.row === 0 && move.from.col === 0),
+  { from: { row: 0, col: 0 }, to: { row: 2, col: 0 }, distance: 2, spawned: false }
+);
+assert.equal(new Set(gravityDetail.movements.map(move => `${move.to.row}:${move.to.col}`)).size, 12, 'gravity destinations are unique');
 
 // Swapping a prism clears its partner color and can trigger special jewels of that color.
 const prismSwapBoard = Logic.createBoard({ random: Logic.seededRandom('prism-swap-board') });
@@ -302,12 +314,14 @@ assert.match(html, /id="board" class="board" role="grid"[^>]+aria-rowcount="8"[^
 assert.match(html, /aria-live="polite"/);
 assert.match(html, /role="dialog" aria-modal="true"/);
 assert.match(html, /Panda-Pfote/);
+assert.match(html, /id="board-effects" class="board-effects"/);
+assert.match(html, /id="level-banner" class="level-banner" hidden/);
 assert.doesNotMatch(html, /onclick=/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(css, /min-height: 2\.75rem/);
-assert.match(css, /@keyframes jewel-pop/);
-assert.match(css, /@keyframes jewel-fall/);
-assert.match(css, /@keyframes prism-glow/);
+for (const animation of ['jewel-swap', 'jewel-reject', 'jewel-crack', 'jewel-fall', 'special-born', 'jewel-victory', 'jewel-shuffle-out', 'prism-glow']) {
+  assert.match(css, new RegExp('@keyframes ' + animation), `${animation} animation exists`);
+}
 assert.match(game, /AudioContext \|\| window\.webkitAudioContext/);
 assert.match(game, /oscillator\.onended =/);
 assert.match(game, /masterGain\.gain\.value = 0/);
@@ -315,6 +329,10 @@ assert.match(game, /rowElement\.setAttribute\('role', 'row'\)/);
 assert.match(game, /addEventListener\('pointerdown'/);
 assert.match(game, /setPointerCapture/);
 assert.match(game, /preventDefault\(\)/);
+assert.match(game, /waitForMotion/);
+assert.match(game, /movement\.distance/);
+assert.match(game, /state\.status = 'celebrating'/);
+assert.match(game, /Logic\.createEmptyBoard\(Logic\.CONFIG\.rows, Logic\.CONFIG\.cols\)/);
 assert.match(game, /window\.PandaJewels = Object\.freeze/);
 assert.doesNotMatch(game, /\.innerHTML\s*=/);
 for (const file of ['jewels-logic.js', 'game.js', 'styles.css', 'README.md']) {
