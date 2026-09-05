@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sand Game Pro · Advanced Simulation v2.2</title>
+  <title>Sand Game Pro · Advanced Simulation v2.3</title>
   <style>
     :root {
       color-scheme: dark;
@@ -367,7 +367,7 @@
   <header class="header">
     <div class="title">
       <span class="eyebrow">● Live Cellular Automata</span>
-      <h1>Sand Pro v2.2</h1>
+      <h1>Sand Pro v2.3</h1>
       <p>Physik · Chemie · Biologie · Ökosystem</p>
     </div>
     <button id="toggleUI" class="ghost" type="button" aria-controls="ui" aria-expanded="true">Ausblenden</button>
@@ -486,7 +486,7 @@
 "use strict";
 
 /**
- * SAND GAME PRO v2.2 - Advanced Physics & Chemistry Simulation
+ * SAND GAME PRO v2.3 - Advanced Physics & Chemistry Simulation
  * 
  * Features:
  * - Realistic particle physics (density, buoyancy, viscosity)
@@ -4171,8 +4171,18 @@ const __NB4_DX = [-1, 1, 0, 0];
 const __NB4_DY = [0, 0, -1, 1];
 // Objekt-Variante (einmalig allokiert) für die selteneren inneren Reaktionsschleifen.
 const __NB4_OBJ = [{ dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 }];
+// PERF (v1.9): Nur Materialien, die als Zentrum einer Reaktion auftreten, oder
+// heiße Zellen (>44 °C, niedrigste temperaturgesteuerte Reaktionsschwelle) müssen
+// die lange Reaktionskette überhaupt betreten. Kalter Sand, Stein, Erde usw. –
+// der Großteil jeder Szene – überspringt sie damit vollständig.
+const CHEM_CENTER = new Uint8Array(256);
+[FIRE, WATER, ACID, SODA, BLOOD_ALKALI, OXYGEN, HYDROGEN, CHLORINE, LAVA, RADIATION, MERCURY, SULFUR, METAL, BRASS, RUST].forEach(m => { CHEM_CENTER[m] = 1; });
+for (const __k in MATS) { const __m = MATS[__k]; if (__m && __m.oxidizable && isSolid(__m.id)) CHEM_CENTER[__m.id] = 1; }
+const CHEM_COLD_LIMIT = 44;
+
 function checkChemicalReactions(x, y, matId) {
   const i = y * W + x;
+  if (CHEM_CENTER[matId] === 0 && tempGrid[i] <= CHEM_COLD_LIMIT) return;
   const mat = MATS[matId];
   
   // Check neighbors for reactions (von-Neumann-Nachbarschaft, allokationsfrei)
@@ -4182,6 +4192,9 @@ function checkChemicalReactions(x, y, matId) {
     if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
     const ni = ny * W + nx;
     const nId = grid[ni];
+    // PERF (v1.9): Leere Nachbarn lösen keine Reaktion aus; nur Strahlung
+    // arbeitet in ihrem Block unabhängig vom Nachbarmaterial.
+    if (nId === EMPTY && matId !== RADIATION) continue;
     const nMat = MATS[nId];
     if (!nMat) continue;
     
@@ -5037,6 +5050,9 @@ function getAmbientTemperature() {
   return ambientBase;
 }
 
+// PERF (v1.9): Umgebungstemperatur einmal pro Tick statt einmal pro aktiver Zelle.
+let __ambientTick = 20;
+
 function updateThermal(x, y, matId) {
   const i = y * W + x;
   const mat = MATS[matId];
@@ -5065,8 +5081,8 @@ function updateThermal(x, y, matId) {
     }
   }
 
-  // Ambient temperature influenced by sun cycle and season
-  const ambientBase = getAmbientTemperature();
+  // Ambient temperature influenced by sun cycle and season (pro Tick vorberechnet)
+  const ambientBase = __ambientTick;
 
   const ambientRate = 0.0015 / mat.heatCapacity;
   if (tempGrid[i] > ambientBase + 3) {
@@ -5203,7 +5219,9 @@ function updateThermal(x, y, matId) {
     // Fire produces smoke
     if (rng() < 0.3) {
       const dir = rng() < 0.5 ? -1 : 1;
-      for (const d of [dir, -dir]) {
+      // PERF (v1.9): allokationsfrei statt Array-Literal pro brennender Zelle
+      for (let k = 0; k < 2; k++) {
+        const d = k === 0 ? dir : -dir;
         if (x + d >= 0 && x + d < W && y - 1 >= 0 && grid[(y - 1) * W + x + d] === EMPTY && rng() < 0.2) {
           grid[(y - 1) * W + x + d] = SMOKE;
           tempGrid[(y - 1) * W + x + d] = 80;
@@ -5474,6 +5492,7 @@ function simulate() {
   
   // === PASS 1: Bottom-Up (Powder, Liquid, Gas, Fireball, TNT) ===
   // PERF: Counting-Sort der aktiven Zellen nach Y in wiederverwendete Puffer.
+  __ambientTick = getAmbientTemperature();
   ensureSortBuffers();
   __rowStart.fill(0, 0, H + 1);
   // Zählen pro Reihe

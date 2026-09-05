@@ -74,12 +74,19 @@
     return logic.SCENES[state.sceneId];
   }
 
+  function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
+
   function setMessage(text, type) {
     message = text;
     messageType = type || '';
     elements.status.textContent = message;
     elements.status.dataset.type = messageType;
+    if (type === 'success') { sfx('success'); if (window.GameFX) window.GameFX.pulse(elements.status); }
+    else if (type === 'error') { sfx('error'); if (window.GameFX) window.GameFX.shake(elements.status); }
+    else if (type === 'hint') sfx('hint');
   }
+
+  let celebratedEnd = false;
 
   function renderStory(scene) {
     elements.image.src = scene.image;
@@ -215,7 +222,13 @@
     if (scene.kind === 'end') {
       elements.continue.hidden = false;
       elements.continue.textContent = 'Neue Schicht starten ↻';
+      if (!celebratedEnd) {
+        celebratedEnd = true;
+        sfx('fanfare');
+        if (window.GameFX) window.GameFX.celebrate({ count: 70 });
+      }
     } else if (scene.id === 'intro') {
+      celebratedEnd = false;
       elements.continue.textContent = 'Schicht beginnen →';
     } else if (scene.id === 'finale') {
       elements.continue.textContent = 'Epilog ansehen →';
@@ -359,6 +372,7 @@
       elements.resetDialog.showModal();
       return;
     }
+    sfx('swoosh');
     state = logic.advance(state);
     message = '';
     messageType = '';

@@ -212,6 +212,52 @@
     var DAILY_WORDS_V2 = Object.freeze(SOLUTION_WORDS.slice());
     var DAILY_V2_START_DAY = Math.floor(Date.UTC(2026, 8, 4) / 86400000); // ab 04.09.2026 UTC
 
+    // v1.9: Dritte Erweiterung. Auch sie darf frühere Tagesrätsel nicht
+    // umnummerieren, deshalb gilt der v3-Pool erst ab dem 10.09.2026 (UTC).
+    var EXPANDED_SOLUTION_WORDS_V3 = [
+        'ABTEI', 'ACKER', 'ADERN', 'AFFEN', 'AKTIV', 'ALTAR', 'ASTER', 'AUGEN',
+        'AUTOS', 'BÄNKE', 'BARDE', 'BASIS', 'BEETE', 'BIBER', 'BIENE', 'BINDE',
+        'BIRKE', 'BLASE', 'BLECH', 'BLUSE', 'BOGEN', 'BOHNE', 'BOJEN', 'BORKE',
+        'BRAUN', 'BRISE', 'BROTE', 'BRUCH', 'BUCHT', 'BUDEN', 'BULLE', 'BÜNDE',
+        'BUSCH', 'BUSSE', 'CHAOS', 'CHILI', 'CLOWN', 'CREME', 'DÄRME', 'DATEI',
+        'DEGEN', 'DEICH', 'DIELE', 'DINGE', 'DISCO', 'DOGGE', 'DOSIS', 'DRAMA',
+        'DRUCK', 'DÜNEN', 'DUELL', 'DUNST', 'DÜFTE', 'ECHSE', 'EIBEN', 'EINST',
+        'EISIG', 'EKLIG', 'ELBEN', 'ELFEN', 'ENDEN', 'ERBEN', 'ERDÖL', 'ERNTE',
+        'EULEN', 'EXTRA', 'FALLE', 'FARBE', 'FAUNA', 'FEHDE', 'FILET', 'FINTE',
+        'FIRST', 'FJORD', 'FLAIR', 'FLÜGE', 'FLURE', 'FOLIE', 'FONDS', 'FRACK',
+        'FRIST', 'FRONT', 'FROST', 'FUGEN', 'FUNKE', 'GABEN', 'GALLE', 'GARBE',
+        'GARNE', 'GELEE', 'GENRE', 'GLIED', 'GNADE', 'GRIFF', 'GRUFT', 'GUMMI',
+        'HAARE', 'HAGEL', 'HAINE', 'HALDE', 'HÄHNE', 'HARKE', 'HAUBE', 'HEBEL',
+        'HELME', 'HENNE', 'HIRSE', 'HIRTE', 'HOBBY', 'HÖHLE', 'HOSEN', 'HUFEN',
+        'HÜLSE', 'HYÄNE', 'IGLUS', 'INDIZ', 'JACHT', 'JUWEL', 'JUNGE', 'KADER',
+        'KAJAK', 'KAMIN', 'KANON', 'KANTE', 'KAPPE', 'KARRE', 'KEGEL', 'KEIME',
+        'KELLE', 'KIMME', 'KIOSK', 'KIPPE', 'KLAMM', 'KLIFF', 'KNAST', 'KOJEN',
+        'KOMMA', 'KRAKE', 'KRIMI', 'KRONE', 'KÜBEL', 'KÜCHE', 'KUFEN', 'KUPPE',
+        'KURSE', 'KÜKEN', 'LACHS', 'LAKEN', 'LAMPE', 'LANZE', 'LARVE', 'LATTE',
+        'LAUBE', 'LAUCH', 'LEHNE', 'LEIER', 'LEUTE', 'LIANE', 'LIMIT', 'LOGIK',
+        'LOTTO', 'LUCHS', 'LUKEN', 'LUPEN', 'MAGMA', 'MALER', 'MARKT', 'MASSE',
+        'MEISE', 'MESSE', 'METRO', 'MIENE', 'MIXER', 'MODEM', 'MOKKA', 'MOPED',
+        'MOTTE', 'MÖWEN', 'MÜHLE', 'MULCH', 'MUMIE', 'NÄHTE', 'NARBE', 'NELKE',
+        'NIERE', 'NIXEN', 'NOTEN', 'OASEN', 'OCHSE', 'ORDEN', 'ORGEL', 'OTTER',
+        'PALME', 'PAPST', 'PASTA', 'PATEN', 'PAUKE', 'PEDAL', 'PELZE', 'PFEIL',
+        'PFLUG', 'PFOTE', 'PISTE', 'POLKA', 'PRISE', 'PUDER', 'PUPPE', 'QUALM',
+        'RANKE', 'RAPPE', 'RATTE', 'RAUTE', 'REIFE', 'REIME', 'REUSE', 'RILLE',
+        'RITZE', 'RUBIN', 'RUTEN', 'SAMBA', 'SÄRGE', 'SATIN', 'SCHAL', 'SEHNE',
+        'SENSE', 'SIEBE', 'SIPPE', 'SIRUP', 'SITTE', 'SKIER', 'SOFAS', 'SOLAR',
+        'SONAR', 'SPALT', 'SPATZ', 'SPIEß', 'SPUND', 'STIER', 'STOLA', 'STUTE',
+        'SUCHT', 'SUMPF', 'TANTE', 'TATZE', 'TEMPO', 'TENNE', 'THESE', 'TITEL',
+        'TRAKT', 'TRIEB', 'TROLL', 'TULPE', 'TUMOR', 'TÜTEN', 'UMWEG', 'UNRAT',
+        'URNEN', 'VASEN', 'VENEN', 'VERSE', 'VILLA', 'VIPER', 'VISUM', 'VOTUM',
+        'WACHS', 'WADEN', 'WAISE', 'WEBER', 'WEIHE', 'WEILE', 'WICHT', 'WIRTE',
+        'WONNE', 'WRACK', 'WÜRDE', 'ZACKE', 'ZÄSUR', 'ZEDER', 'ZENIT', 'ZUCHT',
+        'ZÜGEL', 'ZWEIG', 'ZWIST'
+    ];
+    for (var expandedIndexV3 = 0; expandedIndexV3 < EXPANDED_SOLUTION_WORDS_V3.length; expandedIndexV3++) {
+        SOLUTION_WORDS.push(EXPANDED_SOLUTION_WORDS_V3[expandedIndexV3]);
+    }
+    var DAILY_WORDS_V3 = Object.freeze(SOLUTION_WORDS.slice());
+    var DAILY_V3_START_DAY = Math.floor(Date.UTC(2026, 8, 10) / 86400000); // ab 10.09.2026 UTC
+
     var EXTRA_GUESS_WORDS = [
         // Weitere gültige 5-Graphem-Wörter (dürfen Lösung überlappen, wird deduppt).
         'ACHSE', 'ABTEI', 'ACKER', 'ÄRGER', 'ALTEN', 'BÄDER', 'BOXEN',
@@ -221,7 +267,14 @@
         'RAUHE', 'KOMMT', 'GEHTS', 'MEINE', 'DEINE',
         'EINEM', 'EINEN', 'EURES', 'EUREM', 'EUREN', 'MEIST', 'BLEIB',
         'STILL', 'STUND', 'BÜRGE', 'KNABE', 'KLAUE', 'ZÄHME', 'LÄUTE', 'EUERE',
-        'YACHT', 'TYPEN'
+        'YACHT', 'TYPEN',
+        // v1.9: weitere Formen und Funktionswörter als gültige Ratewörter
+        'SEHEN', 'SAGEN', 'FRÜHE', 'SÜßER', 'ROTER', 'BLAUE', 'BRAVE', 'ALLER',
+        'UNSER', 'IHRER', 'IHREM', 'IHREN', 'GERNE', 'WOHIN', 'WOBEI', 'DAMIT',
+        'DARUM', 'DAVON', 'SOMIT', 'SONST', 'FALLS', 'ZUVOR', 'VORAN', 'ZUMAL',
+        'UNTEN', 'VORNE', 'DABEI', 'LÄUFT', 'FÄHRT', 'TRÄGT', 'SINGT', 'LIEST',
+        'KOCHT', 'LERNT', 'ZÄHLT', 'HOLEN', 'HOLST', 'KAUFT', 'FÄLLT', 'STEHT',
+        'SITZT', 'LIEGT', 'DENKT', 'FRAGT', 'WEINT', 'LACHT', 'RUFEN', 'WOHNT'
     ];
 
     // Dedup & einfrieren. Lösungen müssen Teilmenge der gültigen Ratewörter sein.
@@ -414,7 +467,48 @@
     }
 
     function dailyPool(date) {
-        return dayKey(date) < DAILY_V2_START_DAY ? DAILY_WORDS_V1 : DAILY_WORDS_V2;
+        var key = dayKey(date);
+        if (key < DAILY_V2_START_DAY) return DAILY_WORDS_V1;
+        if (key < DAILY_V3_START_DAY) return DAILY_WORDS_V2;
+        return DAILY_WORDS_V3;
+    }
+
+    // Millisekunden bis zum nächsten UTC-Kalendertag (nächstes Tagesrätsel).
+    function msUntilNextDaily(date) {
+        var d = (date instanceof Date) ? date : new Date();
+        var next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+        return Math.max(0, next - d.getTime());
+    }
+
+    // Tipp: liefert eine noch nicht grün erratene Position samt Buchstabe.
+    // Bevorzugt Stellen, deren Buchstabe noch gar nicht bekannt ist (weder
+    // grün noch gelb), damit der Tipp echten Informationsgewinn bringt.
+    // rng ist optional (0..1) für deterministische Tests.
+    function pickHint(guesses, solution, rng) {
+        var sol = graphemes(solution);
+        var known = {};
+        var greenAt = {};
+        var list = Array.isArray(guesses) ? guesses : [];
+        for (var g = 0; g < list.length; g++) {
+            var result = evaluate(list[g], solution);
+            var letters = graphemes(list[g]);
+            for (var i = 0; i < result.length; i++) {
+                if (result[i] === 'correct') greenAt[i] = true;
+                if (result[i] === 'correct' || result[i] === 'present') known[letters[i]] = true;
+            }
+        }
+        var candidates = [];
+        var unknown = [];
+        for (var p = 0; p < sol.length; p++) {
+            if (greenAt[p]) continue;
+            candidates.push(p);
+            if (!known[sol[p]]) unknown.push(p);
+        }
+        var pool = unknown.length ? unknown : candidates;
+        if (!pool.length) return null;
+        var r = typeof rng === 'function' ? rng() : Math.random();
+        var idx = Math.min(pool.length - 1, Math.max(0, Math.floor(r * pool.length)));
+        return { index: pool[idx], letter: sol[pool[idx]] };
     }
 
     function dailyIndex(date) {
@@ -553,6 +647,7 @@
             head = 'Texttl (Zufall) ' + score;
         }
         if (opts.hardMode) head += ' ◆';
+        if (opts.hintUsed) head += ' 💡';
         var lines = [head];
         if (Array.isArray(opts.rows)) {
             for (var i = 0; i < opts.rows.length; i++) lines.push(shareLine(opts.rows[i]));
@@ -589,6 +684,9 @@
         DAILY_WORDS_V1: DAILY_WORDS_V1,
         DAILY_WORDS_V2: DAILY_WORDS_V2,
         DAILY_V2_START_DAY: DAILY_V2_START_DAY,
+        DAILY_WORDS_V3: DAILY_WORDS_V3,
+        DAILY_V3_START_DAY: DAILY_V3_START_DAY,
+        EXPANDED_SOLUTION_WORDS_V3: EXPANDED_SOLUTION_WORDS_V3,
         VALID_GUESS_WORDS: VALID_GUESS_WORDS,
         KEYBOARD_ROWS: KEYBOARD_ROWS,
         toUpperDe: toUpperDe,
@@ -609,6 +707,9 @@
         mulberry32: mulberry32,
         dailyIndex: dailyIndex,
         dailyWord: dailyWord,
+        dailyPool: dailyPool,
+        msUntilNextDaily: msUntilNextDaily,
+        pickHint: pickHint,
         randomIndex: randomIndex,
         randomWord: randomWord,
         emptyStats: emptyStats,

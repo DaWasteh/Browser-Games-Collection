@@ -4,8 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pandakreuzwort – Kreuzworträtsel</title>
-  <meta name="description" content="Kompakte Kreuzworträtsel auf Deutsch oder Bairisch mit 659 Einträgen, Sperrfeldern, vier Schwierigkeitsgraden und mobiler Wort-Eingabe – komplett offline.">
+  <meta name="description" content="Kompakte Kreuzworträtsel auf Deutsch oder Bairisch mit 969 Einträgen, Sperrfeldern, vier Schwierigkeitsgraden, Bestzeiten und mobiler Wort-Eingabe – komplett offline.">
   <script src="../shared/game-shell.js"></script>
+  <script src="../shared/game-audio.js"></script>
+  <script src="../shared/game-fx.js"></script>
   <link rel="stylesheet" href="pandakreuzwort.css">
   <link rel="stylesheet" href="../shared/game-shell.css">
   <script src="pandakreuzwort-logic.js"></script>
@@ -16,7 +18,7 @@
   <header class="site-header">
     <a href="../index.html" class="back-link" aria-label="Zur Spieleübersicht">← Spieleübersicht</a>
     <h1>🐼 Pandakreuzwort</h1>
-    <p>Kompakte Kreuzworträtsel – Deutsch oder Bairisch, 659 Einträge, vier Stufen, komplett offline.</p>
+    <p>Kompakte Kreuzworträtsel – Deutsch oder Bairisch, 969 Einträge, vier Stufen, Bestzeiten, komplett offline.</p>
   </header>
 
   <main>
@@ -24,6 +26,7 @@
       <div><span>Zeit</span><strong id="time">00:00</strong></div>
       <div><span>Fehler</span><strong id="mistakes">0</strong></div>
       <div><span>Hinweise</span><strong id="hints-left">3</strong></div>
+      <div><span>Bestzeit</span><strong id="best-time">–</strong></div>
       <div><span>Fortschritt</span><strong id="progress">0 %</strong></div>
       <div><span>Status</span><strong id="status">Bereit</strong></div>
     </section>
@@ -98,6 +101,7 @@
         <li>Tippe Buchstaben über die Tastatur oder das Wort-Eingabefeld. <kbd>Backspace</kbd> löscht rückwärts.</li>
         <li><strong>💡 Hinweis</strong> setzt einen richtigen Buchstaben (begrenzt pro Rätsel). <strong>✓ Prüfen</strong> markiert falsche Buchstaben.</li>
         <li>Die Hinweislisten sind große Buttons und ein gleichwertiger Bedienweg – auch auf dem Handy.</li>
+        <li>Vollständig richtige Wörter werden in der Hinweisliste abgehakt und kurz hervorgehoben. Je Sprache und Stufe wird deine <strong>Bestzeit</strong> lokal gespeichert.</li>
       </ul>
     </details>
 
@@ -111,7 +115,7 @@
           <li>An Kreuzungen mit Enter, Leertaste oder erneutem Tippen die Richtung wechseln.</li>
           <li>Mit „Prüfen“ falsche Einträge markieren; ein Hinweis setzt genau einen Buchstaben.</li>
         </ol>
-        <p>Die Wortbank enthält über 460 redaktionelle Einträge. Bairische Hinweise nennen zusätzlich Region und standarddeutsche Bedeutung.</p>
+        <p>Die Wortbank enthält über 960 redaktionelle Einträge (844 Deutsch, 125 Bairisch). Bairische Hinweise nennen zusätzlich Region und standarddeutsche Bedeutung.</p>
         <div class="overlay-actions">
           <button id="help-close" type="button" class="primary">Verstanden</button>
         </div>
@@ -130,6 +134,6 @@
     </div>
   </main>
 
-  <footer><small>Offline-Spiel ohne externe Abhängigkeiten. Über 460 redaktionelle Antworten und Hinweise; keine Netzabfragen.</small></footer>
+  <footer><small>Offline-Spiel ohne externe Abhängigkeiten. Über 960 redaktionelle Antworten und Hinweise; keine Netzabfragen.</small></footer>
 </body>
 </html>

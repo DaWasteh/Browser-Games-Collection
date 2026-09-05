@@ -1,4 +1,4 @@
-# Sand Game Pro · Advanced Simulation v2.2
+# Sand Game Pro · Advanced Simulation v2.3
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Pages](https://img.shields.io/badge/Pages-Live-success.svg)](https://dawasteh.github.io/SandGame/)
@@ -22,6 +22,20 @@ Ein interaktives **Zellulares Automaten-Spiel** mit physikalisch, chemisch und b
 | **Chemie** | Salz, Kalk, Kohle, Metall, Glas |
 | **Kunststoffe** | Kunststoff (PLASTIC) |
 | **Spezial** | Eier, Beton, Isolator, Sensor, Strahlung |
+
+### ⚡ Schlankerer Simulationskern (v2.3 / Collection v1.9)
+
+- **Chemie-Frühausstieg:** Nur Materialien, die überhaupt als Reaktionszentrum auftreten
+  (Feuer, Wasser, Säure, Lauge, Gase, Lava, Strahlung, Quecksilber, Schwefel, oxidierbare
+  Metalle) oder Zellen über 44 °C betreten die lange Reaktionskette. Kalter Sand, Stein
+  oder Erde – der Großteil jeder Szene – überspringt sie vollständig.
+- **Leere Nachbarn** lösen keine Reaktion aus und werden in der Nachbarschleife sofort
+  übersprungen (Strahlung behält ihr eigenes Verhalten).
+- Die **Umgebungstemperatur** aus Sonnenzyklus und Jahreszeit wird einmal pro Tick statt
+  einmal pro aktiver Zelle berechnet; die Rauchbildung brennender Zellen arbeitet ohne
+  Array-Allokation pro Zelle.
+- Das Simulationsergebnis bleibt identisch, da nur Pfade übersprungen werden, die ohnehin
+  keine Zustandsänderung erzeugen konnten.
 
 ### ⚡ Performance, Hardware und Robustheit (v2.2 / Collection v1.5)
 

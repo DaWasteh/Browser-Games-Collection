@@ -16,7 +16,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | 🏓 **Pong** | [`pong/`](pong/) | Das klassische Duell – gegen die KI oder zu zweit |
 | 🫧 **Panda: Jäger der Blasen** | [`panda-bubbles/`](panda-bubbles/) | Bubble Shooter mit Bandenbonus, fallenden Gruppen und Bambusblase |
 | 💎 **Des Pandas Juwelen** | [`des-pandas-juwelen/`](des-pandas-juwelen/) | Match 3 mit Kaskaden, Spezialkristallen und taktischer Panda-Pfote |
-| ⏳ **Sand Game Pro 2.2** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Active-Cell-Wind, Dirty Rendering und sicherem WebGL2/CPU-Fallback |
+| ⏳ **Sand Game Pro 2.3** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Active-Cell-Wind, schlankem Chemie-Kern und sicherem WebGL2/CPU-Fallback |
 | 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat, interaktiv auf Canvas |
 | 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Lemmings-inspiriertes Puzzle mit Pandas |
 | 🃏 **Pandataire** | [`pandataire/`](pandataire/) | Solitaire-Sammelband: TriPeaks, Golf und Pyramid mit lösbaren Deals und Undo |
@@ -24,9 +24,9 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | ♠️ **Panndike** | [`panndike/`](panndike/) | Zeitungsartiges Klondike mit Tagesdeal, Deal-Codes, Drag/Touch, Hinweisen und Foundations |
 | ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit Deal-Nummern und Supermoves |
 | 💣 **Minenräumkommando Foxtrott** | [`minenraeumkommando-foxtrott/`](minenraeumkommando-foxtrott/) | Minesweeper mit sicherem Erstklick und Chording |
-| 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit 739 Lösungen, Tages-/Zufallsmodus und optionalem Knifflig-Modus |
+| 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit 1022 Lösungen, Tipp-Funktion, Tages-/Zufallsmodus und Knifflig-Modus |
 | 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku mit Notizen, Hinweisen und drei Schwierigkeitsgraden |
-| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Kompakte Sperrfeld-Kreuzworträtsel mit 659 deutschen/bairischen Einträgen |
+| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Kompakte Sperrfeld-Kreuzworträtsel mit 969 deutschen/bairischen Einträgen und Bestzeiten |
 | 🀄 **Pahjong** | [`pahjong/`](pahjong/) | Mahjong-Solitaire im echten 144-Stein-Turtle-Layout mit Anleitung, Zoom und lösbaren Deals |
 | 🐛 **Maulkorbraupen – Das Spiel** | [`maulkorbraupen-das-spiel/`](maulkorbraupen-das-spiel/) | Vertontes Textadventure mit sieben Kapiteln und Werk-Rätseln |
 
@@ -45,7 +45,7 @@ git clone https://github.com/DaWasteh/Browser-Games-Collection.git
 
 Die browserbasierten Smoke-Tests benötigen **Node.js 22 oder neuer** sowie eine lokale
 Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 18 Spiele in
-sieben Phone-, Landscape-, Tablet- und Desktop-Viewports (DPR 1–3): Boot,
+zehn Phone-, Landscape-, Tablet-, Desktop-, Widescreen- und Ultrawide-Viewports (DPR 1–3): Boot,
 Laufzeitfehler, Navigation, Overflow, Kontrast, Zielgrößen, Tastatur-/Touch-Bedienung,
 Dialogfokus, Persistenz und kritische Zustandswechsel. Zusätzliche Logiktests stressen
 Generatoren über tausende Seeds, lösbare Deals, Unicode, Rennbedingungen,
@@ -67,6 +67,49 @@ node pandakreuzwort/smoke-test.cjs
 node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
 ```
+
+## ✨ Neu in v1.9
+
+### Gemeinsames Ton- und Effektsystem
+
+- Neues Modul `shared/game-audio.js`: prozedurale Web-Audio-Klänge (Tippen, Legen,
+  Umdrehen, Treffer, Fehler, Hinweis, Rückgängig, Mischen, Sieg, Niederlage, Fanfare)
+  ohne externe Assets. Ein **Ton-Schalter** in der gemeinsamen Toolbar gilt geräteweit
+  für alle Spiele und wird lokal gespeichert; vor der ersten Nutzergeste bleibt alles still.
+- Neues Modul `shared/game-fx.js`: **Konfetti** beim Sieg, Puls- und Wackel-Feedback für
+  richtige bzw. falsche Eingaben, jeweils mit Rücksicht auf `prefers-reduced-motion`.
+- Pahjong, Panda Spider, PandaCell, Pandadoku, Pandataire, Panndike, Texttl,
+  Pandakreuzwort, Maulkorbraupen und der Launcher nutzen die Module; Dialoge blenden
+  in allen Shell-Spielen weich ein, Toolbar-Buttons erhielten Hover-Glow.
+
+### Texttl und Pandakreuzwort deutlich erweitert
+
+- **Texttl** wächst auf **1022 Lösungen und 1118 gültige Ratewörter**. Der bisherige
+  Tagespool bleibt eingefroren; der erweiterte Pool gilt ab **10. September 2026 (UTC)**.
+  Neu sind ein einmaliger **💡 Tipp** pro Runde (Buchstabe samt Position, im Teilen-Text
+  markiert), ein Live-Countdown bis zum nächsten Tagesrätsel sowie Flip-, Fehler- und
+  Siegklänge. Spielfeld und Tastatur behalten auf allen Bildschirmen ihre volle Breite.
+- **Pandakreuzwort** umfasst jetzt **969 redaktionelle Einträge** (844 Deutsch,
+  125 Bairisch). Neue **Bestzeiten** je Sprache und Stufe erscheinen im HUD und im
+  Ergebnisdialog; fertige Wörter geben ein Erfolgssignal, Prüfen und Hinweis eigene
+  Klänge. Die v1.5- und v1.6-Wortbänke bleiben für laufende Rätsel eingefroren.
+
+### Sand Game Pro 2.3 – schlankerer Simulationskern
+
+- Die Reaktionskette läuft nur noch für Materialien, die tatsächlich Reaktionszentrum
+  sein können, oder für Zellen über 44 °C; leere Nachbarn werden sofort übersprungen.
+- Umgebungstemperatur einmal pro Tick statt pro Zelle, Rauchbildung ohne Allokation.
+  Das Simulationsergebnis bleibt identisch, ruhende und sandlastige Szenen werden spürbar günstiger.
+
+### Launcher und Responsivität
+
+- Der Launcher besitzt **Kategorie-Chips**, eine **Suche**, Badges für aktualisierte
+  Spiele, eine „Zuletzt gespielt“-Markierung und größere Karten auf Widescreen-Monitoren.
+- Die gemeinsame Shell skaliert Schrift und Bedienelemente ab 1800 px bzw. 2400 px Breite;
+  Texttl und Pandakreuzwort erhielten eigene Ultrawide-Layouts.
+- Beide Browser-Suiten prüfen zusätzlich **1920×1080, 2560×1080 und 3440×1440** auf
+  Überlauf, Kontrast und Bedienbarkeit, der Launcher-Test deckt Filter, Suche und
+  Ton-Schalter ab.
 
 ## ✨ Neu in v1.8
 

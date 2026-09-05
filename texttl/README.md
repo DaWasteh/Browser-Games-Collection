@@ -8,6 +8,19 @@ Errate das geheime deutsche Fünf-Buchstaben-Wort in bis zu sechs Versuchen.
 Nach jedem Versuch färben sich die Kacheln und zeigen, welche Buchstaben
 stimmen.
 
+## Neu in v1.9
+
+- Wortschatz auf **1022 Lösungswörter** und **1118 gültige Ratewörter** erweitert.
+  Der bisherige Tagespool (739 Wörter) bleibt eingefroren; der erweiterte Pool gilt
+  für Tagesrätsel ab **10. September 2026 (UTC)**, damit frühere Tageswörter unverändert bleiben.
+- Neuer **💡 Tipp**: Einmal pro Runde wird ein noch nicht gefundener Buchstabe samt
+  Position aufgedeckt. Er erscheint blass in der aktuellen Reihe und auf der Tastatur,
+  wird im Tagesmodus mitgespeichert und im geteilten Ergebnis mit `💡` markiert.
+- Der Ergebnisdialog zeigt im Tagesmodus einen **Live-Countdown** bis zum nächsten Rätsel.
+- Prozedurale **Soundeffekte** (Tippen, Flip, Fehler, Sieg, Niederlage) und **Konfetti**
+  beim Sieg über das gemeinsame Audio-/Effektmodul; Ton per Toolbar abschaltbar.
+- Größeres Spielfeld und Tastatur auf Widescreen-/Ultrawide-Monitoren.
+
 ## Neu in v1.6
 
 - Wortschatz auf **739 Lösungswörter** und **789 gültige Ratewörter** erweitert.

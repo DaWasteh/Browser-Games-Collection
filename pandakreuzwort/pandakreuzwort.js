@@ -12,6 +12,27 @@
     var activeEntries = DATA.entries;
     var activeDatasetVersion = DATA.datasetVersion;
     var $ = function (id) { return document.getElementById(id); };
+    var BEST_KEY = 'pandakreuzwort-best-v1';
+    var PROFILE_LABELS = { leicht: 'Leicht', mittel: 'Mittel', schwer: 'Schwer', experte: 'Experte' };
+    var bestTimes = loadBestTimes();
+
+    function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
+
+    function loadBestTimes() {
+        try {
+            var raw = window.localStorage.getItem(BEST_KEY);
+            var parsed = raw ? JSON.parse(raw) : null;
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch (e) { return {}; }
+    }
+    function saveBestTimes() {
+        try { window.localStorage.setItem(BEST_KEY, JSON.stringify(bestTimes)); } catch (e) { /* Speicher optional */ }
+    }
+    function bestKeyFor(lang, diff) { return lang + '|' + diff; }
+    function bestTimeFor(lang, diff) {
+        var entry = bestTimes[bestKeyFor(lang, diff)];
+        return (entry && typeof entry.time === 'number' && entry.time >= 0) ? entry : null;
+    }
 
     var KEYBOARD_ROWS = [
         ['Q', 'W', 'E', 'R', 'T', 'Z', 'U', 'I', 'O', 'P'],
@@ -43,6 +64,22 @@
     var boardEl, messageEl, wordInput, wordLabel, keyboardEl, acrossList, downList;
 
     function announce(text) { messageEl.textContent = text; }
+
+    // Anzahl vollständig korrekt ausgefüllter Wörter (für Wort-Feedback).
+    function solvedPlacementCount() {
+        if (!puzzle) return 0;
+        var n = 0;
+        for (var i = 0; i < puzzle.placements.length; i++) {
+            var cells = placementCells(puzzle.placements[i]);
+            var ok = true;
+            for (var j = 0; j < cells.length; j++) {
+                var key = cells[j].r + ',' + cells[j].c;
+                if (board[key] !== puzzle.cells[key].letter) { ok = false; break; }
+            }
+            if (ok) n++;
+        }
+        return n;
+    }
 
     function generateSeed() {
         try {
@@ -291,11 +328,14 @@
         var letters = L.graphemes(ch);
         if (!letters.length) return;
         var reachedEnd = false;
+        var solvedBefore = solvedPlacementCount();
+        var typed = false;
         for (var i = 0; i < letters.length; i++) {
             if (!L.isGridLetter(letters[i]) || !selected) continue;
             var k = selected.r + ',' + selected.c;
             board[k] = letters[i];
             delete errors[k];
+            typed = true;
             var moved = advance();
             if (!moved) {
                 reachedEnd = true;
@@ -304,6 +344,15 @@
         }
         syncWordInput();
         render();
+        var solvedAfter = solvedPlacementCount();
+        if (typed) {
+            if (solvedAfter > solvedBefore) {
+                sfx('success');
+                if (window.GameFX) window.GameFX.pulse($('active-clue'));
+            } else {
+                sfx('type');
+            }
+        }
         checkWin();
         if (status === 'playing' && reachedEnd) selectNextUnsolvedPlacement();
         scheduleSave();
@@ -476,6 +525,8 @@
         normalizeDirection();
         syncWordInput();
         render();
+        sfx('hint');
+        if (window.GameFX && cellMap[target]) window.GameFX.pulse(cellMap[target].btn);
         focusSelected();
         saveGame();
         announce('Hinweis eingesetzt. Noch ' + hintsLeft + ' übrig.');
@@ -495,6 +546,8 @@
         }
         saveGame();
         render();
+        if (wrongCount === 0) sfx('success');
+        else { sfx('error'); if (window.GameFX) window.GameFX.shake(boardEl); }
         announce(wrongCount === 0 ? 'Alle bisherigen Buchstaben stimmen.' : (wrongCount + ' falsche Buchstaben markiert.'));
     }
 
@@ -504,10 +557,26 @@
         }
         status = 'won';
         pauseTimer();
+        // Bestzeit je Sprache/Schwierigkeit festhalten.
+        var elapsedSec = getElapsed();
+        var previousBest = bestTimeFor(language, difficulty);
+        var isRecord = !previousBest || elapsedSec < previousBest.time;
+        if (isRecord) {
+            bestTimes[bestKeyFor(language, difficulty)] = {
+                time: elapsedSec, mistakes: mistakes, hints: hintsUsed,
+                date: new Date().toISOString().slice(0, 10)
+            };
+            saveBestTimes();
+        }
         saveGame();
         render();
+        sfx('win');
+        if (window.GameFX) window.GameFX.celebrate();
+        var recordText = isRecord
+            ? ' 🏆 Neue Bestzeit für ' + (language === 'de' ? 'Deutsch' : 'Bairisch') + ' · ' + (PROFILE_LABELS[difficulty] || difficulty) + '!'
+            : (previousBest ? ' Bestzeit: ' + formatTime(previousBest.time) + '.' : '');
         $('result-title').textContent = 'Pandakreuzwort gelöst! 🎉';
-        $('result-text').textContent = 'Zeit: ' + formatTime(getElapsed()) + ' · Fehler: ' + mistakes + ' · Hinweise: ' + hintsUsed + '.';
+        $('result-text').textContent = 'Zeit: ' + formatTime(elapsedSec) + ' · Fehler: ' + mistakes + ' · Hinweise: ' + hintsUsed + '.' + recordText;
         $('result').hidden = false;
         $('result-new-btn').focus();
     }
@@ -532,6 +601,7 @@
         status = 'playing'; elapsed = 0; runningSince = Date.now();
         $('result').hidden = true;
         updateTimer();
+        sfx('undo');
         // Erste Zelle auswählen für sofortige Bedienung.
         var first = firstCell();
         if (first) selectCell(first.r, first.c, false);
@@ -551,6 +621,7 @@
 
     function newGame(newSeed) {
         if (newSeed == null) newSeed = generateSeed();
+        sfx('deal');
         seed = newSeed;
         activeEntries = DATA.entries;
         activeDatasetVersion = DATA.datasetVersion;
@@ -769,6 +840,9 @@
         for (var progressKey in puzzle.cells) { totalCount++; if (board[progressKey]) filledCount++; }
         $('mistakes').textContent = String(mistakes);
         $('hints-left').textContent = String(hintsLeft);
+        var bestEntry = bestTimeFor(language, difficulty);
+        $('best-time').textContent = bestEntry ? formatTime(bestEntry.time) : '–';
+        $('best-time').title = bestEntry ? ('Bestzeit ' + (language === 'de' ? 'Deutsch' : 'Bairisch') + ' · ' + (PROFILE_LABELS[difficulty] || difficulty) + ' vom ' + bestEntry.date) : 'Noch keine Bestzeit für diese Kombination';
         $('progress').textContent = (totalCount ? Math.round(filledCount / totalCount * 100) : 0) + ' %';
         $('status').textContent = status === 'playing' ? 'Läuft' : status === 'won' ? 'Gelöst' : '';
         $('hint-btn').disabled = hintsLeft <= 0 || status !== 'playing';
@@ -789,7 +863,7 @@
         $('diff-schwer').addEventListener('click', function () { setDifficulty('schwer'); });
         $('diff-experte').addEventListener('click', function () { setDifficulty('experte'); });
         $('lang-select').addEventListener('change', function (e) { setLanguage(e.target.value); });
-        $('dir-btn').addEventListener('click', toggleDirection);
+        $('dir-btn').addEventListener('click', function () { sfx('tap'); toggleDirection(); });
         $('hint-btn').addEventListener('click', hintAction);
         $('check-btn').addEventListener('click', checkAction);
         $('restart-btn').addEventListener('click', restart);

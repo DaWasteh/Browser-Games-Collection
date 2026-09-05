@@ -5,6 +5,19 @@ Abhängigkeiten. Die kompakten Raster verwenden sichtbare dunkle Sperrfelder,
 weiße Buchstabenfelder sowie getrennte Hinweise für **waagrecht** und
 **senkrecht**. Wählbar sind Deutsch und Bairisch sowie vier Schwierigkeitsgrade.
 
+## Neu in v1.9
+
+- Wortbank auf **969 redaktionelle Einträge** erweitert
+  - 844 standarddeutsche Antworten (Natur, Alltag, Technik, Wissenschaft, Kultur, Körper, Sport)
+  - 125 bairische Antworten mit Region und standarddeutscher Bedeutung
+- Datensatzversion `2026-09-v1.9`; die v1.5- und v1.6-Wortbänke bleiben als eingefrorene
+  Kompatibilitätssätze enthalten, damit laufende Rätsel weiterhin reproduzierbar sind
+- **Bestzeiten** je Sprache und Schwierigkeit werden lokal gespeichert, im HUD angezeigt
+  und im Ergebnisdialog als neue Bestzeit gefeiert
+- Vollständig richtige Wörter lösen ein kurzes Erfolgssignal aus; Prüfen, Hinweis,
+  Neustart und Sieg besitzen eigene Soundeffekte, der Sieg zusätzlich Konfetti
+- Breiteres Gitter- und Hinweislayout auf Widescreen-/Ultrawide-Monitoren
+
 ## Neu in v1.6
 
 - Wortbank auf **659 redaktionelle Einträge** erweitert

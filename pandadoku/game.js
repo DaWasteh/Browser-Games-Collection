@@ -298,6 +298,7 @@ function enterNumber(v) {
     pushHistory();
     const ns = notes[selected];
     if (ns.has(v)) ns.delete(v); else ns.add(v);
+    sfx('tick');
     render();
     return;
   }
@@ -311,8 +312,8 @@ function enterNumber(v) {
   pushHistory();
   board[selected] = v;
   notes[selected].clear();
-  if (v !== solution[selected]) { errors[selected] = true; mistakes++; }
-  else errors[selected] = false;
+  if (v !== solution[selected]) { errors[selected] = true; mistakes++; sfx('error'); if (window.GameFX && cells[selected]) window.GameFX.shake(cells[selected].btn); }
+  else { errors[selected] = false; sfx('place'); }
   render();
   checkWin();
 }
@@ -363,6 +364,8 @@ function hint() {
   notes[target].clear();
   hintsLeft--;
   selected = target;
+  sfx('hint');
+  if (window.GameFX) window.GameFX.pulse(cells[target].btn);
   cells[target].btn.focus();
   announce('Hinweis eingesetzt: ' + solution[target] + '. Noch ' + hintsLeft + ' übrig.');
   render();
@@ -376,6 +379,7 @@ function undo() {
   }
   redoStack.push(snapshot());
   restore(history.pop());
+  sfx('undo');
   render();
   announce('Zug rückgängig gemacht.');
 }
@@ -461,6 +465,8 @@ function checkWin() {
   for (let i = 0; i < 81; i++) if (board[i] !== solution[i]) return;
   status = 'won';
   pauseTimer();
+  sfx('win');
+  if (window.GameFX) window.GameFX.celebrate();
   $('result-title').textContent = 'Pandadoku gelöst! 🎉';
   $('result-text').textContent =
     'Zeit: ' + formatTime(getElapsed()) +
@@ -497,6 +503,7 @@ function countClues() {
   return n;
 }
 function announce(text) { $('message').textContent = text; }
+function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
 
 /* ============================================================
    RENDER

@@ -38,6 +38,7 @@
   let stats = loadStats();
 
   function say(text) { ui.message.textContent = text; }
+  function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
 
   function randomSeed() {
     try {
@@ -234,6 +235,7 @@
     const result = E.move(state, source, destination);
     if (!result.ok) {
       history.pop();
+      sfx('error');
       say('Dieser Zug ist nach den Klondike-Regeln nicht möglich.');
       return false;
     }
@@ -241,6 +243,7 @@
     clearHint();
     pendingFocusKey = destinationFocusKey(destination);
     render();
+    sfx(destination.zone === 'foundation' ? 'success' : (result.revealed ? 'flip' : 'place'));
     if (result.revealed) say('Zug ausgeführt und eine verdeckte Karte aufgedeckt.');
     else if (destination.zone === 'foundation') say('Karte auf das passende Fundament gelegt.');
     else say(result.cards > 1 ? `${result.cards} Karten als Folge verschoben.` : 'Karte verschoben.');
@@ -261,6 +264,7 @@
     selected = null;
     clearHint();
     pendingFocusKey = result.kind === 'draw' ? 'waste' : 'stock';
+    sfx(result.kind === 'draw' ? 'flip' : 'shuffle');
     render();
     say(result.kind === 'draw'
       ? `${result.count} Karte${result.count === 1 ? '' : 'n'} aufgedeckt.`
@@ -272,6 +276,7 @@
     const previous = history.pop();
     if (!previous) { say('Noch kein Zug zum Rückgängigmachen.'); return; }
     pauseClock();
+    sfx('undo');
     state = previous.state;
     elapsedMs = previous.elapsedMs;
     selected = null;
@@ -332,6 +337,7 @@
       say('Kein legaler Zug gefunden. Nutze Rückgängig oder starte eine neue Partie.');
       return;
     }
+    sfx('hint');
     say(`Hinweis: ${describeHint(hintMove)}`);
     render();
     hintTimer = window.setTimeout(() => { hintMove = null; hintTimer = 0; render(); }, 3600);
@@ -553,6 +559,8 @@
 
   function finishWin() {
     pauseClock();
+    sfx('win');
+    if (window.GameFX) window.GameFX.celebrate();
     if (!winRecorded) {
       const total = currentElapsedMs();
       stats.wins += 1;

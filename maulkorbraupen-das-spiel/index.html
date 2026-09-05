@@ -6,6 +6,8 @@
   <meta name="description" content="Maulkorbraupen – Das Spiel: Ein vertontes Textadventure mit sieben Kapiteln, fünf Rätseln und dem Feierabend als Ziel.">
   <title>Maulkorbraupen – Das Spiel</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="../shared/game-audio.js"></script>
+  <script src="../shared/game-fx.js"></script>
 </head>
 <body>
   <a class="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
@@ -18,6 +20,7 @@
     <div class="header-actions" aria-label="Spieloptionen">
       <button id="map-button" class="icon-button" type="button" aria-haspopup="dialog">🗺️ <span>Karte</span></button>
       <button id="audio-button" class="icon-button" type="button" aria-pressed="false">🔊 <span>Vorlesen</span></button>
+      <button id="sfx-button" class="icon-button" type="button" aria-pressed="true" aria-label="Effektton umschalten">🔔 <span>Effekte</span></button>
       <button id="reset-button" class="icon-button" type="button">↻ <span>Neustart</span></button>
     </div>
   </header>
@@ -93,5 +96,21 @@
   <noscript>Dieses Spiel benötigt JavaScript. Bitte aktiviere JavaScript und lade die Seite neu.</noscript>
   <script src="maulkorbraupen-logic.js"></script>
   <script src="game.js"></script>
+  <script>
+    (() => {
+      const button = document.getElementById('sfx-button');
+      const audio = window.GameAudio;
+      if (!button || !audio || !audio.isSupported()) { if (button) button.hidden = true; return; }
+      const sync = () => {
+        const muted = audio.isMuted();
+        button.setAttribute('aria-pressed', muted ? 'false' : 'true');
+        button.firstChild.textContent = muted ? '🔕 ' : '🔔 ';
+        button.title = muted ? 'Effekttöne sind aus' : 'Effekttöne sind an';
+      };
+      button.addEventListener('click', () => { audio.toggle(); if (!audio.isMuted()) audio.play('tap'); });
+      audio.onChange(sync);
+      sync();
+    })();
+  </script>
 </body>
 </html>

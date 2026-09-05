@@ -18,6 +18,7 @@
     var modeDailyBtn = document.getElementById('mode-daily');
     var modeRandomBtn = document.getElementById('mode-random');
     var hardModeBtn = document.getElementById('hard-mode');
+    var hintBtn = document.getElementById('hint-btn');
     var restartBtn = document.getElementById('restart-btn');
     var helpBtn = document.getElementById('help-btn');
     var statsBtn = document.getElementById('stats-btn');
@@ -158,7 +159,13 @@
         // Knifflig darf auch erst mitten in einer Partie aktiviert werden.
         // Frühere freie Versuche deshalb beim Laden nicht rückwirkend ablehnen.
         var hardMode = saved.hardMode === true;
-        return { key: key, puzzleNumber: saved.puzzleNumber, solution: solution, guesses: guesses, status: saved.status, hardMode: hardMode };
+        var hint = null;
+        if (saved.hint && typeof saved.hint === 'object' && typeof saved.hint.index === 'number') {
+            var sol = L.graphemes(solution);
+            var hi = saved.hint.index;
+            if (hi >= 0 && hi < sol.length && saved.hint.letter === sol[hi]) hint = { index: hi, letter: sol[hi] };
+        }
+        return { key: key, puzzleNumber: saved.puzzleNumber, solution: solution, guesses: guesses, status: saved.status, hardMode: hardMode, hint: hint };
     }
     function saveDaily(state, force) {
         if (!state) return lsRemove(LS_DAILY);
@@ -183,8 +190,11 @@
         puzzleNumber: null,         // kosmetisch
         hardMode: lsGet(LS_HARD) === '1', // aufgedeckte Hinweise sind verpflichtend
         gameId: '',                 // idempotenter Statistik-Event-Key je Partie
-        accepting: true             // Eingaben erlaubt?
+        accepting: true,            // Eingaben erlaubt?
+        hintUsed: false,            // Tipp (ein Buchstabe) in dieser Runde benutzt?
+        hint: null                  // {index, letter} des aufgedeckten Tipps
     };
+    var countdownTimer = null;      // Live-Countdown bis zum nächsten Tagesrätsel
     var lastGame = null;            // {mode,puzzleNumber,won,attempts,rows,solution} für Teilen
     var overlayReturnFocus = null;
     var toastTimer = null;
@@ -269,7 +279,7 @@
     function rowEls() { return boardEl.children; }
 
     function clearTileClasses(tile) {
-        tile.classList.remove('filled', 'correct', 'present', 'absent', 'flip', 'bounce', 'pop');
+        tile.classList.remove('filled', 'correct', 'present', 'absent', 'flip', 'bounce', 'pop', 'hinted');
         tile.style.animationDelay = '';
     }
 
@@ -332,6 +342,7 @@
                 }
             }
         }
+        renderHintTile();
         renderKeyboardColors();
         renderHud();
     }
@@ -342,9 +353,10 @@
             var b = buttons[i];
             var key = b.getAttribute('data-key');
             if (key === 'ENTER' || key === 'BACK') continue;
-            b.classList.remove('correct', 'present', 'absent');
+            b.classList.remove('correct', 'present', 'absent', 'hinted');
             var st = state.keyStates[key];
             if (st) b.classList.add(st);
+            else if (state.hint && state.hint.letter === key && state.status === 'playing') b.classList.add('hinted');
         }
     }
 
@@ -357,6 +369,9 @@
         var resolving = state.status === 'playing' && !state.accepting;
         hardModeBtn.disabled = resolving;
         restartBtn.disabled = resolving;
+        hintBtn.disabled = resolving || state.status !== 'playing' || state.hintUsed;
+        hintBtn.setAttribute('aria-pressed', state.hintUsed ? 'true' : 'false');
+        hintBtn.title = state.hintUsed ? 'Tipp in dieser Runde bereits benutzt' : 'Einmal pro Runde einen Buchstaben samt Position aufdecken';
         modeDailyBtn.disabled = resolving;
         modeRandomBtn.disabled = resolving;
     }
@@ -370,6 +385,7 @@
         var letter = L.toUpperDe(L.graphemes(ch)[0]);
         if (state.current.length >= WORD_LEN) return;
         state.current.push(letter);
+        sfx('type');
         renderAll();
         // Pop-Animation nur für das gerade getippte Zeichen
         if (!reducedMotion) {
@@ -426,7 +442,8 @@
                 solution: state.solution,
                 guesses: state.guesses.slice(),
                 status: committedStatus,
-                hardMode: state.hardMode
+                hardMode: state.hardMode,
+                hint: state.hint
             });
         }
         animateRow(rowIndex, grades, letters, version, function () {
@@ -471,6 +488,7 @@
                     if (version !== gameVersion) return;
                     tile.classList.remove('filled');
                     tile.classList.add(grades[idx]);
+                    sfx(grades[idx] === 'correct' ? 'tick' : 'flip');
                     updateKeyState(letters[idx], grades[idx]);
                     renderKeyboardColors();
                 }, idx * step + half);
@@ -509,7 +527,8 @@
             attempts: attempts,
             rows: rows,
             solution: state.solution,
-            hardMode: state.hardMode
+            hardMode: state.hardMode,
+            hintUsed: state.hintUsed
         };
 
         if (state.mode === 'daily') {
@@ -519,7 +538,8 @@
                 solution: state.solution,
                 guesses: state.guesses.slice(),
                 status: state.status,
-                hardMode: state.hardMode
+                hardMode: state.hardMode,
+                hint: state.hint
             });
         }
 
@@ -538,6 +558,8 @@
             }
         }
 
+        sfx(won ? 'win' : 'lose');
+        if (won && window.GameFX) window.GameFX.celebrate();
         announce(won ? 'Gewonnen! Das Wort war ' + state.solution + '.'
                      : 'Verloren. Das Wort war ' + state.solution + '.');
 
@@ -568,6 +590,20 @@
                 : 'Beim nächsten Versuch klappt es.';
         }
         resultBodyEl.appendChild(sub);
+
+        if (state.hintUsed) {
+            var hintNote = document.createElement('p');
+            hintNote.className = 'hint-note';
+            hintNote.textContent = '💡 Mit Tipp gelöst – das Ergebnis wird beim Teilen entsprechend markiert.';
+            resultBodyEl.appendChild(hintNote);
+        }
+        if (state.mode === 'daily') {
+            var countdown = document.createElement('p');
+            countdown.className = 'countdown';
+            countdown.setAttribute('aria-live', 'off');
+            resultBodyEl.appendChild(countdown);
+            startCountdown(countdown);
+        }
 
         resultBodyEl.appendChild(buildStatGrid(stats));
         resultBodyEl.appendChild(buildDistribution(stats, won ? (state.guesses.length - 1) : -1));
@@ -654,6 +690,7 @@
     }
 
     function hideOverlay() {
+        stopCountdown();
         overlayEl.hidden = true;
         if (overlayReturnFocus && overlayReturnFocus.isConnected) {
             overlayReturnFocus.focus({ preventScroll: true });
@@ -719,6 +756,67 @@
         state.status = 'playing';
         state.keyStates = Object.create(null);
         state.accepting = true;
+        state.hintUsed = false;
+        state.hint = null;
+    }
+
+    function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
+
+    // ============================================================
+    // Tipp: deckt einmal pro Runde einen Buchstaben samt Position auf
+    // ============================================================
+    function useHint() {
+        if (isResolvingGuess()) { announce('Bitte warte kurz, bis der Versuch ausgewertet ist.'); return; }
+        if (state.status !== 'playing') return;
+        if (state.hintUsed) { announce('Der Tipp wurde in dieser Runde bereits benutzt.'); return; }
+        var hint = L.pickHint(state.guesses, state.solution);
+        if (!hint) { announce('Alle Buchstaben sind schon gefunden.'); return; }
+        state.hintUsed = true;
+        state.hint = hint;
+        if (state.mode === 'daily') {
+            saveDaily({
+                key: state.dailyKey,
+                puzzleNumber: state.puzzleNumber,
+                solution: state.solution,
+                guesses: state.guesses.slice(),
+                status: state.status,
+                hardMode: state.hardMode,
+                hint: state.hint
+            });
+        }
+        sfx('hint');
+        renderAll();
+        var keyBtn = keyboardEl.querySelector('button[data-key="' + hint.letter + '"]');
+        if (keyBtn && window.GameFX) window.GameFX.pulse(keyBtn);
+        announce('Tipp: Stelle ' + (hint.index + 1) + ' ist ein ' + hint.letter + '. Der Buchstabe bleibt bis zur Eingabe sichtbar.');
+    }
+
+    function renderHintTile() {
+        if (!state.hint || state.status !== 'playing') return;
+        var row = rowEls()[state.guesses.length];
+        if (!row) return;
+        var tile = row.children[state.hint.index];
+        if (!tile || state.current[state.hint.index]) return;
+        tile.textContent = state.hint.letter;
+        tile.classList.add('hinted');
+        tile.setAttribute('aria-label', 'Tipp: ' + state.hint.letter);
+    }
+
+    function startCountdown(target) {
+        stopCountdown();
+        function tick() {
+            var ms = L.msUntilNextDaily(new Date());
+            var total = Math.floor(ms / 1000);
+            var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+            var p = function (n) { return (n < 10 ? '0' : '') + n; };
+            target.textContent = 'Nächstes Tagesrätsel in ' + p(h) + ':' + p(m) + ':' + p(s);
+        }
+        tick();
+        countdownTimer = setInterval(tick, 1000);
+    }
+
+    function stopCountdown() {
+        if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     }
 
     function isResolvingGuess() {
@@ -742,6 +840,8 @@
             state.current = [];
             state.status = saved.status;
             state.hardMode = saved.hardMode;
+            state.hint = saved.hint || null;
+            state.hintUsed = !!saved.hint;
             lsSet(LS_HARD, state.hardMode ? '1' : '0');
             state.accepting = (state.status === 'playing');
             // keyStates aus gespeicherten guesses ableiten
@@ -770,7 +870,8 @@
                     attempts: state.guesses.length,
                     rows: state.guesses.map(function (g) { return L.evaluate(g, state.solution); }),
                     solution: state.solution,
-                    hardMode: state.hardMode
+                    hardMode: state.hardMode,
+                    hintUsed: state.hintUsed
                 };
                 announce(state.status === 'won'
                     ? 'Tagesrätsel bereits gelöst. Morgen gibt es ein neues Wort.'
@@ -787,7 +888,8 @@
                 solution: state.solution,
                 guesses: [],
                 status: 'playing',
-                hardMode: state.hardMode
+                hardMode: state.hardMode,
+                hint: state.hint
             });
             renderAll();
             modeLabelEl.textContent = 'Tagesrätsel #' + (state.puzzleNumber || '') + ' · 5 Buchstaben · 6 Versuche';
@@ -829,7 +931,8 @@
                 solution: state.solution,
                 guesses: [],
                 status: 'playing',
-                hardMode: state.hardMode
+                hardMode: state.hardMode,
+                hint: state.hint
             }, true);
         }
         lastGame = null;
@@ -841,6 +944,7 @@
     function toggleHardMode() {
         if (isResolvingGuess()) { announce('Bitte warte kurz, bis der Versuch ausgewertet ist.'); return; }
         state.hardMode = !state.hardMode;
+        sfx('tap');
         lsSet(LS_HARD, state.hardMode ? '1' : '0');
         if (state.mode === 'daily' && state.status === 'playing') {
             saveDaily({
@@ -849,7 +953,8 @@
                 solution: state.solution,
                 guesses: state.guesses.slice(),
                 status: state.status,
-                hardMode: state.hardMode
+                hardMode: state.hardMode,
+                hint: state.hint
             });
         }
         renderHud();
@@ -875,6 +980,7 @@
     }
 
     function flashError(msg) {
+        sfx('error');
         announce(msg);
         statusEl.classList.add('error');
         var row = rowEls()[state.guesses.length];
@@ -926,14 +1032,17 @@
     function wire() {
         modeDailyBtn.addEventListener('click', function () {
             if (state.mode === 'daily') return;
+            sfx('tap');
             startDaily();
         });
         modeRandomBtn.addEventListener('click', function () {
             if (state.mode === 'random') return;
+            sfx('tap');
             startRandom();
         });
         restartBtn.addEventListener('click', restartCurrent);
         hardModeBtn.addEventListener('click', toggleHardMode);
+        hintBtn.addEventListener('click', useHint);
 
         helpBtn.addEventListener('click', function () {
             rulesEl.open = !rulesEl.open;

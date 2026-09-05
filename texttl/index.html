@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Texttl – deutsches Fünf-Buchstaben-Rätsel mit 739 Lösungen, Tages-/Zufallsmodus und optionalem Knifflig-Modus. Komplett offline.">
+  <meta name="description" content="Texttl – deutsches Fünf-Buchstaben-Rätsel mit über 1000 Lösungen, Tages-/Zufallsmodus, Tipp-Funktion und optionalem Knifflig-Modus. Komplett offline.">
   <title>Texttl – Deutsches Worträtsel</title>
   <script src="../shared/game-shell.js"></script>
+  <script src="../shared/game-audio.js"></script>
+  <script src="../shared/game-fx.js"></script>
   <link rel="stylesheet" href="texttl.css">
   <link rel="stylesheet" href="../shared/game-shell.css">
   <script src="texttl-logic.js"></script>
@@ -28,6 +30,7 @@
       <button id="mode-random" type="button" aria-pressed="false">Zufall</button>
     </div>
     <button id="hard-mode" class="icon-btn challenge-toggle" type="button" aria-pressed="false" title="Alle bereits aufgedeckten Hinweise müssen im nächsten Wort benutzt werden">◇ Knifflig</button>
+    <button id="hint-btn" class="icon-btn hint-toggle" type="button" aria-pressed="false" title="Einmal pro Runde einen Buchstaben samt Position aufdecken">💡 Tipp</button>
     <div class="stat"><span>Streak</span><strong id="hud-streak">0</strong></div>
     <div class="stat"><span>Siege</span><strong id="hud-wins">0</strong></div>
     <button id="restart-btn" class="icon-btn" type="button" aria-label="Aktuelles Rätsel neu starten">↻ Neu</button>
@@ -50,6 +53,8 @@
       <li>Doppelte Buchstaben werden fair bewertet: jeder Buchstabe im Lösungswort kann nur einmal „verbraucht“ werden.</li>
       <li>Im <strong>Tagesmodus</strong> erhalten alle Spieler am selben UTC-Kalendertag dasselbe Wort. Im <strong>Zufallsmodus</strong> wird jedes Mal ein neues Wort gezogen.</li>
       <li><strong>Knifflig:</strong> Grüne Buchstaben müssen an ihrer Stelle bleiben; gelbe Buchstaben müssen an einer neuen Stelle erneut verwendet werden. Auch bereits erkannte Doppelbuchstaben zählen.</li>
+      <li><strong>💡 Tipp:</strong> Einmal pro Runde wird ein noch nicht gefundener Buchstabe samt Position aufgedeckt. Er erscheint blass in der aktuellen Reihe und auf der Tastatur; geteilte Ergebnisse tragen dann ein 💡.</li>
+      <li>Der Tagespool wächst am 10. September 2026 (UTC) auf über 1000 Lösungen – frühere Tageswörter bleiben unverändert.</li>
     </ul>
     <p><strong>Steuerung:</strong> Tipp über die Bildschirmtastatur oder die physische Tastatur. <kbd>Enter</kbd> ratebestätigen, <kbd>⌫</kbd>/<kbd>Backspace</kbd> löschen. Die Tasten <kbd>Ä</kbd> <kbd>Ö</kbd> <kbd>Ü</kbd> und <kbd>ß</kbd> sind verfügbar und zählen jeweils als einzelner Buchstabe.</p>
   </details>

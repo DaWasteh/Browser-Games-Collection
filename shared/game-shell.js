@@ -51,6 +51,37 @@
     return label;
   }
 
+  /* Ton-Schalter: nutzt window.GameAudio (shared/game-audio.js), falls geladen. */
+  function createSoundToggle() {
+    const audio = window.GameAudio;
+    if (!audio || !audio.isSupported()) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'game-sound-toggle';
+    const icon = document.createElement('span');
+    icon.className = 'game-sound-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.className = 'game-sound-text';
+    button.append(icon, text);
+    function sync() {
+      const muted = audio.isMuted();
+      button.setAttribute('aria-pressed', muted ? 'false' : 'true');
+      button.setAttribute('aria-label', muted ? 'Ton einschalten' : 'Ton ausschalten');
+      button.title = muted ? 'Ton ist aus' : 'Ton ist an';
+      icon.textContent = muted ? '🔇' : '🔊';
+      text.textContent = muted ? 'Ton aus' : 'Ton an';
+      button.classList.toggle('is-muted', muted);
+    }
+    button.addEventListener('click', () => {
+      audio.toggle();
+      if (!audio.isMuted()) audio.play('tap');
+    });
+    audio.onChange(sync);
+    sync();
+    return button;
+  }
+
   const dialogState = new WeakMap();
   let lastPageFocus = null;
   document.addEventListener('focusin', event => {
@@ -69,7 +100,7 @@
     while (branch.parentElement && branch.parentElement !== document.documentElement) {
       const parent = branch.parentElement;
       [...parent.children].forEach(sibling => {
-        if (sibling !== branch && !sibling.inert) {
+        if (sibling !== branch && !sibling.inert && !sibling.classList.contains('game-fx-canvas')) {
           sibling.inert = true;
           inerted.push(sibling);
         }
@@ -112,7 +143,12 @@
         toolbar.append(backLink);
         if (formerParent && formerParent.matches('nav') && formerParent.children.length === 0) formerParent.remove();
       }
-      toolbar.append(createStylePicker());
+      const controls = document.createElement('div');
+      controls.className = 'game-toolbar-controls';
+      const soundToggle = createSoundToggle();
+      if (soundToggle) controls.append(soundToggle);
+      controls.append(createStylePicker());
+      toolbar.append(controls);
       header.prepend(toolbar);
     }
 

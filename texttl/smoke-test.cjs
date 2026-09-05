@@ -33,7 +33,19 @@ assert.equal(
     'fa107a8ec86fa952d9ae4848f1a3be067dec0cc1a4bfc1bb7a394e475f603936',
     'vollständiger v1-Tagespool bleibt in Inhalt und Reihenfolge eingefroren'
 );
-assert.equal(logic.DAILY_WORDS_V2.length, logic.SOLUTION_WORDS.length, 'v2-Tagespool enthält die Erweiterung');
+assert.equal(logic.DAILY_WORDS_V2.length, 739, 'v2-Tagespool bleibt eingefroren');
+assert.equal(logic.DAILY_WORDS_V3.length, logic.SOLUTION_WORDS.length, 'v3-Tagespool enthält die v1.9-Erweiterung');
+assert.ok(logic.SOLUTION_WORDS.length >= 1000, 'über 1000 Lösungen (' + logic.SOLUTION_WORDS.length + ')');
+assert.equal(logic.dailyPool(new Date(Date.UTC(2026, 8, 9))).length, 739, 'v2-Pool bis 09.09.2026');
+assert.equal(logic.dailyPool(new Date(Date.UTC(2026, 8, 10))).length, logic.SOLUTION_WORDS.length, 'v3-Pool ab 10.09.2026');
+{
+    const hint = logic.pickHint(['ABEND'], 'ADLER', () => 0.3);
+    assert.ok(hint && hint.letter === Array.from('ADLER')[hint.index], 'Tipp liefert Lösungsbuchstabe');
+    assert.notEqual(hint.index, 0, 'Tipp meidet bereits grüne Stellen');
+    assert.equal(logic.pickHint(['ADLER'], 'ADLER'), null, 'kein Tipp bei gelöstem Wort');
+    assert.ok(logic.msUntilNextDaily(new Date(Date.UTC(2026, 8, 4, 23, 30))) === 30 * 60 * 1000, 'Countdown bis Mitternacht UTC');
+    assert.match(logic.buildShareText({ mode: 'daily', puzzleNumber: 1, won: true, attempts: 2, rows: [], hintUsed: true }), /💡/, 'Tipp im Teilen-Text markiert');
+}
 assert.ok(logic.VALID_GUESS_WORDS.length >= logic.SOLUTION_WORDS.length, 'gültige ≥ Lösungen');
 
 // Jede Lösung muss gültig sein

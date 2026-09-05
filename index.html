@@ -4,204 +4,440 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Browser Games Collection</title>
-  <meta name="description" content="Eine Sammlung von Browser-Spielen – kein Server, keine Abhängigkeiten, einfach spielen.">
+  <meta name="description" content="Eine Sammlung von 18 Browser-Spielen – kein Server, keine Abhängigkeiten, einfach spielen.">
   <script src="shared/game-shell.js"></script>
+  <script src="shared/game-audio.js"></script>
+  <script src="shared/game-fx.js"></script>
   <link rel="stylesheet" href="shared/game-shell.css">
   <style>
     :root {
       --bg: #0a0a1a;
-      --card: #14142b;
+      --panel: #14142b;
       --card-hover: #1c1c3a;
       --border: #2a2a4a;
       --text: #e8e8f0;
       --muted: #9a9ab0;
       --accent: #00ffff;
+      --accent-text: #05121a;
+      --pg-glow: rgba(0, 255, 255, .18);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       background: var(--bg);
-      background-image: radial-gradient(circle at 20% 10%, rgba(0, 255, 255, 0.06), transparent 40%),
-                        radial-gradient(circle at 80% 90%, rgba(255, 0, 255, 0.05), transparent 40%);
       color: var(--text);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 2rem 1rem;
+      padding: 1.25rem 1rem 2rem;
     }
-    header { text-align: center; margin-bottom: 2.5rem; }
+    body > header {
+      width: 100%;
+      max-width: 1200px;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
     h1 {
-      margin: 0 0 0.5rem;
+      margin: .6rem 0 .4rem;
       font-size: clamp(1.8rem, 5vw, 2.8rem);
       letter-spacing: 0.02em;
     }
-    h1 .neon { color: var(--accent); text-shadow: 0 0 18px rgba(0, 255, 255, 0.45); }
+    h1 .neon { color: var(--accent); text-shadow: 0 0 18px var(--pg-glow); }
     header p { margin: 0; color: var(--muted); font-size: 1.05rem; }
+    .stats-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: .5rem .9rem;
+      margin: .7rem 0 0;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .stats-row strong { color: var(--text); }
+
+    /* Filterleiste */
+    .filters {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .6rem;
+      margin-bottom: 1.1rem;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .chip {
+      min-height: 2.5rem;
+      padding: .4rem .9rem;
+      border: 2px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      font-size: .9rem;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .chip:hover { border-color: var(--accent); }
+    .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+    .search {
+      flex: 1 1 14rem;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      min-height: 2.75rem;
+      padding: .35rem .75rem;
+      border: 2px solid var(--border);
+      border-radius: .75rem;
+      background: var(--panel);
+      color: var(--text);
+    }
+    .search input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 1rem;
+      outline: none;
+    }
+    .search input::placeholder { color: var(--muted); }
+    .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--pg-glow); }
+
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 1.25rem;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+      gap: 1.15rem;
       width: 100%;
       max-width: 1200px;
     }
     .card {
+      position: relative;
       display: flex;
       flex-direction: column;
-      gap: 0.6rem;
-      padding: 1.4rem;
-      background: var(--card);
+      gap: 0.55rem;
+      padding: 1.3rem 1.3rem 1.1rem;
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 16px;
       text-decoration: none;
       color: inherit;
-      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+      overflow: hidden;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow .18s ease;
+    }
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: auto -30% -60% auto;
+      width: 60%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--pg-glow), transparent 70%);
+      opacity: 0;
+      transition: opacity .25s ease;
+      pointer-events: none;
     }
     .card:hover, .card:focus-visible {
-      transform: translateY(-3px);
+      transform: translateY(-4px);
       border-color: var(--accent);
       background: var(--card-hover);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, .28), 0 0 0 1px var(--accent);
       outline: none;
     }
-    .card .icon { font-size: 2.2rem; line-height: 1; }
-    .card h2 { margin: 0; font-size: 1.25rem; }
-    .card p { margin: 0; color: var(--muted); font-size: 0.92rem; flex-grow: 1; }
-    .card .play {
-      margin-top: 0.4rem;
+    .card:hover::after, .card:focus-visible::after { opacity: 1; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+    .card .icon {
+      display: grid;
+      place-items: center;
+      width: 3.1rem;
+      height: 3.1rem;
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+      font-size: 1.9rem;
+      line-height: 1;
+      transition: transform .25s ease;
+    }
+    .card:hover .icon { transform: scale(1.08) rotate(-4deg); }
+    .badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
+    .badge {
+      padding: .18rem .55rem;
+      border-radius: 999px;
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      background: color-mix(in srgb, var(--accent) 18%, var(--panel));
       color: var(--accent);
-      font-weight: 600;
+      border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+    .badge.new { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .badge.recent { background: color-mix(in srgb, #ffd166 22%, var(--panel)); color: inherit; border-color: color-mix(in srgb, #ffd166 60%, transparent); }
+    .card h2 { margin: 0; font-size: 1.22rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.92rem; flex-grow: 1; line-height: 1.45; }
+    .card .meta { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .tag { font-size: .72rem; color: var(--muted); padding: .1rem .5rem; border: 1px solid var(--border); border-radius: 999px; }
+    .card .play {
+      margin-top: 0.35rem;
+      color: var(--accent);
+      font-weight: 700;
       font-size: 0.95rem;
+    }
+    .card[hidden] { display: none; }
+    .empty {
+      width: 100%;
+      max-width: 1200px;
+      margin: 1rem 0;
+      padding: 1.2rem;
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      color: var(--muted);
+      text-align: center;
     }
     footer {
       margin-top: 3rem;
       color: var(--muted);
       font-size: 0.85rem;
       text-align: center;
+      max-width: 60ch;
     }
     footer a { color: var(--accent); }
+    @media (prefers-reduced-motion: reduce) {
+      .card, .card .icon, .chip, .card::after { transition: none; }
+      .card:hover, .card:focus-visible { transform: none; }
+      .card:hover .icon { transform: none; }
+    }
+    @media (max-width: 600px) {
+      body { padding: .9rem .75rem 1.5rem; }
+      .grid { gap: .85rem; }
+      .card { padding: 1.05rem 1rem .95rem; }
+      .chip { padding: .35rem .7rem; font-size: .84rem; }
+      .stats-row { flex-direction: column; gap: .2rem; }
+      .stats-row .sep { display: none; }
+    }
+    @media (min-width: 1800px) {
+      .grid, .filters, body > header, .empty { max-width: 1480px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.4rem; }
+    }
+    @media (min-width: 2400px) {
+      .grid, .filters, body > header, .empty { max-width: 1900px; }
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>🕹️ Browser <span class="neon">Games</span> Collection</h1>
     <p>Kein Server, keine Abhängigkeiten – Spiel auswählen und losspielen.</p>
+    <p class="stats-row">
+      <span><strong>18</strong> Spiele</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span>Läuft auf PC, Ultrawide, Tablet und Smartphone</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <span>Offline spielbar</span>
+    </p>
   </header>
 
-  <main class="grid">
-    <a class="card" href="tetris/tetris.html">
-      <span class="icon">🧱</span>
+  <div class="filters" role="search">
+    <div class="chips" role="group" aria-label="Kategorie">
+      <button class="chip" type="button" data-filter="alle" aria-pressed="true">Alle</button>
+      <button class="chip" type="button" data-filter="klassiker" aria-pressed="false">Klassiker</button>
+      <button class="chip" type="button" data-filter="puzzle" aria-pressed="false">Puzzle</button>
+      <button class="chip" type="button" data-filter="karten" aria-pressed="false">Karten &amp; Steine</button>
+      <button class="chip" type="button" data-filter="worte" aria-pressed="false">Wörter &amp; Story</button>
+    </div>
+    <label class="search">
+      <span aria-hidden="true">🔍</span>
+      <input id="search" type="search" placeholder="Spiel suchen …" aria-label="Spiele durchsuchen" autocomplete="off">
+    </label>
+  </div>
+
+  <main class="grid" id="games" aria-live="polite" aria-label="Spieleliste">
+    <a class="card" href="tetris/tetris.html" data-category="klassiker" data-tags="blöcke reihen arcade">
+      <div class="card-head"><span class="icon">🧱</span><span class="badges"><span class="badge">Klassiker</span></span></div>
       <h2>Tetris</h2>
       <p>Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="snake-ultimate/snake_ultimate.html">
-      <span class="icon">🐍</span>
+    <a class="card" href="snake-ultimate/snake_ultimate.html" data-category="klassiker" data-tags="schlange multiplayer themes">
+      <div class="card-head"><span class="icon">🐍</span><span class="badges"><span class="badge">Klassiker</span></span></div>
       <h2>Snake Ultimate</h2>
       <p>Erweitertes Snake mit lokalem Multiplayer, 8 Themes und anpassbaren Addons.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="pong/pong.html">
-      <span class="icon">🏓</span>
+    <a class="card" href="pong/pong.html" data-category="klassiker" data-tags="duell ki zwei spieler">
+      <div class="card-head"><span class="icon">🏓</span><span class="badges"><span class="badge">Klassiker</span></span></div>
       <h2>Pong</h2>
       <p>Das klassische Duell – allein gegen die KI oder zu zweit am selben Gerät.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="panda-bubbles/index.html">
-      <span class="icon">🫧</span>
+    <a class="card" href="panda-bubbles/index.html" data-category="puzzle" data-tags="bubble shooter blasen panda">
+      <div class="card-head"><span class="icon">🫧</span><span class="badges"><span class="badge">Puzzle</span></span></div>
       <h2>Panda: Jäger der Blasen</h2>
       <p>Moderner Bubble Shooter mit Bandenwürfen, fallenden Gruppen und der farbflexiblen Bambusblase.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="des-pandas-juwelen/index.html">
-      <span class="icon">💎</span>
+    <a class="card" href="des-pandas-juwelen/index.html" data-category="puzzle" data-tags="match 3 juwelen kaskaden panda">
+      <div class="card-head"><span class="icon">💎</span><span class="badges"><span class="badge">Puzzle</span></span></div>
       <h2>Des Pandas Juwelen</h2>
       <p>Match 3 mit Kaskaden, Spezialkristallen und einem taktischen Fern-Tausch per Panda-Pfote.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="sandgame/sand_game.html">
-      <span class="icon">⏳</span>
-      <h2>Sand Game Pro 2.2</h2>
-      <p>Optimierte Falling-Sand-Simulation mit Physik, Biologie, Active-Cell-Wind und WebGL2/CPU-Fallback.</p>
+    <a class="card" href="sandgame/sand_game.html" data-category="klassiker" data-tags="simulation physik sandbox webgl">
+      <div class="card-head"><span class="icon">⏳</span><span class="badges"><span class="badge new">Schneller</span><span class="badge">Simulation</span></span></div>
+      <h2>Sand Game Pro 2.3</h2>
+      <p>Falling-Sand-Simulation mit Physik, Biologie und Active-Cell-Wind – jetzt mit deutlich schlankerem Chemie- und Wärmekern.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="game-of-life/game_of_life.html">
-      <span class="icon">🦠</span>
+    <a class="card" href="game-of-life/game_of_life.html" data-category="klassiker" data-tags="conway automat zellen simulation">
+      <div class="card-head"><span class="icon">🦠</span><span class="badges"><span class="badge">Simulation</span></span></div>
       <h2>Game of Life</h2>
       <p>Conways zellulärer Automat – interaktiv und performant auf Canvas.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="panda-lemmings/panda_lemmings.html">
-      <span class="icon">🐼</span>
+    <a class="card" href="panda-lemmings/panda_lemmings.html" data-category="klassiker" data-tags="lemmings puzzle panda fähigkeiten">
+      <div class="card-head"><span class="icon">🐼</span><span class="badges"><span class="badge">Klassiker</span></span></div>
       <h2>Panda Lemmings</h2>
       <p>Lemmings-inspiriertes Puzzle – jetzt auch mit vollständiger Panda-/Fähigkeitssteuerung per Tastatur.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="pandataire/index.html">
-      <span class="icon">🃏</span>
+    <a class="card" href="pandataire/index.html" data-category="karten" data-tags="solitaire tripeaks golf pyramid karten">
+      <div class="card-head"><span class="icon">🃏</span><span class="badges"><span class="badge">Karten</span></span></div>
       <h2>Pandataire</h2>
       <p>Solitaire-Sammelband: TriPeaks, Golf und Pyramid mit lösbaren Deals, Undo und Touch-Steuerung.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="panda-spider/index.html">
-      <span class="icon">🕷️</span>
+    <a class="card" href="panda-spider/index.html" data-category="karten" data-tags="spider solitaire karten">
+      <div class="card-head"><span class="icon">🕷️</span><span class="badges"><span class="badge">Karten</span></span></div>
       <h2>Panda Spider</h2>
       <p>Spider-Solitaire mit einer, zwei oder vier Farben und acht Zielsequenzen.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="panndike/index.html">
-      <span class="icon">♠️</span>
+    <a class="card" href="panndike/index.html" data-category="karten" data-tags="klondike solitär tagesdeal karten">
+      <div class="card-head"><span class="icon">♠️</span><span class="badges"><span class="badge">Karten</span></span></div>
       <h2>Panndike Solitär</h2>
       <p>Zeitungsartiges Klondike mit Tagesdeal, Deal-Codes, Zieh-1/3, Hinweisen, Drag, Touch und Undo.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="pandacell/index.html">
-      <span class="icon">♥️</span>
+    <a class="card" href="pandacell/index.html" data-category="karten" data-tags="freecell solitaire karten">
+      <div class="card-head"><span class="icon">♥️</span><span class="badges"><span class="badge">Karten</span></span></div>
       <h2>PandaCell</h2>
       <p>FreeCell mit reproduzierbaren Deals, Supermoves und vier freien Zellen.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="minenraeumkommando-foxtrott/index.html">
-      <span class="icon">💣</span>
+    <a class="card" href="minenraeumkommando-foxtrott/index.html" data-category="puzzle" data-tags="minesweeper minen logik">
+      <div class="card-head"><span class="icon">💣</span><span class="badges"><span class="badge">Puzzle</span></span></div>
       <h2>Minenräumkommando Foxtrott</h2>
       <p>Minesweeper mit sicherem Erstklick, Chording und vier Schwierigkeitsstufen.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="texttl/index.html">
-      <span class="icon">🔤</span>
+    <a class="card" href="texttl/index.html" data-category="worte" data-tags="wordle wort rätsel täglich buchstaben">
+      <div class="card-head"><span class="icon">🔤</span><span class="badges"><span class="badge new">Erweitert</span><span class="badge">Wörter</span></span></div>
       <h2>Texttl</h2>
-      <p>Deutsches Fünf-Buchstaben-Rätsel mit 739 Lösungen, Tages-/Zufallsmodus und optionalem Knifflig-Modus.</p>
+      <p>Deutsches Fünf-Buchstaben-Rätsel mit über 1000 Lösungen, Tages-/Zufallsmodus, Tipp-Funktion und Knifflig-Modus.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="pandadoku/index.html">
-      <span class="icon">🔢</span>
+    <a class="card" href="pandadoku/index.html" data-category="puzzle" data-tags="sudoku zahlen logik notizen">
+      <div class="card-head"><span class="icon">🔢</span><span class="badges"><span class="badge">Puzzle</span></span></div>
       <h2>Pandadoku</h2>
       <p>Sudoku mit drei Stufen, Notizen, Hinweisen und eindeutig lösbaren Rätseln.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="pandakreuzwort/index.html">
-      <span class="icon">✏️</span>
+    <a class="card" href="pandakreuzwort/index.html" data-category="worte" data-tags="kreuzworträtsel bairisch wörter rätsel">
+      <div class="card-head"><span class="icon">✏️</span><span class="badges"><span class="badge new">Erweitert</span><span class="badge">Wörter</span></span></div>
       <h2>Pandakreuzwort</h2>
-      <p>Kompakte Sperrfeld-Rätsel auf Deutsch oder Bairisch – 659 Einträge und vier Stufen.</p>
+      <p>Kompakte Sperrfeld-Rätsel auf Deutsch oder Bairisch – 969 Einträge, vier Stufen und Bestzeiten.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="pahjong/index.html">
-      <span class="icon">🀄</span>
+    <a class="card" href="pahjong/index.html" data-category="karten" data-tags="mahjong solitaire steine turtle">
+      <div class="card-head"><span class="icon">🀄</span><span class="badges"><span class="badge">Steine</span></span></div>
       <h2>Pahjong</h2>
       <p>Mahjong-Solitaire im echten 144-Stein-Turtle-Layout mit Anleitung, Zoom und lösbaren Deals.</p>
       <span class="play">▶ Spielen</span>
     </a>
-    <a class="card" href="maulkorbraupen-das-spiel/index.html">
-      <span class="icon">🐛</span>
+    <a class="card" href="maulkorbraupen-das-spiel/index.html" data-category="worte" data-tags="textadventure story vertont kapitel">
+      <div class="card-head"><span class="icon">🐛</span><span class="badges"><span class="badge">Story</span></span></div>
       <h2>Maulkorbraupen – Das Spiel</h2>
       <p>Vertontes Textadventure mit sieben Kapiteln, Werk-Rätseln und dem Feierabend als Ziel.</p>
       <span class="play">▶ Spielen</span>
     </a>
   </main>
+  <p class="empty" id="empty" hidden>Kein Spiel passt zu dieser Suche.</p>
 
   <footer>
-    <p><strong>Version 1.8</strong> · Alle Spiele sind eigenständige HTML-Dateien.
+    <p><strong>Version 1.9</strong> · Alle Spiele sind eigenständige HTML-Dateien mit gemeinsamem Ton-, Effekt- und Ansichtsystem.
        Quellcode auf <a href="https://github.com/DaWasteh/Browser-Games-Collection">GitHub</a>.</p>
   </footer>
+
+  <script>
+    (() => {
+      'use strict';
+      const RECENT_KEY = 'browser-games-recent';
+      const cards = [...document.querySelectorAll('main.grid > a.card')];
+      const chips = [...document.querySelectorAll('.chip[data-filter]')];
+      const search = document.getElementById('search');
+      const empty = document.getElementById('empty');
+      let filter = 'alle';
+
+      function readRecent() {
+        try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (_error) { return []; }
+      }
+      function markRecent() {
+        const recent = readRecent();
+        cards.forEach(card => {
+          const href = card.getAttribute('href');
+          const index = recent.indexOf(href);
+          const badges = card.querySelector('.badges');
+          const existing = badges.querySelector('.badge.recent');
+          if (index === 0 && !existing) {
+            const badge = document.createElement('span');
+            badge.className = 'badge recent';
+            badge.textContent = 'Zuletzt gespielt';
+            badges.prepend(badge);
+          } else if (index !== 0 && existing) {
+            existing.remove();
+          }
+        });
+      }
+      cards.forEach(card => {
+        card.addEventListener('click', () => {
+          try {
+            const href = card.getAttribute('href');
+            const recent = [href].concat(readRecent().filter(item => item !== href)).slice(0, 5);
+            localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+          } catch (_error) { /* Speicher optional */ }
+          if (window.GameAudio) window.GameAudio.play('select');
+        });
+      });
+
+      function normalize(text) { return text.toLowerCase().replace(/\s+/g, ' ').trim(); }
+      function apply() {
+        const query = normalize(search.value || '');
+        let visible = 0;
+        cards.forEach(card => {
+          const inCategory = filter === 'alle' || card.dataset.category === filter;
+          const haystack = normalize(card.querySelector('h2').textContent + ' ' + card.querySelector('p').textContent + ' ' + (card.dataset.tags || ''));
+          const matches = !query || haystack.includes(query);
+          const show = inCategory && matches;
+          card.hidden = !show;
+          if (show) visible++;
+        });
+        empty.hidden = visible > 0;
+      }
+      chips.forEach(chip => chip.addEventListener('click', () => {
+        filter = chip.dataset.filter;
+        chips.forEach(other => other.setAttribute('aria-pressed', other === chip ? 'true' : 'false'));
+        if (window.GameAudio) window.GameAudio.play('tap');
+        apply();
+      }));
+      search.addEventListener('input', apply);
+      markRecent();
+      window.addEventListener('pageshow', markRecent);
+    })();
+  </script>
 </body>
 </html>

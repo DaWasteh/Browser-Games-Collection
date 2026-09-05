@@ -615,7 +615,10 @@ try {
     { width: 812, height: 375, orientation: 'landscapePrimary', mobile: true },
     { width: 768, height: 1024, orientation: 'portraitPrimary', mobile: false },
     { width: 1024, height: 768, orientation: 'landscapePrimary', mobile: false },
-    { width: 1366, height: 768, orientation: 'landscapePrimary', mobile: false }
+    { width: 1366, height: 768, orientation: 'landscapePrimary', mobile: false },
+    { width: 1920, height: 1080, orientation: 'landscapePrimary', mobile: false },
+    { width: 2560, height: 1080, orientation: 'landscapePrimary', mobile: false },
+    { width: 3440, height: 1440, orientation: 'landscapePrimary', mobile: false }
   ];
   for (const game of games) {
     const eventStart = cdp.events.length;
@@ -644,7 +647,7 @@ try {
     assert(errors.length === 0, `${game.name}: Laufzeit-/Console-Fehler: ${JSON.stringify(errors).slice(0, 600)}`);
   }
 
-  console.log(`classic-games-smoke ok (${games.length} Spiele, 7 Phone/Tablet/Desktop-Viewports, Boot, 0 Fehler, kein Überlauf, Tastatur-Nicht-Hijack, Regressionen)`);
+  console.log(`classic-games-smoke ok (${games.length} Spiele, 10 Phone/Tablet/Desktop/Widescreen/Ultrawide-Viewports, Boot, 0 Fehler, kein Überlauf, Tastatur-Nicht-Hijack, Regressionen)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();

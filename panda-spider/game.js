@@ -84,7 +84,7 @@
     if (from === columnIndex || !canPlace(moving[0], target)) return false;
     saveHistory(); source.splice(start); targetColumn.push(...moving); revealTops(); state.moves += 1; state.selected = null;
     const removed = completeRuns(); revealTops();
-    if (removed) announce(`${removed} vollständige Reihe${removed > 1 ? 'n' : ''} entfernt.`); else announce('Guter Zug.');
+    if (removed) { sfx('success'); announce(`${removed} vollständige Reihe${removed > 1 ? 'n' : ''} entfernt.`); } else { sfx('place'); announce('Guter Zug.'); }
     checkEnd(); render(); return true;
   }
 
@@ -93,20 +93,20 @@
     const column = state.columns[columnIndex]; const card = column[cardIndex];
     if (!card || !card.faceUp) return;
     if (!state.selected) {
-      if (isMovableSequence(column, cardIndex)) { state.selected = { column: columnIndex, index: cardIndex }; announce('Karte ausgewählt. Wähle eine passende Zielkarte oder leere Spalte.'); render(); }
-      else announce('Diese Karte kann nicht als Folge bewegt werden.');
+      if (isMovableSequence(column, cardIndex)) { state.selected = { column: columnIndex, index: cardIndex }; sfx('select'); announce('Karte ausgewählt. Wähle eine passende Zielkarte oder leere Spalte.'); render(); }
+      else { sfx('error'); announce('Diese Karte kann nicht als Folge bewegt werden.'); }
       return;
     }
     if (state.selected.column === columnIndex && state.selected.index === cardIndex) { state.selected = null; announce('Auswahl aufgehoben.'); render(); return; }
     if (state.selected.column === columnIndex && cardIndex > state.selected.index) { state.selected = null; selectCard(columnIndex, cardIndex); return; }
-    if (!moveTo(columnIndex)) { state.selected = null; announce('Dort darf die ausgewählte Karte nicht liegen.'); render(); }
+    if (!moveTo(columnIndex)) { state.selected = null; sfx('error'); announce('Dort darf die ausgewählte Karte nicht liegen.'); render(); }
   }
 
   function dealStock() {
     if (state.status !== 'playing' || !state.stock.length) return;
     if (state.columns.some(column => column.length === 0)) { announce('Der Stock darf nicht mit einer leeren Spalte ausgeteilt werden.'); return; }
     saveHistory(); for (let i = 0; i < 10; i += 1) { const card = state.stock.pop(); if (!card) break; card.faceUp = true; state.columns[i].push(card); }
-    state.moves += 1; const removed = completeRuns(); revealTops(); announce(removed ? `${removed} vollständige Reihe${removed > 1 ? 'n' : ''} entfernt.` : 'Je eine offene Karte wurde auf jede Spalte gelegt.'); checkEnd(); render();
+    state.moves += 1; const removed = completeRuns(); revealTops(); sfx(removed ? 'success' : 'deal'); announce(removed ? `${removed} vollständige Reihe${removed > 1 ? 'n' : ''} entfernt.` : 'Je eine offene Karte wurde auf jede Spalte gelegt.'); checkEnd(); render();
   }
 
   function hasAnyMove() {
@@ -120,10 +120,11 @@
     return false;
   }
   function checkEnd() {
-    if (state.completed === 8) { state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); state.startedAt = 0; state.status = 'won'; announce('Gewonnen! Alle acht Reihen sind entfernt.'); return; }
-    if (!state.stock.length && !hasAnyMove()) { state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); state.startedAt = 0; state.status = 'lost'; announce('Keine Züge mehr. Starte ein neues Spiel oder gehe einen Zug zurück.'); }
+    if (state.completed === 8) { state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); state.startedAt = 0; state.status = 'won'; sfx('win'); if (window.GameFX) window.GameFX.celebrate(); announce('Gewonnen! Alle acht Reihen sind entfernt.'); return; }
+    if (!state.stock.length && !hasAnyMove()) { state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); state.startedAt = 0; state.status = 'lost'; sfx('lose'); announce('Keine Züge mehr. Starte ein neues Spiel oder gehe einen Zug zurück.'); }
   }
   function announce(text) { els.message.textContent = text; }
+  function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
   function formatTime(seconds) { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`; }
   function updateStats() { els.moves.textContent = String(state.moves); els.time.textContent = formatTime(state.elapsed); els.completed.textContent = `${state.completed} / 8`; els.stock.textContent = String(state.stock.length); els.undo.disabled = state.history.length === 0; els.deal.disabled = !state.stock.length || state.columns.some(column => column.length === 0) || state.status !== 'playing'; }
 
@@ -168,7 +169,7 @@
   function tick() { if (state.status === 'playing' && state.startedAt) state.elapsed = Math.floor((Date.now() - state.startedAt) / 1000); els.time.textContent = formatTime(state.elapsed); }
 
   els.newGame.addEventListener('click', newGame); els.mode.addEventListener('change', newGame); els.deal.addEventListener('click', dealStock);
-  els.undo.addEventListener('click', () => { const previous = state.history.pop(); if (previous) { restore(previous); announce('Letzten Zug rückgängig gemacht.'); } });
+  els.undo.addEventListener('click', () => { const previous = state.history.pop(); if (previous) { restore(previous); sfx('undo'); announce('Letzten Zug rückgängig gemacht.'); } });
   document.addEventListener('keydown', event => { if (event.target instanceof Element && event.target.matches('input, select, textarea')) return; if (event.key.toLowerCase() === 'n') newGame(); if (event.key.toLowerCase() === 'u') els.undo.click(); });
   timerId = window.setInterval(tick, 1000); void timerId; newGame();
 })();

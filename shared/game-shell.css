@@ -12,6 +12,7 @@ html[data-game-style="panda"] {
   --pg-felt-dark: #0f4b40;
   --pg-focus: #c27800;
   --pg-red: #b83246;
+  --pg-glow: rgba(23, 107, 89, .22);
 }
 html[data-game-style="night"] {
   color-scheme: dark;
@@ -27,6 +28,7 @@ html[data-game-style="night"] {
   --pg-felt-dark: #071d24;
   --pg-focus: #ffd166;
   --pg-red: #ff7b86;
+  --pg-glow: rgba(255, 209, 102, .22);
 }
 html[data-game-style="contrast"] {
   color-scheme: dark;
@@ -43,6 +45,7 @@ html[data-game-style="contrast"] {
   --pg-felt-dark: #000000;
   --pg-focus: #ffea00;
   --pg-red: #ff6678;
+  --pg-glow: rgba(255, 234, 0, .3);
 }
 html[data-game-style] {
   --bg: var(--pg-bg);
@@ -68,6 +71,16 @@ html[data-game-style] {
   --key: var(--pg-panel-2);
   --key-text: var(--pg-text);
 }
+/* Große Desktop-, Widescreen- und Ultrawide-Monitore: Text und Bedienelemente
+   wachsen moderat mit, damit Spiele auf 1440p/Ultrawide nicht winzig wirken. */
+@media (min-width: 1800px) {
+  html[data-game-style="panda"], html[data-game-style="night"] { font-size: 17px; }
+  html[data-game-style="contrast"] { font-size: 19px; }
+}
+@media (min-width: 2400px) {
+  html[data-game-style="panda"], html[data-game-style="night"] { font-size: 18px; }
+  html[data-game-style="contrast"] { font-size: 20px; }
+}
 html[data-game-style] body {
   background: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--pg-accent) 13%, var(--pg-bg)), var(--pg-bg) 65%);
   color: var(--pg-text);
@@ -85,7 +98,13 @@ html[data-game-style] body > main.grid > .card:focus-visible { background: var(-
   width: 100%;
   margin-bottom: .55rem;
 }
-.game-toolbar:has(> .game-style-control:only-child) { justify-content: flex-end; }
+.game-toolbar:has(> .game-toolbar-controls:only-child) { justify-content: flex-end; }
+.game-toolbar-controls {
+  display: inline-flex;
+  align-items: stretch;
+  gap: .5rem;
+  min-width: 0;
+}
 .game-toolbar .back-link,
 .game-toolbar .back {
   position: static;
@@ -100,9 +119,10 @@ html[data-game-style] body > main.grid > .card:focus-visible { background: var(-
   font-weight: 800;
   text-decoration: none;
   touch-action: manipulation;
+  transition: background-color .15s ease, transform .15s ease, box-shadow .15s ease;
 }
 .game-toolbar .back-link:hover,
-.game-toolbar .back:hover { background: var(--pg-panel-2); }
+.game-toolbar .back:hover { background: var(--pg-panel-2); box-shadow: 0 4px 14px var(--pg-glow); }
 .game-style-control {
   display: inline-flex;
   align-items: center;
@@ -126,6 +146,27 @@ html[data-game-style] body > main.grid > .card:focus-visible { background: var(-
   color: var(--pg-text);
   font: inherit;
 }
+.game-sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: .35rem .7rem;
+  border: 2px solid var(--pg-border);
+  border-radius: .65rem;
+  background: var(--pg-panel);
+  color: var(--pg-text);
+  font: inherit;
+  font-size: .86rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color .15s ease, box-shadow .15s ease;
+}
+.game-sound-toggle:hover { background: var(--pg-panel-2); box-shadow: 0 4px 14px var(--pg-glow); }
+.game-sound-toggle.is-muted { color: var(--pg-muted); }
+.game-sound-toggle .game-sound-icon { font-size: 1.1rem; line-height: 1; }
 html[data-game-style] :is(select, input[type="number"]) {
   border-color: var(--pg-border);
   background: var(--pg-panel-2);
@@ -166,6 +207,36 @@ html[data-game-style] .pile.red { color: #b83246; }
 html[data-game-style] .card.covered { filter: brightness(.72); }
 html[data-game-style="contrast"] .card.covered { filter: none; opacity: .72; }
 
+/* Dialog-Einblendung: Overlays erscheinen weich statt schlagartig. */
+html[data-game-style] [role="dialog"]:not([hidden]) > :is(.modal, .overlay-card, .dialog, .panel) {
+  animation: game-fx-dialog-in .22s cubic-bezier(.2, .8, .3, 1.15) both;
+}
+/* Individuelle Transform-Eigenschaften (translate/scale) lassen vorhandene
+   transform-Zentrierungen der Spiele unangetastet. */
+@keyframes game-fx-dialog-in {
+  from { opacity: 0; translate: 0 10px; scale: .97; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+/* Gemeinsame Feedback-Animationen (window.GameFX.pulse / shake). */
+.game-fx-pulse { animation: game-fx-pulse .6s ease-out both; }
+@keyframes game-fx-pulse {
+  0% { box-shadow: 0 0 0 0 var(--pg-glow, rgba(255, 209, 102, .35)); scale: 1; }
+  40% { box-shadow: 0 0 0 .55rem transparent; scale: 1.04; }
+  100% { box-shadow: 0 0 0 0 transparent; scale: 1; }
+}
+.game-fx-shake { animation: game-fx-shake .38s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes game-fx-shake {
+  10%, 90% { translate: -2px 0; }
+  20%, 80% { translate: 3px 0; }
+  30%, 50%, 70% { translate: -5px 0; }
+  40%, 60% { translate: 5px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-game-style] [role="dialog"]:not([hidden]) > :is(.modal, .overlay-card, .dialog, .panel),
+  .game-fx-pulse,
+  .game-fx-shake { animation: none; }
+}
+
 @media (max-width: 600px) {
   .game-toolbar {
     display: grid;
@@ -174,11 +245,16 @@ html[data-game-style="contrast"] .card.covered { filter: none; opacity: .72; }
   }
   .game-toolbar .back-link,
   .game-toolbar .back,
-  .game-style-control { min-height: 3rem; }
+  .game-style-control,
+  .game-sound-toggle { min-height: 3rem; }
   .game-toolbar .back-link,
-  .game-toolbar .back { justify-content: center; min-width: 0; }
+  .game-toolbar .back { justify-content: center; min-width: 0; font-size: .84rem; padding-inline: .5rem; line-height: 1.15; text-align: center; }
+  .game-toolbar:has(> .game-toolbar-controls:only-child) { grid-template-columns: 1fr; justify-items: center; }
+  .game-toolbar-controls { gap: .4rem; }
   .game-style-control { min-width: 0; margin-left: 0; padding-left: .45rem; }
-  .game-style-control > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .game-style-control > span,
+  .game-sound-toggle .game-sound-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .game-sound-toggle { padding: .35rem .55rem; }
   .game-style-control select { width: 100%; max-width: 8rem; }
   :is(.game-table, .tableau-area) {
     max-width: 100%;
@@ -189,6 +265,7 @@ html[data-game-style="contrast"] .card.covered { filter: none; opacity: .72; }
 
 @media (max-width: 340px) {
   .game-toolbar { grid-template-columns: 1fr; }
+  .game-toolbar-controls { justify-content: center; }
   .game-style-control { justify-content: center; }
   .game-style-control select { max-width: none; }
 }

@@ -89,6 +89,7 @@
     if (!history.length) return;
     pauseClock();
     var snap = history.pop();
+    sfx('undo');
     E.restore(state, snap.state);
     timer = snap.timer;
     started = 0;
@@ -112,6 +113,7 @@
       }
       pushHistory();
       E.applyMove(state, ruleset, { type: 'play', id: id });
+      sfx('place');
       announce(state.streak > 1 ? 'Serie ' + state.streak + '! Weiter so.' : 'Guter Zug.');
       render();
       checkEnd();
@@ -121,6 +123,7 @@
     if (card.rank === 13) {
       pushHistory();
       E.applyMove(state, ruleset, { type: 'king', id: id });
+      sfx('success');
       announce('König allein entfernt.');
       render();
       checkEnd();
@@ -143,6 +146,7 @@
       pushHistory();
       var sel = state.selectedId;
       E.applyMove(state, ruleset, { type: 'pairCards', a: sel, b: id });
+      sfx('match');
       announce('Paar entfernt.');
       render();
       checkEnd();
@@ -168,6 +172,7 @@
     pushHistory();
     var sel = state.selectedId;
     E.applyMove(state, ruleset, { type: 'pairWaste', id: sel });
+    sfx('match');
     announce('Paar mit Ablage entfernt.');
     render();
     checkEnd();
@@ -178,6 +183,7 @@
     if (state.stock.length) {
       pushHistory();
       E.applyMove(state, ruleset, { type: 'draw' });
+      sfx('flip');
       render();
       announce('Gezogen: ' + NAMES[E.wasteTop(state).rank] + '.');
       checkEnd();
@@ -186,6 +192,7 @@
     if (ruleset.maxRecycles > 0 && state.recyclesUsed < ruleset.maxRecycles && state.waste.length) {
       pushHistory();
       E.applyMove(state, ruleset, { type: 'recycle' });
+      sfx('shuffle');
       render();
       announce('Ablage zurück in den Talon umgelagert.');
       checkEnd();
@@ -195,6 +202,8 @@
   function checkEnd() {
     if (E.isSolved(state)) {
       setStatus('won');
+      sfx('win');
+      if (window.GameFX) window.GameFX.celebrate();
       pauseClock();
       render();
       finish();
@@ -202,6 +211,7 @@
     }
     if (E.isLost(state, ruleset)) {
       setStatus('lost');
+      sfx('lose');
       pauseClock();
       render();
       finish();
@@ -305,6 +315,7 @@
   }
 
   function announce(text) { $('message').textContent = text; }
+  function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
 
   function modeIntro() {
     if (mode === 'tripeaks') return 'TriPeaks: Räume die drei Gipfel ab – eine freie Karte mit Rang ±1.';

@@ -52,7 +52,7 @@
     if (!ids.length) return;
     if (state.selected.zone === 'tableau' && state.selected.index === columnIndex) { state.selected = null; render(); return; }
     const target = state.tableau[columnIndex];
-    if (target.length && !canFollow(target[target.length - 1], ids[0])) { announce('Nur absteigend und mit wechselnden Farben bauen.'); return; }
+    if (target.length && !canFollow(target[target.length - 1], ids[0])) { sfx('error'); announce('Nur absteigend und mit wechselnden Farben bauen.'); return; }
     const limit = supermoveLimit(target.length === 0);
     if (ids.length > limit) { announce(`Diese Sequenz ist zu lang. Maximal ${limit} Karten sind hier bewegbar.`); return; }
     performTableauMove(columnIndex, ids);
@@ -66,7 +66,7 @@
   function acceptFree(index) {
     if (!state.selected || state.free[index] !== null) return;
     const ids = selectedIds();
-    if (ids.length !== 1) { announce('In eine freie Zelle passt nur eine Karte.'); return; }
+    if (ids.length !== 1) { sfx('error'); announce('In eine freie Zelle passt nur eine Karte.'); return; }
     state.history.push(emptySnapshot());
     if (state.selected.zone === 'free') state.free[state.selected.index] = null;
     else state.tableau[state.selected.index].splice(state.selected.cardIndex, 1);
@@ -83,14 +83,16 @@
     state.history.push(emptySnapshot());
     if (state.selected && state.selected.zone === 'free') state.free[state.selected.index] = null;
     else if (state.selected) state.tableau[state.selected.index].splice(state.selected.cardIndex, 1);
-    state.foundations[suit]++; state.selected = null; state.moves++; afterMove(`${cardText(id)} auf Foundation gelegt.`);
+    state.foundations[suit]++; state.selected = null; state.moves++; sfx('success'); afterMove(`${cardText(id)} auf Foundation gelegt.`);
   }
   function afterMove(message) {
+    if (!/Foundation/.test(message)) sfx('place');
     render(); announce(message);
     if (state.foundations.every(rank => rank === 13)) win();
   }
   function undo() {
     if (!state.history.length) { announce('Kein Zug zum Rückgängigmachen.'); return; }
+    sfx('undo');
     state.elapsed = currentElapsed(); state.startedAt = Date.now();
     restore(state.history.pop());
     $('result').hidden = true;
@@ -120,10 +122,11 @@
   function sourceFor(id) { for (let i = 0; i < 4; i++) if (state.free[i] === id) return { zone: 'free', index: i }; for (let i = 0; i < 8; i++) { const index = state.tableau[i].indexOf(id); if (index >= 0) return { zone: 'tableau', index: i, cardIndex: index }; } return null; }
   function isAccessible(id) { const source = sourceFor(id); if (!source) return false; if (source.zone === 'free') return true; return source.cardIndex === state.tableau[source.index].length - 1; }
   function doubleClick(id) { if (state.status !== 'playing' || !isAccessible(id) || !isSafeFoundation(id)) { announce('Nur die oberste, freie Karte lässt sich per Doppelklick auf die Foundation legen.'); return; } state.selected = sourceFor(id); moveToFoundation(id, state.cards.get(id).suit); }
-  function win() { state.status = 'won'; state.elapsed = currentElapsed(); state.startedAt = 0; render(); $('result-title').textContent = 'PandaCell gewonnen!'; $('result-text').textContent = `Deal ${state.deal} geschafft – ${state.moves} Züge in ${formatTime(state.elapsed)}.`; $('result').hidden = false; $('result-new').focus(); }
+  function win() { state.status = 'won'; state.elapsed = currentElapsed(); state.startedAt = 0; sfx('win'); if (window.GameFX) window.GameFX.celebrate(); render(); $('result-title').textContent = 'PandaCell gewonnen!'; $('result-text').textContent = `Deal ${state.deal} geschafft – ${state.moves} Züge in ${formatTime(state.elapsed)}.`; $('result').hidden = false; $('result-new').focus(); }
   function cardText(id) { const card = state.cards.get(id); return `${NAMES[card.rank]}${SUITS[card.suit]}`; }
   function formatTime(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
   function announce(text) { $('message').textContent = text; }
+  function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
   function cardButton(id, extra = '') { const card = state.cards.get(id); const button = document.createElement('button'); button.type = 'button'; button.className = `card${isRed(id) ? ' red' : ''}${extra}`; button.dataset.id = String(id); button.dataset.focusKey = `card-${id}`; button.setAttribute('aria-label', cardText(id)); const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = NAMES[card.rank]; const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit]; button.append(rank, suit); return button; }
   function renderPile(button, id, label) { button.replaceChildren(); const foundationClass = button.classList.contains('foundation') ? ' foundation' : ''; button.className = `pile${foundationClass}` + (id === null ? '' : ` occupied${isRed(id) ? ' red' : ''}`); button.setAttribute('aria-label', label + (id === null ? ' leer' : `: ${cardText(id)}`)); if (id === null) { const placeholder = document.createElement('span'); placeholder.className = 'placeholder'; placeholder.textContent = '＋'; button.append(placeholder); } else { const card = state.cards.get(id); const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = NAMES[card.rank]; const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit]; button.append(rank, suit); } }
   function render() {

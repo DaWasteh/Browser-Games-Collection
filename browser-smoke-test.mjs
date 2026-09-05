@@ -227,7 +227,10 @@ try {
       { width: 667, height: 375, mobile: true, deviceScaleFactor: 2 },
       { width: 768, height: 1024, mobile: false, deviceScaleFactor: 1 },
       { width: 1024, height: 768, mobile: false, deviceScaleFactor: 1 },
-      { width: 1366, height: 768, mobile: false, deviceScaleFactor: 1 }
+      { width: 1366, height: 768, mobile: false, deviceScaleFactor: 1 },
+      { width: 1920, height: 1080, mobile: false, deviceScaleFactor: 1 },
+      { width: 2560, height: 1080, mobile: false, deviceScaleFactor: 1 },
+      { width: 3440, height: 1440, mobile: false, deviceScaleFactor: 1 }
     ];
     for (const viewport of responsiveViewports) {
       const { width } = viewport;
@@ -1367,7 +1370,38 @@ try {
     };
   })()`);
   assert(launcher.count === 18 && launcher.unique === 18 && launcher.allTargetsLoad, `launcher: expected 18 unique loadable games ${JSON.stringify(launcher)}`);
-  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 1.8') && !launcher.overflow, `launcher: v1.8 integration is incomplete ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 1.9') && !launcher.overflow, `launcher: v1.9 integration is incomplete ${JSON.stringify(launcher)}`);
+
+  // v1.9: Kategorie-Chips, Suche und Ton-Schalter des Launchers.
+  const launcherFilters = await evaluate(`(async () => {
+    const visibleCards = () => [...document.querySelectorAll('main.grid > a.card')].filter(card => !card.hidden).length;
+    const chip = document.querySelector('.chip[data-filter="karten"]');
+    chip.click();
+    await new Promise(resolve => setTimeout(resolve, 30));
+    const cardsOnly = visibleCards();
+    const chipPressed = chip.getAttribute('aria-pressed') === 'true';
+    document.querySelector('.chip[data-filter="alle"]').click();
+    const search = document.querySelector('#search');
+    search.value = 'sudoku';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    const searched = visibleCards();
+    search.value = 'zzzz-nichts';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    const emptyShown = !document.querySelector('#empty').hidden;
+    search.value = '';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    const restored = visibleCards();
+    const sound = document.querySelector('.game-toolbar .game-sound-toggle');
+    const before = sound ? sound.getAttribute('aria-pressed') : null;
+    if (sound) sound.click();
+    const after = sound ? sound.getAttribute('aria-pressed') : null;
+    const stored = localStorage.getItem('browser-games-sound');
+    if (sound) sound.click();
+    return { cardsOnly, chipPressed, searched, emptyShown, restored, soundToggle: !!sound, toggled: before !== after, stored };
+  })()`);
+  assert(launcherFilters.cardsOnly === 5 && launcherFilters.chipPressed && launcherFilters.searched === 1 && launcherFilters.emptyShown && launcherFilters.restored === 18, `launcher: filter/search broken ${JSON.stringify(launcherFilters)}`);
+  assert(launcherFilters.soundToggle && launcherFilters.toggled && (launcherFilters.stored === 'off' || launcherFilters.stored === 'on'), `launcher: sound toggle broken ${JSON.stringify(launcherFilters)}`);
 
   await navigate('pahjong/index.html');
   const pahjongUi = await evaluate(`(async () => {
@@ -1492,7 +1526,7 @@ try {
   assert(pahjongKeys.compactHistory, 'pahjong: undo history still stores full 144-tile state clones');
   assert(pahjongKeys.won && pahjongKeys.resultFocused && pahjongKeys.terminalUndo, `pahjong: full solution/result/terminal undo failed ${JSON.stringify(pahjongKeys)}`);
 
-  console.log(`browser smoke ok (${games.length} styled games, 18 launcher games, 7 Phone portrait/landscape, Tablet/Desktop-Viewports at DPR 1–3 × 3 styles, navigation, contrast, focus)`);
+  console.log(`browser smoke ok (${games.length} styled games, 18 launcher games, 10 Phone portrait/landscape, Tablet/Desktop/Widescreen/Ultrawide-Viewports at DPR 1–3 × 3 styles, navigation, contrast, focus)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();

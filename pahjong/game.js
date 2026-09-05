@@ -122,15 +122,18 @@
     return best;
   }
 
+  function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
+
   function choose(id) {
     if (state.status === 'won') return;
     if (state.status === 'blocked') { say('Keine Paarung mehr möglich – nutze Mischen oder Rückgängig.'); return; }
-    if (!E.isFree(state, id)) { say('Dieser Stein ist noch bedeckt oder an beiden Seiten blockiert.'); return; }
+    if (!E.isFree(state, id)) { sfx('error'); say('Dieser Stein ist noch bedeckt oder an beiden Seiten blockiert.'); return; }
     focusId = id;
     clearHint();
     if (selected == null) {
       selected = id;
       const partners = E.matchingPairs(state).filter(pair => pair.includes(id)).length;
+      sfx('select');
       render();
       say(`${state.cards[id].face.name} gewählt. ${partners ? `${partners} freie Partner verfügbar.` : 'Kein freier Partner – wähle einen anderen Stein.'}`);
       return;
@@ -141,6 +144,7 @@
     const first = state.cards[selected], second = state.cards[id];
     if (!E.isMatch(first, second)) {
       selected = id;
+      sfx('error');
       render();
       say(`${second.face.name} passt nicht zu ${first.face.name}; der neue Stein ist jetzt ausgewählt.`);
       return;
@@ -152,14 +156,18 @@
     if (!result.ok) { selected = null; render(); say('Dieses Paar kann gerade nicht entfernt werden.'); return; }
     remember(undoEntry);
     selected = null;
+    sfx('match');
     focusId = nearestFree(origin);
     pendingFocus = true;
     if (result.status !== 'playing') pauseClock();
     render();
     if (result.status === 'won') {
       say('Geschafft – alle 144 Steine sind entfernt!');
+      sfx('win');
+      if (window.GameFX) window.GameFX.celebrate();
       showResult();
     } else if (result.status === 'blocked') {
+      sfx('lose');
       say('Sackgasse: kein freies Paar. Mische die Reststeine lösbar oder gehe zurück.');
     } else {
       say(`Paar entfernt. Noch ${result.remaining} Steine und ${E.matchingPairs(state).length} freie Paare.`);
@@ -179,6 +187,7 @@
       return;
     }
     hintIds = pair.slice();
+    sfx('hint');
     focusId = pair[0];
     pendingFocus = true;
     render();
@@ -194,6 +203,7 @@
     const result = E.shuffleRemaining(state);
     if (!result.ok) { say('Die Reststeine konnten nicht sicher neu verteilt werden.'); return; }
     remember(undoEntry);
+    sfx('shuffle');
     selected = null; clearHint(); focusId = E.freeIds(state)[0] ?? null;
     resumeClock(); pendingFocus = true; render();
     say('Reststeine neu verteilt: Eine vollständige lösbare Fortsetzung ist geprüft.');
@@ -204,6 +214,7 @@
     const previous = history.pop();
     if (!previous) { say('Noch kein Zug zum Rückgängigmachen.'); return; }
     pauseClock();
+    sfx('undo');
     if (previous.kind === 'pair') {
       state.cards[previous.firstId].removed = false;
       state.cards[previous.secondId].removed = false;
