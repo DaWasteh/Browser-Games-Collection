@@ -1,0 +1,253 @@
+/* === Gemeinsames Kartendesign (seit v2.0) ===
+   Wird von Pandataire, Panda Spider, Panndike und PandaCell genutzt.
+   Ein Element mit .pc-card wird von shared/card-deck.js befüllt und
+   skaliert seine Typografie über Container-Query-Einheiten (cqw) mit
+   der eigenen Breite – dieselbe Karte sieht auf 36 px und 88 px stimmig aus. */
+:root {
+  --pc-face: #fffdf6;
+  --pc-face-edge: #d6cfbd;
+  --pc-face-glow: #ffffff;
+  --pc-ink-black: #1b2130;
+  --pc-ink-red: #c2203a;
+  --pc-ink-blue: #1b5bb8;
+  --pc-ink-green: #1c7a3f;
+  --pc-back: #1d5a4b;
+  --pc-back-2: #2a7864;
+  --pc-back-edge: #f4ecd6;
+  --pc-gold: #ffd166;
+  --pc-drop: #7be3c3;
+  --pc-shadow: 0 1px 1px rgba(10, 30, 26, .16), 0 3px 8px rgba(10, 30, 26, .16);
+  --pc-shadow-lift: 0 10px 22px rgba(5, 25, 20, .32), 0 2px 5px rgba(5, 25, 20, .2);
+}
+html[data-game-style="night"] {
+  --pc-back: #263a63;
+  --pc-back-2: #34508a;
+  --pc-back-edge: #f1e6c8;
+}
+html[data-game-style="contrast"] {
+  --pc-face: #ffffff;
+  --pc-face-edge: #000000;
+  --pc-ink-black: #000000;
+  --pc-ink-red: #b2001f;
+  --pc-ink-blue: #003fb3;
+  --pc-ink-green: #005f2a;
+  --pc-back: #000000;
+  --pc-back-2: #1e1e1e;
+  --pc-back-edge: #ffffff;
+}
+
+/* --- Kartengesicht ----------------------------------------------------- */
+/* Position kommt aus den Spielen (absolut im Tableau); :where() hält die Spezifität bei null. */
+:where(.pc-card) { position: relative; }
+.pc-card {
+  container-type: inline-size;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--pc-face-edge);
+  border-radius: clamp(4px, 8cqw, 10px);
+  background:
+    radial-gradient(120% 90% at 18% 0%, var(--pc-face-glow) 0%, transparent 55%),
+    var(--pc-face);
+  box-shadow: var(--pc-shadow);
+  --pc-ink: var(--pc-ink-black);
+  color: var(--pc-ink);
+  font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-weight: 800;
+  line-height: 1;
+  text-align: left;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.pc-card[data-suit="H"], .pc-card[data-suit="D"] { --pc-ink: var(--pc-ink-red); }
+html[data-card-deck="four"] .pc-card[data-suit="D"] { --pc-ink: var(--pc-ink-blue); }
+html[data-card-deck="four"] .pc-card[data-suit="C"] { --pc-ink: var(--pc-ink-green); }
+.pc-card:not(.pc-back):not(:disabled) { cursor: grab; touch-action: none; }
+.pc-card:not(.pc-back):not(:disabled):active { cursor: grabbing; }
+.pc-card:disabled { cursor: default; }
+.pc-card > * { pointer-events: none; }
+
+.pc-index {
+  position: absolute;
+  top: 4cqw;
+  left: 6cqw;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2cqw;
+  white-space: nowrap;
+}
+.pc-index.pc-index-bottom { top: auto; left: auto; right: 6cqw; bottom: 4cqw; rotate: 180deg; }
+.pc-rank { font-size: clamp(9px, 30cqw, 32px); font-weight: 900; letter-spacing: -.04em; }
+.pc-index .pc-pip { font-size: clamp(8px, 24cqw, 26px); }
+
+.pc-center { position: absolute; inset: 0; }
+.pc-center i { position: absolute; font-style: normal; translate: -50% -50%; font-size: clamp(7px, 22cqw, 24px); }
+.pc-center i.pc-inv { rotate: 180deg; }
+.pc-ace i { font-size: clamp(14px, 62cqw, 64px); }
+.pc-ace[data-suit] i { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .08)); }
+
+/* Bildkarten: gerahmtes Feld mit Serifen-Initial und Panda-Emblem. */
+.pc-court {
+  position: absolute;
+  left: 18cqw;
+  right: 18cqw;
+  top: 36cqw;
+  bottom: 36cqw;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid currentColor;
+  border-radius: 3cqw;
+  background:
+    repeating-linear-gradient(45deg, color-mix(in srgb, currentColor 9%, transparent) 0 4%, transparent 4% 8%),
+    color-mix(in srgb, var(--pc-face) 94%, currentColor);
+}
+.pc-court .pc-letter { font: 700 clamp(12px, 44cqw, 48px)/1 Georgia, "Times New Roman", serif; }
+.pc-court .pc-crest {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  translate: -50% -55%;
+  padding: 0 2cqw;
+  border-radius: 999px;
+  background: var(--pc-face);
+  font-size: clamp(7px, 17cqw, 18px);
+  line-height: 1.2;
+}
+.pc-court .pc-mini { position: absolute; font-size: clamp(6px, 15cqw, 16px); }
+.pc-court .pc-mini.pc-tl { left: 3cqw; top: 3cqw; }
+.pc-court .pc-mini.pc-br { right: 3cqw; bottom: 3cqw; rotate: 180deg; }
+
+/* Sehr schmale Karten (unter ~36 px): nur der obere Index bleibt sichtbar. */
+@container (max-width: 36px) {
+  .pc-index.pc-index-bottom, .pc-court .pc-crest, .pc-court .pc-mini { display: none; }
+  .pc-center i { font-size: 18cqw; }
+}
+
+/* --- Rückseite ----------------------------------------------------------- */
+.pc-card.pc-back {
+  border-color: var(--pc-back-edge);
+  background: var(--pc-back);
+  box-shadow: var(--pc-shadow);
+}
+.pc-card.pc-back::before {
+  content: "";
+  position: absolute;
+  inset: 6cqw;
+  border: 1px solid rgba(255, 255, 255, .6);
+  border-radius: clamp(2px, 5cqw, 7px);
+  background:
+    repeating-linear-gradient(45deg, transparent 0 9cqw, rgba(255, 255, 255, .13) 9cqw 11cqw),
+    repeating-linear-gradient(-45deg, transparent 0 9cqw, rgba(255, 255, 255, .13) 9cqw 11cqw),
+    var(--pc-back-2);
+}
+.pc-card.pc-back::after {
+  content: "🐼";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  width: 46cqw;
+  height: 46cqw;
+  place-items: center;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--pc-back-edge);
+  box-shadow: 0 0 0 2px var(--pc-back);
+  color: #1b2130;
+  font-size: clamp(8px, 26cqw, 30px);
+  line-height: 1;
+}
+
+/* --- Zustände ------------------------------------------------------------ */
+.pc-card.covered:not(.pc-back)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(10, 34, 30, .3);
+  pointer-events: none;
+}
+html[data-game-style] .card.covered { filter: none; }
+.pc-card:is(.selected, .is-selected) {
+  outline: 3px solid var(--pc-gold);
+  outline-offset: 1px;
+  box-shadow: var(--pc-shadow-lift);
+  scale: 1.03;
+  z-index: 60;
+}
+.pc-card.pc-drag-source { opacity: .32; box-shadow: none; }
+.pc-drop-hover {
+  outline: 3px solid var(--pc-drop) !important;
+  outline-offset: 2px;
+  background-color: rgba(123, 227, 195, .18) !important;
+}
+.pc-legal { box-shadow: inset 0 0 0 2px rgba(123, 227, 195, .55); }
+@media (hover: hover) {
+  .pc-card:not(.pc-back):not(:disabled):not(.pc-drag-source):hover { filter: brightness(1.04); box-shadow: var(--pc-shadow-lift); }
+}
+
+/* --- Zieh-Vorschau (folgt dem Finger/Zeiger) ------------------------------- */
+.pc-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  transform-origin: 30% 20%;
+  will-change: transform;
+}
+.pc-ghost .pc-card {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  box-shadow: var(--pc-shadow-lift);
+}
+.pc-ghost.pc-ghost-return { transition: transform .22s cubic-bezier(.2, .8, .3, 1); }
+body.pc-dragging { cursor: grabbing; }
+body.pc-dragging * { cursor: grabbing !important; }
+
+/* --- Bewegungen ------------------------------------------------------------ */
+.pc-flying { transition: translate .32s cubic-bezier(.22, .9, .3, 1); z-index: 500 !important; }
+.pc-flying.pc-flying-settle { transition-duration: .2s; }
+.pc-reveal { animation: pc-reveal .34s cubic-bezier(.3, .7, .2, 1) both; }
+@keyframes pc-reveal {
+  0% { scale: .06 1; filter: brightness(.6); }
+  50% { scale: .06 1; filter: brightness(.9); }
+  100% { scale: 1 1; filter: none; }
+}
+.pc-appear { animation: pc-appear .28s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes pc-appear {
+  from { opacity: 0; scale: .8; }
+  to { opacity: 1; scale: 1; }
+}
+.pc-deal-in { animation: pc-deal .36s cubic-bezier(.2, .8, .3, 1) both; animation-delay: calc(var(--pc-i, 0) * 9ms); }
+@keyframes pc-deal {
+  from { opacity: 0; translate: 0 -14px; scale: .9; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+.pc-vanish { animation: pc-vanish .3s ease-in both; pointer-events: none; }
+@keyframes pc-vanish {
+  to { opacity: 0; scale: .6; }
+}
+
+/* Kartendesign-Schalter in der gemeinsamen Toolbar. */
+.pc-deck-toggle .game-sound-icon { font-size: 1rem; letter-spacing: -.1em; }
+.pc-deck-toggle .pc-deck-red { color: var(--pc-ink-red); }
+.pc-deck-toggle .pc-deck-blue { color: var(--pc-ink-blue); }
+.pc-deck-toggle .pc-deck-green { color: var(--pc-ink-green); }
+.pc-deck-toggle[aria-pressed="false"] .pc-deck-blue,
+.pc-deck-toggle[aria-pressed="false"] .pc-deck-green { color: var(--pc-ink-black); }
+html[data-game-style="contrast"] .pc-deck-toggle .pc-deck-red { color: #ff6678; }
+html[data-game-style="contrast"] .pc-deck-toggle .pc-deck-blue { color: #7db4ff; }
+html[data-game-style="contrast"] .pc-deck-toggle .pc-deck-green { color: #6fe39a; }
+html[data-game-style="contrast"] .pc-deck-toggle[aria-pressed="false"] .pc-deck-blue,
+html[data-game-style="contrast"] .pc-deck-toggle[aria-pressed="false"] .pc-deck-green { color: #fff; }
+html[data-game-style="night"] .pc-deck-toggle[aria-pressed="false"] .pc-deck-blue,
+html[data-game-style="night"] .pc-deck-toggle[aria-pressed="false"] .pc-deck-green { color: #f3f7f5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-flying, .pc-ghost.pc-ghost-return { transition: none; }
+  .pc-reveal, .pc-appear, .pc-deal-in, .pc-vanish { animation: none; }
+}

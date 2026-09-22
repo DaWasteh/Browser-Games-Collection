@@ -27,7 +27,7 @@
   function emptySnapshot() { return { tableau: state.tableau.map(c => c.slice()), free: state.free.slice(), foundations: state.foundations.slice(), moves: state.moves, elapsed: currentElapsed(), status: state.status }; }
   function restore(snapshot) { state.tableau = snapshot.tableau.map(c => c.slice()); state.free = snapshot.free.slice(); state.foundations = snapshot.foundations.slice(); state.moves = snapshot.moves; state.elapsed = snapshot.elapsed; state.status = snapshot.status; state.selected = null; render(); }
   function currentElapsed() { return state.startedAt ? state.elapsed + Math.floor((Date.now() - state.startedAt) / 1000) : state.elapsed; }
-  function reset(number) { state.deal = normalizeDeal(number); deal(state.deal); state.free = [null, null, null, null]; state.foundations = [0, 0, 0, 0]; state.history = []; state.moves = 0; state.elapsed = 0; state.startedAt = Date.now(); state.status = 'playing'; state.selected = null; $('deal-number').value = String(state.deal); $('result').hidden = true; render(); announce(`Deal ${state.deal}: Wähle eine Karte und ihr Ziel.`); }
+  function reset(number) { state.deal = normalizeDeal(number); deal(state.deal); state.free = [null, null, null, null]; state.foundations = [0, 0, 0, 0]; state.history = []; state.moves = 0; state.elapsed = 0; state.startedAt = Date.now(); state.status = 'playing'; state.selected = null; $('deal-number').value = String(state.deal); $('result').hidden = true; skipFlip = true; render(); skipFlip = false; if (window.GameCards) GameCards.deal($('tableau')); announce(`Deal ${state.deal}: Wähle eine Karte und ihr Ziel.`); }
   function nextDeal() { reset(state.deal >= 32000 ? 1 : state.deal + 1); }
   function isRed(id) { return RED.has(state.cards.get(id).suit); }
   function canFollow(upperId, lowerId) { const upper = state.cards.get(upperId); const lower = state.cards.get(lowerId); return upper.rank === lower.rank + 1 && isRed(upperId) !== isRed(lowerId); }
@@ -127,9 +127,18 @@
   function formatTime(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; }
   function announce(text) { $('message').textContent = text; }
   function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
-  function cardButton(id, extra = '') { const card = state.cards.get(id); const button = document.createElement('button'); button.type = 'button'; button.className = `card${isRed(id) ? ' red' : ''}${extra}`; button.dataset.id = String(id); button.dataset.focusKey = `card-${id}`; button.setAttribute('aria-label', cardText(id)); const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = NAMES[card.rank]; const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit]; button.append(rank, suit); return button; }
-  function renderPile(button, id, label) { button.replaceChildren(); const foundationClass = button.classList.contains('foundation') ? ' foundation' : ''; button.className = `pile${foundationClass}` + (id === null ? '' : ` occupied${isRed(id) ? ' red' : ''}`); button.setAttribute('aria-label', label + (id === null ? ' leer' : `: ${cardText(id)}`)); if (id === null) { const placeholder = document.createElement('span'); placeholder.className = 'placeholder'; placeholder.textContent = '＋'; button.append(placeholder); } else { const card = state.cards.get(id); const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = NAMES[card.rank]; const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit]; button.append(rank, suit); } }
+  function cardData(id) { const card = state.cards.get(id); return { id, rank: card.rank, suit: SUITS[card.suit], label: NAMES[card.rank] }; }
+  function cardButton(id, extra = '') { const button = document.createElement('button'); button.type = 'button'; button.className = `card${isRed(id) ? ' red' : ''}${extra}`; button.dataset.id = String(id); button.dataset.focusKey = `card-${id}`; button.setAttribute('aria-label', cardText(id)); GameCards.face(button, cardData(id)); return button; }
+  function renderPile(button, id, label, placeholderText) { button.replaceChildren(); const foundationClass = button.classList.contains('foundation') ? ' foundation' : ''; button.className = `pile${foundationClass}` + (id === null ? '' : ` occupied${isRed(id) ? ' red' : ''}`); button.setAttribute('aria-label', label + (id === null ? ' leer' : `: ${cardText(id)}`)); if (id === null) { GameCards.clear(button); const placeholder = document.createElement('span'); placeholder.className = 'placeholder'; placeholder.textContent = placeholderText || '＋'; button.append(placeholder); } else { GameCards.face(button, cardData(id)); } }
+  // Jedes Rendering läuft als FLIP-Animation: Karten fliegen sichtbar an ihren neuen Platz.
+  let flipOverrides = null;
+  let skipFlip = false;
   function render() {
+    if (skipFlip || !window.GameCards) { renderNow(); return; }
+    const overrides = flipOverrides; flipOverrides = null;
+    GameCards.flip($('game-table'), renderNow, { overrides });
+  }
+  function renderNow() {
     const table = $('tableau');
     const active = document.activeElement;
     const focusKey = active && (table.contains(active) || $('free-cells').contains(active) || $('foundations').contains(active)) ? active.dataset.focusKey : '';
@@ -141,7 +150,10 @@
       button.type = 'button';
       button.className = 'pile';
       button.dataset.focusKey = `free-${index}`;
+      button.dataset.drop = 'free';
+      button.dataset.index = String(index);
       renderPile(button, id, `Freie Zelle ${index + 1}`);
+      if (state.selected && state.selected.zone === 'free' && state.selected.index === index) button.classList.add('selected');
       button.addEventListener('click', () => state.selected ? acceptFree(index) : selectFree(index));
       free.append(button);
     });
@@ -153,8 +165,10 @@
       button.type = 'button';
       button.className = 'pile foundation';
       button.dataset.focusKey = `foundation-${suit}`;
+      button.dataset.drop = 'foundation';
+      button.dataset.suitIndex = String(suit);
       const id = rankValue ? suit * 13 + rankValue - 1 : null;
-      renderPile(button, id, `Foundation ${SUITS[suit]}`);
+      renderPile(button, id, `Foundation ${SUITS[suit]}`, SUITS[suit]);
       button.addEventListener('click', () => acceptFoundation(suit));
       foundations.append(button);
     });
@@ -171,6 +185,7 @@
       const wrapper = document.createElement('div');
       wrapper.className = 'column';
       wrapper.dataset.column = String(columnIndex);
+      wrapper.dataset.drop = 'tableau';
       wrapper.dataset.focusKey = `column-${columnIndex}`;
       if (column.length === 0) {
         wrapper.tabIndex = 0;
@@ -218,8 +233,60 @@
   let resizeTimer = 0;
   window.addEventListener('resize', () => {
     window.clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(render, 120);
+    resizeTimer = window.setTimeout(renderNow, 120);
   });
+
+  // Drag & Drop mit Kartenvorschau (Maus, Stift, Touch) – ergänzt das Antippen.
+  if (window.GameCards) {
+    GameCards.makeDraggable({
+      root: $('game-table'),
+      cardSelector: '#tableau .card, .free-cells .pile.occupied',
+      targetSelector: '[data-drop]',
+      start(element) {
+        if (state.status !== 'playing') return null;
+        if (element.dataset.drop === 'free') {
+          const index = Number(element.dataset.index);
+          return state.free[index] === null ? null : { zone: 'free', index };
+        }
+        const column = element.closest('.column');
+        if (!column) return null;
+        const columnIndex = Number(column.dataset.column);
+        const cardIndex = state.tableau[columnIndex].indexOf(Number(element.dataset.id));
+        if (cardIndex < 0 || !isSequence(state.tableau[columnIndex].slice(cardIndex))) return null;
+        return { zone: 'tableau', index: columnIndex, cardIndex };
+      },
+      cards(payload) {
+        const ids = payload.zone === 'free' ? [state.free[payload.index]] : state.tableau[payload.index].slice(payload.cardIndex);
+        return ids.map(cardData);
+      },
+      sourceElements(payload) {
+        if (payload.zone === 'free') return [document.querySelector(`[data-focus-key="free-${payload.index}"]`)].filter(Boolean);
+        return state.tableau[payload.index].slice(payload.cardIndex).map(id => document.querySelector(`#tableau [data-id="${id}"]`)).filter(Boolean);
+      },
+      canDrop(payload, target) {
+        const ids = payload.zone === 'free' ? [state.free[payload.index]] : state.tableau[payload.index].slice(payload.cardIndex);
+        if (target.dataset.drop === 'free') return ids.length === 1 && state.free[Number(target.dataset.index)] === null;
+        if (target.dataset.drop === 'foundation') return ids.length === 1 && state.cards.get(ids[0]).suit === Number(target.dataset.suitIndex) && foundationCanReceive(ids[0]);
+        const columnIndex = Number(target.dataset.column);
+        if (payload.zone === 'tableau' && payload.index === columnIndex) return false;
+        const column = state.tableau[columnIndex];
+        if (column.length && !canFollow(column[column.length - 1], ids[0])) return false;
+        return ids.length <= supermoveLimit(column.length === 0);
+      },
+      drop(payload, target, ghostRects) {
+        const before = state.moves;
+        state.selected = payload;
+        flipOverrides = ghostRects;
+        if (target.dataset.drop === 'free') acceptFree(Number(target.dataset.index));
+        else if (target.dataset.drop === 'foundation') acceptFoundation(Number(target.dataset.suitIndex));
+        else acceptOnTableau(Number(target.dataset.column));
+        flipOverrides = null;
+        if (state.moves === before) { state.selected = null; render(); return false; }
+        return true;
+      },
+      cancel(payload, hadTarget) { state.selected = null; render(); if (!hadTarget) announce('Karte losgelassen – kein Ziel gewählt.'); }
+    });
+  }
   window.PandaCell = { supermoveLimit, canFollow, isSequence, getState: () => ({ deal: state.deal, tableau: state.tableau.map(c => c.slice()), free: state.free.slice(), foundations: state.foundations.slice(), moves: state.moves, status: state.status, selected: state.selected ? { ...state.selected } : null, elapsed: currentElapsed(), historyLength: state.history.length }), newGame: reset, undo, autoMove };
   reset(1);
 })();

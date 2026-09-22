@@ -4,6 +4,16 @@ Panndike ist ein vollständig offline spielbares Klondike-Solitär im klaren,
 zeitungsartigen Stil. Es benötigt weder Frameworks noch externe Assets und läuft
 mit Maus, Tastatur, Touch und Stift.
 
+## Neu in v2.0
+
+- Karten werden vom gemeinsamen Kartenmodul (`shared/card-deck.js`, `shared/card-deck.css`)
+  gezeichnet: Eckindex, Pip-Layouts, gerahmte Bildkarten, Panda-Rückseite, Nacht-/Kontrast-Farben
+  und ein Schalter für ein **vierfarbiges Deck** (♦ blau, ♣ grün).
+- **Drag-and-drop mit Kartenvorschau** für Maus, Stift und Touch – Tableau, Ablage und Fundamente; ersetzt den bisherigen Text-Ghost; gültige Ziele werden
+  markiert, ungültige Ablagen federn zurück. Antippen-und-Ziel-wählen funktioniert weiterhin.
+- Züge, Rückgängig und Austeilen laufen als flüssige Flug-Animationen (abschaltbar über
+  `prefers-reduced-motion`).
+
 ## Neu in v1.5
 
 - redaktionell ruhige, responsive Oberfläche statt eines horizontal verschobenen

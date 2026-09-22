@@ -2,6 +2,16 @@
 
 Eigenständiger, offline spielbarer Solitaire-Sammelband für die Browser-Games-Collection – drei Varianten in einem Spiel: **TriPeaks**, **Golf** und **Pyramid**.
 
+## Neu in v2.0
+
+- Karten werden vom gemeinsamen Kartenmodul (`shared/card-deck.js`, `shared/card-deck.css`)
+  gezeichnet: Eckindex, Pip-Layouts, gerahmte Bildkarten, Panda-Rückseite, Nacht-/Kontrast-Farben
+  und ein Schalter für ein **vierfarbiges Deck** (♦ blau, ♣ grün).
+- **Drag-and-drop mit Kartenvorschau** für Maus, Stift und Touch – freie Karten auf die Ablage, in Pyramid auch direkt auf die Partnerkarte; gültige Ziele werden
+  markiert, ungültige Ablagen federn zurück. Antippen-und-Ziel-wählen funktioniert weiterhin.
+- Züge, Rückgängig und Austeilen laufen als flüssige Flug-Animationen (abschaltbar über
+  `prefers-reduced-motion`).
+
 ## Neu in v1.5
 
 - Blockierte TriPeaks-Karten zeigen weder visuell noch im Accessibility-Text Rang oder Farbe; sie werden erst beim Freilegen aufgedeckt.

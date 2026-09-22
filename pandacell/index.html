@@ -8,8 +8,10 @@
   <script src="../shared/game-shell.js"></script>
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
+  <script src="../shared/card-deck.js"></script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="../shared/game-shell.css">
+  <link rel="stylesheet" href="../shared/card-deck.css">
   <script src="game.js" defer></script>
 </head>
 <body>
@@ -29,7 +31,7 @@
       <div><span>Supermove</span><strong id="move-limit">1</strong></div>
     </section>
     <p id="message" class="message" role="status" aria-live="polite">Wähle eine Karte und danach ihr Ziel.</p>
-    <section class="game-table" aria-label="FreeCell-Spielfeld">
+    <section id="game-table" class="game-table" aria-label="FreeCell-Spielfeld">
       <div class="top-piles">
         <section class="pile-group" aria-labelledby="free-title">
           <h2 id="free-title">Freie Zellen</h2>
@@ -52,7 +54,7 @@
       <summary>Regeln &amp; Steuerung</summary>
       <p>Alle 52 Karten liegen offen in acht Spalten. Baue im Tableau absteigend und mit wechselnden Farben. Eine Karte darf in eine freie Zelle, und Foundations werden je Farbe von Ass bis König gebaut. Verschiebe vollständige, korrekt gebaute Sequenzen; die Länge ist durch <strong>(freie Zellen + 1) × 2<sup>leere Spalten</sup></strong> begrenzt. Beim Ziel in eine leere Spalte zählt diese Zielspalte nicht mit.</p>
       <ul>
-        <li>Maus/Touch: Karte oder Sequenz antippen, danach die Zielzelle, Foundation oder Spalte antippen. Doppeltippen bewegt nur sichere Foundation-Züge.</li>
+        <li>Maus/Touch: Karte oder Sequenz antippen, danach die Zielzelle, Foundation oder Spalte antippen – oder die Karten direkt mit Vorschau dorthin ziehen. Doppeltippen bewegt nur sichere Foundation-Züge.</li>
         <li>Tastatur: <kbd>Tab</kbd> und <kbd>Enter</kbd> bedienen alle Ziele; <kbd>U</kbd> macht rückgängig, <kbd>N</kbd> startet den Deal neu, <kbd>D</kbd> gibt eine neue Deal-Nummer und <kbd>A</kbd> führt sichere Auto-Moves aus.</li>
       </ul>
     </details>

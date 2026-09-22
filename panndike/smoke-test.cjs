@@ -150,8 +150,13 @@ for (const pattern of [
 assert.doesNotMatch(html, /onclick=/);
 assert.doesNotMatch(html, /https?:\/\//);
 assert.doesNotMatch(js, /\.innerHTML\s*=/);
-assert.match(js, /pointercancel/);
-assert.match(js, /setPointerCapture/);
+// Seit v2.0 liegt der Pointer-Drag im gemeinsamen Kartenmodul; das Spiel bindet ihn ein.
+const cardDeck = fs.readFileSync(path.join(__dirname, '..', 'shared', 'card-deck.js'), 'utf8');
+assert.match(js, /GameCards\.makeDraggable/);
+assert.match(js, /GameCards\.flip/);
+assert.match(cardDeck, /pointercancel/);
+assert.match(cardDeck, /setPointerCapture/);
+assert.match(html, /shared\/card-deck\.js/);
 assert.match(js, /visibilitychange/);
 assert.match(js, /localStorage/);
 assert.match(css, /grid-template-columns:\s*repeat\(7/);

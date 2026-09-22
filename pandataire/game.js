@@ -65,7 +65,8 @@
     started = Date.now();
     setStatus('playing');
     hideResult();
-    render();
+    resetWasteOrigins();
+    renderFresh();
     announce(modeIntro());
   }
 
@@ -77,13 +78,22 @@
     started = Date.now();
     setStatus('playing');
     hideResult();
-    render();
+    resetWasteOrigins();
+    renderFresh();
     announce('Runde neu gestartet – gleiche Austeilung.');
+  }
+
+  // Neuer Deal: ohne Flug-Animation rendern, danach gestaffelt einblenden.
+  function renderFresh() {
+    skipFlip = true;
+    render();
+    skipFlip = false;
+    if (window.GameCards) GameCards.deal($('tableau'));
   }
 
   function setStatus(value) { state.status = value; }
 
-  function pushHistory() { history.push({ state: E.snapshot(state), timer: currentTimer() }); }
+  function pushHistory() { history.push({ state: E.snapshot(state), timer: currentTimer(), wasteOrigins: wasteOrigins.slice(), drawCounter: drawCounter }); }
 
   function undo() {
     if (!history.length) return;
@@ -91,6 +101,8 @@
     var snap = history.pop();
     sfx('undo');
     E.restore(state, snap.state);
+    wasteOrigins = snap.wasteOrigins.slice();
+    drawCounter = snap.drawCounter;
     timer = snap.timer;
     started = 0;
     hideResult();
@@ -99,36 +111,81 @@
     announce('Letzten Zug rückgängig gemacht.');
   }
 
+  // --- Herkunft der Ablagekarten (für Flug-Animationen) --------------------
+  // Parallel zu state.waste: 't<id>' für Tableau-Karten, 's<n>' für gezogene Karten.
+  var wasteOrigins = [];
+  var drawCounter = 0;
+  function resetWasteOrigins() {
+    wasteOrigins = state.waste.map(function (_c, i) { return 's' + i; });
+    drawCounter = state.waste.length;
+  }
+  function wasteTopKey() { return wasteOrigins.length ? wasteOrigins[wasteOrigins.length - 1] : null; }
+
+  // --- Züge (gemeinsam für Antippen und Ziehen) ------------------------------
+  function playSingle(id) {
+    var card = state.cards[id];
+    var top = E.wasteTop(state);
+    if (!top || !E.isFree(state, ruleset, id)) return false;
+    if (!E.legal(card.rank, top.rank)) {
+      announce(NAMES[card.rank] + ' passt nicht auf ' + NAMES[top.rank] + '.');
+      return false;
+    }
+    pushHistory();
+    E.applyMove(state, ruleset, { type: 'play', id: id });
+    wasteOrigins.push('t' + id);
+    sfx('place');
+    announce(state.streak > 1 ? 'Serie ' + state.streak + '! Weiter so.' : 'Guter Zug.');
+    render();
+    checkEnd();
+    return true;
+  }
+  function removeKing(id) {
+    pushHistory();
+    E.applyMove(state, ruleset, { type: 'king', id: id });
+    sfx('success');
+    announce('König allein entfernt.');
+    render();
+    checkEnd();
+    return true;
+  }
+  function pairCards(a, b) {
+    if (!E.sumsTo13(state.cards[a].rank, state.cards[b].rank)) return false;
+    pushHistory();
+    E.applyMove(state, ruleset, { type: 'pairCards', a: a, b: b });
+    state.selectedId = null;
+    sfx('match');
+    announce('Paar entfernt.');
+    render();
+    checkEnd();
+    return true;
+  }
+  function pairWithWaste(id) {
+    var top = E.wasteTop(state);
+    if (!top || !E.isFree(state, ruleset, id)) return false;
+    var card = state.cards[id];
+    if (!E.sumsTo13(card.rank, top.rank)) {
+      announce(NAMES[card.rank] + ' und Ablage ' + NAMES[top.rank] + ' summieren nicht auf 13.');
+      return false;
+    }
+    pushHistory();
+    E.applyMove(state, ruleset, { type: 'pairWaste', id: id });
+    wasteOrigins.pop();
+    state.selectedId = null;
+    sfx('match');
+    announce('Paar mit Ablage entfernt.');
+    render();
+    checkEnd();
+    return true;
+  }
+
   // --- Eingabe: einzelne Karte -------------------------------------------
   function cardClick(id) {
     if (state.status !== 'playing') return;
     var card = state.cards[id];
     if (!E.isFree(state, ruleset, id)) return;
-    if (ruleset.playStyle === 'single') {
-      var top = E.wasteTop(state);
-      if (!top) return;
-      if (!E.legal(card.rank, top.rank)) {
-        announce(NAMES[card.rank] + ' passt nicht auf ' + NAMES[top.rank] + '.');
-        return;
-      }
-      pushHistory();
-      E.applyMove(state, ruleset, { type: 'play', id: id });
-      sfx('place');
-      announce(state.streak > 1 ? 'Serie ' + state.streak + '! Weiter so.' : 'Guter Zug.');
-      render();
-      checkEnd();
-      return;
-    }
+    if (ruleset.playStyle === 'single') { playSingle(id); return; }
     // Pyramid: Paar-Auswahl
-    if (card.rank === 13) {
-      pushHistory();
-      E.applyMove(state, ruleset, { type: 'king', id: id });
-      sfx('success');
-      announce('König allein entfernt.');
-      render();
-      checkEnd();
-      return;
-    }
+    if (card.rank === 13) { removeKing(id); return; }
     if (state.selectedId === null) {
       state.selectedId = id;
       render();
@@ -142,16 +199,7 @@
       return;
     }
     var other = state.cards[state.selectedId];
-    if (E.sumsTo13(other.rank, card.rank)) {
-      pushHistory();
-      var sel = state.selectedId;
-      E.applyMove(state, ruleset, { type: 'pairCards', a: sel, b: id });
-      sfx('match');
-      announce('Paar entfernt.');
-      render();
-      checkEnd();
-      return;
-    }
+    if (pairCards(state.selectedId, id)) return;
     // keine gültige Paarung -> neu wählen
     state.selectedId = id;
     render();
@@ -161,21 +209,8 @@
   function wasteClick() {
     if (state.status !== 'playing' || ruleset.playStyle !== 'pair') return;
     if (state.selectedId === null) return;
-    var top = E.wasteTop(state);
-    if (!top) return;
-    var card = state.cards[state.selectedId];
     if (!E.isFree(state, ruleset, state.selectedId)) { state.selectedId = null; render(); return; }
-    if (!E.sumsTo13(card.rank, top.rank)) {
-      announce(NAMES[card.rank] + ' und Ablage ' + NAMES[top.rank] + ' summieren nicht auf 13.');
-      return;
-    }
-    pushHistory();
-    var sel = state.selectedId;
-    E.applyMove(state, ruleset, { type: 'pairWaste', id: sel });
-    sfx('match');
-    announce('Paar mit Ablage entfernt.');
-    render();
-    checkEnd();
+    pairWithWaste(state.selectedId);
   }
 
   function stockClick() {
@@ -183,6 +218,7 @@
     if (state.stock.length) {
       pushHistory();
       E.applyMove(state, ruleset, { type: 'draw' });
+      wasteOrigins.push('s' + (drawCounter++));
       sfx('flip');
       render();
       announce('Gezogen: ' + NAMES[E.wasteTop(state).rank] + '.');
@@ -192,6 +228,7 @@
     if (ruleset.maxRecycles > 0 && state.recyclesUsed < ruleset.maxRecycles && state.waste.length) {
       pushHistory();
       E.applyMove(state, ruleset, { type: 'recycle' });
+      wasteOrigins = [];
       sfx('shuffle');
       render();
       announce('Ablage zurück in den Talon umgelagert.');
@@ -226,8 +263,24 @@
     return NAMES[card.rank] + SUITS[card.suit] + (free ? ' – frei' : ' – blockiert');
   }
 
+  function cardData(card, id) {
+    return { id: id, rank: card.rank, suit: SUITS[card.suit], label: NAMES[card.rank] };
+  }
+
+  // Jedes Rendering läuft als FLIP-Animation: Karten fliegen sichtbar zur Ablage,
+  // freigelegte TriPeaks-Karten drehen sich um.
+  var flipOverrides = null;
+  var skipFlip = false;
   function render() {
+    if (skipFlip || !window.GameCards) { renderNow(); return; }
+    var overrides = flipOverrides;
+    flipOverrides = null;
+    GameCards.flip(document.querySelector('.table-area'), renderNow, { overrides: overrides });
+  }
+
+  function renderNow() {
     var tableau = $('tableau');
+    var pyramid = ruleset.playStyle === 'pair';
     if (tableau.children.length !== state.cards.length) {
       tableau.replaceChildren();
       state.cards.forEach(function (card) {
@@ -244,6 +297,7 @@
       var pos = ruleset.layout(card.id);
       btn.style.left = pos.left + '%';
       btn.style.top = pos.top + '%';
+      btn.style.zIndex = String(card.id + 1);
       var red = card.suit === 1 || card.suit === 2;
       var free = E.isFree(state, ruleset, card.id);
       var faceDown = mode === 'tripeaks' && !card.removed && !free;
@@ -253,43 +307,37 @@
       btn.className = cls;
       btn.disabled = card.removed || !free || state.status !== 'playing';
       btn.setAttribute('aria-label', cardLabel(card));
-      if (ruleset.playStyle === 'pair') btn.setAttribute('aria-pressed', state.selectedId === card.id ? 'true' : 'false');
+      if (pyramid) btn.setAttribute('aria-pressed', state.selectedId === card.id ? 'true' : 'false');
       else btn.removeAttribute('aria-pressed');
-      btn.replaceChildren();
-      if (!card.removed && !faceDown) {
-        var r = document.createElement('span');
-        r.className = 'rank';
-        r.textContent = NAMES[card.rank];
-        var s = document.createElement('span');
-        s.className = 'suit';
-        s.textContent = SUITS[card.suit];
-        btn.append(r, s);
+      if (pyramid && free && !card.removed) btn.dataset.drop = 'card'; else delete btn.dataset.drop;
+      if (card.removed) {
+        GameCards.clear(btn);
+      } else if (faceDown) {
+        GameCards.face(btn, { faceDown: true, id: 't' + card.id });
+      } else {
+        GameCards.face(btn, cardData(card, 't' + card.id));
       }
     });
 
     var w = $('waste');
-    w.replaceChildren();
     var top = E.wasteTop(state);
-    var pyramid = ruleset.playStyle === 'pair';
     if (top) {
-      var wr = document.createElement('span');
-      wr.className = 'rank';
-      wr.textContent = NAMES[top.rank];
-      var ws = document.createElement('span');
-      ws.className = 'suit';
-      ws.textContent = SUITS[top.suit];
-      w.append(wr, ws);
-      w.className = 'pile waste' + ((top.suit === 1 || top.suit === 2) ? ' red' : '');
+      GameCards.face(w, cardData(top, wasteTopKey()));
+      w.className = 'pile waste pc-card' + ((top.suit === 1 || top.suit === 2) ? ' red' : '');
       w.setAttribute('aria-label', 'Ablage: ' + NAMES[top.rank] + SUITS[top.suit] +
         (pyramid && state.selectedId !== null ? ' – antippen zum Paaren' : ''));
     } else {
+      GameCards.clear(w);
       w.className = 'pile waste empty';
       w.setAttribute('aria-label', 'Ablage leer');
     }
+    w.dataset.drop = 'waste';
     w.disabled = !pyramid || !top || state.status !== 'playing';
 
     var stockBtn = $('talon');
     var canRecycle = pyramid && !state.stock.length && state.recyclesUsed < ruleset.maxRecycles && state.waste.length;
+    stockBtn.classList.toggle('pc-card', state.stock.length > 0);
+    stockBtn.classList.toggle('pc-back', state.stock.length > 0);
     $('talon-count').textContent = canRecycle ? '↻' : String(state.stock.length);
     stockBtn.disabled = !state.stock.length && !canRecycle || state.status !== 'playing';
     stockBtn.setAttribute('aria-label',
@@ -395,6 +443,46 @@
   intervalId = window.setInterval(function () {
     if (state && state.status === 'playing') $('time').textContent = formatTime(currentTimer());
   }, 1000);
+
+  // Drag & Drop mit Kartenvorschau: freie Karte auf die Ablage ziehen
+  // (TriPeaks/Golf) bzw. auf die Partnerkarte oder die Ablage (Pyramid).
+  if (window.GameCards) {
+    GameCards.makeDraggable({
+      root: document.querySelector('.table-area'),
+      cardSelector: '#tableau .card',
+      targetSelector: '[data-drop]',
+      start: function (element) {
+        if (!state || state.status !== 'playing') return null;
+        var id = Number(element.dataset.id);
+        return E.isFree(state, ruleset, id) && !state.cards[id].removed ? { id: id } : null;
+      },
+      cards: function (payload) { return [cardData(state.cards[payload.id], 't' + payload.id)]; },
+      canDrop: function (payload, target) {
+        var card = state.cards[payload.id];
+        var top = E.wasteTop(state);
+        if (target.dataset.drop === 'waste') {
+          if (ruleset.playStyle === 'single') return !!top && E.legal(card.rank, top.rank);
+          return card.rank === 13 || (!!top && E.sumsTo13(card.rank, top.rank));
+        }
+        var other = Number(target.dataset.id);
+        return other !== payload.id && E.isFree(state, ruleset, other) && E.sumsTo13(card.rank, state.cards[other].rank);
+      },
+      drop: function (payload, target, ghostRects) {
+        var card = state.cards[payload.id];
+        flipOverrides = ghostRects;
+        var ok;
+        if (target.dataset.drop === 'waste') {
+          if (ruleset.playStyle === 'single') ok = playSingle(payload.id);
+          else ok = card.rank === 13 ? removeKing(payload.id) : pairWithWaste(payload.id);
+        } else {
+          ok = pairCards(payload.id, Number(target.dataset.id));
+        }
+        flipOverrides = null;
+        return ok;
+      },
+      cancel: function (payload, hadTarget) { if (!hadTarget) announce('Karte losgelassen – kein Ziel gewählt.'); }
+    });
+  }
 
   newGame();
   syncModeButtons();

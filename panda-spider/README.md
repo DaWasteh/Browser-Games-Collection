@@ -2,6 +2,16 @@
 
 Panda Spider ist ein vollständig offline spielbarer Spider-Solitaire-Klon ohne Frameworks oder externe Assets. Öffne `index.html` direkt im Browser.
 
+## Neu in v2.0
+
+- Karten werden vom gemeinsamen Kartenmodul (`shared/card-deck.js`, `shared/card-deck.css`)
+  gezeichnet: Eckindex, Pip-Layouts, gerahmte Bildkarten, Panda-Rückseite, Nacht-/Kontrast-Farben
+  und ein Schalter für ein **vierfarbiges Deck** (♦ blau, ♣ grün).
+- **Drag-and-drop mit Kartenvorschau** für Maus, Stift und Touch – gleichfarbige Folgen auf Zielkarten oder leere Spalten; gültige Ziele werden
+  markiert, ungültige Ablagen federn zurück. Antippen-und-Ziel-wählen funktioniert weiterhin.
+- Züge, Rückgängig und Austeilen laufen als flüssige Flug-Animationen (abschaltbar über
+  `prefers-reduced-motion`).
+
 ## Neu in v1.5
 
 - Die Tableauhöhe wächst mit der längsten realen Spalte; auch nach allen fünf Stock-Runden überdecken Karten nicht mehr Stock oder Regeln.

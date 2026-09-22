@@ -6,7 +6,7 @@
 
   const $ = id => document.getElementById(id);
   const ui = {
-    tableau: $('tableau'), foundations: $('foundations'), stock: $('stock'), waste: $('waste'),
+    table: document.querySelector('.game-table'), tableau: $('tableau'), foundations: $('foundations'), stock: $('stock'), waste: $('waste'),
     stockCount: $('stock-count'), moves: $('moves'), score: $('score'), time: $('time'),
     foundationCount: $('foundation-count'), drawLabel: $('draw-label'), dealCode: $('deal-code'),
     message: $('message'), drawMode: $('draw-mode'), undo: $('undo'), hint: $('hint'), auto: $('auto'),
@@ -33,8 +33,6 @@
   let pendingFocusKey = '';
   let winRecorded = false;
   let resizeTimer = 0;
-  let suppressClickUntil = 0;
-  let drag = null;
   let stats = loadStats();
 
   function say(text) { ui.message.textContent = text; }
@@ -139,7 +137,9 @@
       ui.drawMode.value = String(state.drawCount);
       storeDrawPreference(state.drawCount);
       if (state.status === 'playing') resumeClock();
+      skipFlip = true;
       render();
+      skipFlip = false;
       say(state.status === 'won' ? 'Gelöste Partie wiederhergestellt.' : 'Laufende Partie wiederhergestellt.');
       if (state.status === 'won') showResult();
       return true;
@@ -164,7 +164,10 @@
     ui.confirm.hidden = true;
     ui.result.hidden = true;
     resumeClock();
+    skipFlip = true;
     render();
+    skipFlip = false;
+    if (window.GameCards) GameCards.deal(ui.tableau);
     say(state.dealType === 'daily'
       ? `Tagesdeal ${dailyKeyForState(state)} gestartet. Viel Erfolg!`
       : 'Neue Partie: Wähle eine offene Karte oder ziehe vom Talon.');
@@ -344,7 +347,7 @@
   }
 
   function chooseSource(source, event) {
-    if (performance.now() < suppressClickUntil || state.status !== 'playing') return;
+    if (state.status !== 'playing') return;
     if (event && event.detail >= 2 && tryAutoFoundation(source)) return;
 
     if (selected) {
@@ -387,21 +390,23 @@
     button.setAttribute('aria-label', card.faceUp
       ? `${E.cardName(card)}, Tableau-Spalte ${source.col + 1}${E.sourceCards(state, source)?.length > 1 ? `, Folge mit ${E.sourceCards(state, source).length} Karten` : ''}`
       : 'Verdeckte Karte');
+    GameCards.face(button, cardData(card));
     if (!card.faceUp) {
       button.disabled = true;
       return button;
     }
     if (selected && selected.zone === 'tableau' && selected.col === source.col && source.index >= selected.index) button.classList.add('selected');
     if (hintMove && hintMove.source && sameSource(hintMove.source, source)) button.classList.add('hinted');
-
-    const rank = document.createElement('span'); rank.className = 'card-rank'; rank.textContent = E.RANK_NAMES[card.rank];
-    const suit = document.createElement('span'); suit.className = 'card-suit'; suit.textContent = E.SYMBOLS[card.suit];
-    const center = document.createElement('span'); center.className = 'card-center'; center.setAttribute('aria-hidden', 'true'); center.textContent = E.SYMBOLS[card.suit];
-    button.append(rank, suit, center);
+    button.dataset.dragSource = 'tableau';
+    button.dataset.col = String(source.col);
+    button.dataset.index = String(source.index);
     button.addEventListener('click', event => chooseSource(source, event));
-    button.addEventListener('pointerdown', event => beginDrag(event, source, button));
     button.addEventListener('keydown', event => navigateCards(event, source));
     return button;
+  }
+
+  function cardData(card) {
+    return { id: card.id, rank: card.rank, suit: card.suit, label: E.RANK_NAMES[card.rank], faceDown: !card.faceUp };
   }
 
   function tableauGeometry() {
@@ -475,7 +480,14 @@
       button.className = `foundation${E.RED.has(suit) ? ' red' : ''}${card ? ' filled' : ''}`;
       button.dataset.dropFoundation = suit;
       button.dataset.focusKey = `foundation-${suit}`;
-      button.textContent = card ? `${E.RANK_NAMES[card.rank]}${E.SYMBOLS[suit]}` : E.SYMBOLS[suit];
+      if (card) {
+        GameCards.face(button, cardData(card));
+        button.dataset.dragSource = 'foundation';
+        button.dataset.suit = suit;
+      } else {
+        GameCards.clear(button);
+        button.textContent = E.SYMBOLS[suit];
+      }
       button.setAttribute('aria-label', card
         ? `Fundament ${E.SUIT_NAMES[suit]}, oben ${E.cardName(card)}. Aktivieren zum Auswählen oder Ablegen.`
         : `Leeres Fundament ${E.SUIT_NAMES[suit]}`);
@@ -502,14 +514,14 @@
     visible.forEach((card, index) => {
       const face = document.createElement('span');
       const preview = visible.length - index - 1;
-      face.className = `waste-card${preview ? ` preview-${preview}` : ''}${E.RED.has(card.suit) ? ' red' : ''}`;
+      face.className = `waste-card${preview ? ` preview-${preview}` : ''}`;
       face.setAttribute('aria-hidden', 'true');
-      const rank = document.createElement('span'); rank.className = 'waste-rank'; rank.textContent = E.RANK_NAMES[card.rank];
-      const suit = document.createElement('span'); suit.className = 'waste-suit'; suit.textContent = E.SYMBOLS[card.suit];
-      face.append(rank, suit);
+      // Nur die oberste Ablagekarte trägt die Karten-ID (für Flug-Animationen).
+      GameCards.face(face, Object.assign(cardData(card), { id: preview ? null : card.id }));
       ui.waste.appendChild(face);
     });
     const top = state.waste[state.waste.length - 1];
+    if (top) ui.waste.dataset.dragSource = 'waste'; else delete ui.waste.dataset.dragSource;
     ui.waste.disabled = !top || state.status !== 'playing';
     ui.waste.setAttribute('aria-label', top ? `Ablage, oben ${E.cardName(top)}. Aktivieren zum Auswählen.` : 'Ablage ist leer');
     ui.waste.classList.toggle('hinted', !!(hintMove && hintMove.source && hintMove.source.zone === 'waste'));
@@ -518,18 +530,28 @@
   function renderStock() {
     const hasStock = state.stock.length > 0;
     const recyclable = !hasStock && state.waste.length > 0;
-    ui.stock.className = `pile stock${hasStock ? '' : ' empty'}`;
+    ui.stock.className = `pile stock${hasStock ? ' pc-card pc-back' : ' empty'}`;
     ui.stock.dataset.focusKey = 'stock';
     ui.stock.disabled = state.status !== 'playing' || (!hasStock && !recyclable);
     ui.stockCount.textContent = hasStock ? String(state.stock.length) : recyclable ? '↻' : '0';
-    ui.stock.querySelector('.card-back-mark').hidden = !hasStock;
     ui.stock.setAttribute('aria-label', hasStock
       ? `Talon mit ${state.stock.length} Karten. ${state.drawCount} Karte${state.drawCount === 1 ? '' : 'n'} ziehen.`
       : recyclable ? `Talon leer. Ablage mit ${state.waste.length} Karten umdrehen.` : 'Talon und Ablage leer');
     ui.stock.classList.toggle('hinted', !!(hintMove && hintMove.source && hintMove.source.zone === 'stock'));
   }
 
+  // Jedes Rendering läuft als FLIP-Animation: Karten fliegen sichtbar an ihren neuen Platz.
+  let flipOverrides = null;
+  let skipFlip = false;
   function render() {
+    if (!state) return;
+    if (skipFlip || !window.GameCards) { renderNow(); return; }
+    const overrides = flipOverrides;
+    flipOverrides = null;
+    GameCards.flip(ui.table, renderNow, { overrides });
+  }
+
+  function renderNow() {
     if (!state) return;
     const active = document.activeElement;
     const activeKey = active && active.dataset ? active.dataset.focusKey : '';
@@ -613,58 +635,56 @@
     }
   }
 
-  function beginDrag(event, source, target) {
-    if (event.button !== 0 || state.status !== 'playing' || !E.sourceCards(state, source)) return;
-    drag = { pointerId: event.pointerId, source: { ...source }, target, x: event.clientX, y: event.clientY, started: false, ghost: null };
-    try { target.setPointerCapture(event.pointerId); } catch (_error) { /* optional */ }
+  // Drag & Drop mit Kartenvorschau (Maus, Stift, Touch) über das gemeinsame Kartenmodul.
+  // Antippen-und-Ziel-wählen bleibt parallel verfügbar.
+  function dragSourceFor(element) {
+    const kind = element.dataset.dragSource;
+    if (kind === 'tableau') return { zone: 'tableau', col: Number(element.dataset.col), index: Number(element.dataset.index) };
+    if (kind === 'waste') return { zone: 'waste' };
+    if (kind === 'foundation') return { zone: 'foundation', suit: element.dataset.suit };
+    return null;
   }
-
-  function moveDrag(event) {
-    if (!drag || event.pointerId !== drag.pointerId) return;
-    const distance = Math.hypot(event.clientX - drag.x, event.clientY - drag.y);
-    if (!drag.started && distance < 8) return;
-    if (!drag.started) {
-      drag.started = true;
-      drag.target.classList.add('drag-source');
-      const cards = E.sourceCards(state, drag.source);
-      const card = cards[0];
-      const ghost = document.createElement('div');
-      ghost.className = `drag-ghost${E.RED.has(card.suit) ? ' red' : ''}`;
-      ghost.textContent = `${E.RANK_NAMES[card.rank]}${E.SYMBOLS[card.suit]}`;
-      if (cards.length > 1) {
-        const count = document.createElement('small');
-        count.textContent = `${cards.length} Karten`;
-        ghost.appendChild(count);
-      }
-      document.body.appendChild(ghost);
-      drag.ghost = ghost;
-    }
-    event.preventDefault();
-    drag.ghost.style.left = `${event.clientX}px`;
-    drag.ghost.style.top = `${event.clientY}px`;
+  function dropDestination(target) {
+    if (target.dataset.dropTableau != null) return { zone: 'tableau', col: Number(target.dataset.dropTableau) };
+    if (target.dataset.dropFoundation) return { zone: 'foundation', suit: target.dataset.dropFoundation };
+    return null;
   }
-
-  function endDrag(event) {
-    if (!drag || event.pointerId !== drag.pointerId) return;
-    const current = drag;
-    drag = null;
-    try { current.target.releasePointerCapture(event.pointerId); } catch (_error) { /* optional */ }
-    current.target.classList.remove('drag-source');
-    current.ghost?.remove();
-    if (!current.started) return;
-    event.preventDefault();
-    suppressClickUntil = performance.now() + 450;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-drop-tableau], [data-drop-foundation]');
-    if (!target) { say('Karte losgelassen – kein Ziel gewählt.'); return; }
-    if (target.dataset.dropTableau != null) performMove(current.source, { zone: 'tableau', col: Number(target.dataset.dropTableau) });
-    else performMove(current.source, { zone: 'foundation', suit: target.dataset.dropFoundation });
-  }
-
-  function cancelDrag(event) {
-    if (!drag || (event && event.pointerId != null && event.pointerId !== drag.pointerId)) return;
-    drag.target.classList.remove('drag-source');
-    drag.ghost?.remove();
-    drag = null;
+  if (window.GameCards) {
+    GameCards.makeDraggable({
+      root: ui.table,
+      cardSelector: '[data-drag-source]',
+      targetSelector: '[data-drop-tableau], [data-drop-foundation]',
+      start(element) {
+        if (!state || state.status !== 'playing') return null;
+        const source = dragSourceFor(element);
+        return source && E.sourceCards(state, source) ? source : null;
+      },
+      cards(source) { return (E.sourceCards(state, source) || []).map(cardData); },
+      sourceElements(source) {
+        const cards = E.sourceCards(state, source) || [];
+        if (source.zone === 'waste') return [ui.waste];
+        if (source.zone === 'foundation') return [document.querySelector(`[data-focus-key="foundation-${source.suit}"]`)].filter(Boolean);
+        return cards.map(card => ui.tableau.querySelector(`[data-card-id="${card.id}"]`)).filter(Boolean);
+      },
+      canDrop(source, target) {
+        const destination = dropDestination(target);
+        if (!destination) return false;
+        if (destination.zone === 'tableau') return !(source.zone === 'tableau' && source.col === destination.col) && E.canMoveToTableau(state, source, destination.col);
+        return E.canMoveToFoundation(state, source, destination.suit);
+      },
+      onStart(source) {
+        if (selected && !sameSource(selected, source)) { selected = null; render(); }
+      },
+      drop(source, target, ghostRects) {
+        const destination = dropDestination(target);
+        if (!destination) return false;
+        flipOverrides = ghostRects;
+        const ok = performMove(source, destination);
+        flipOverrides = null;
+        return ok;
+      },
+      cancel(source, hadTarget) { if (!hadTarget) say('Karte losgelassen – kein Ziel gewählt.'); }
+    });
   }
 
   ui.stock.addEventListener('click', drawFromStock);
@@ -701,13 +721,9 @@
   ui.resultDaily.addEventListener('click', () => executeAction({ kind: 'daily', drawCount: state.drawCount }));
   ui.resultUndo.addEventListener('click', undo);
 
-  window.addEventListener('pointermove', moveDrag, { passive: false });
-  window.addEventListener('pointerup', endDrag, { passive: false });
-  window.addEventListener('pointercancel', cancelDrag);
-  window.addEventListener('blur', cancelDrag);
   window.addEventListener('resize', () => {
     window.clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(render, 100);
+    resizeTimer = window.setTimeout(renderNow, 100);
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { pauseClock(); saveGame(); }

@@ -2,6 +2,16 @@
 
 PandaCell ist ein vollständiger, offline spielbarer FreeCell-Klon ohne Frameworks, Build-Schritt oder externe Assets. Öffne `index.html` direkt im Browser.
 
+## Neu in v2.0
+
+- Karten werden vom gemeinsamen Kartenmodul (`shared/card-deck.js`, `shared/card-deck.css`)
+  gezeichnet: Eckindex, Pip-Layouts, gerahmte Bildkarten, Panda-Rückseite, Nacht-/Kontrast-Farben
+  und ein Schalter für ein **vierfarbiges Deck** (♦ blau, ♣ grün).
+- **Drag-and-drop mit Kartenvorschau** für Maus, Stift und Touch – Sequenzen, freie Zellen und Foundations; gültige Ziele werden
+  markiert, ungültige Ablagen federn zurück. Antippen-und-Ziel-wählen funktioniert weiterhin.
+- Züge, Rückgängig und Austeilen laufen als flüssige Flug-Animationen (abschaltbar über
+  `prefers-reduced-motion`).
+
 ## Neu in v1.5
 
 - Acht Spalten und alle acht oberen Ablagen passen nun ohne erzwungene Mindestbreite auf schmale Displays.

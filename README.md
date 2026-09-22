@@ -19,10 +19,10 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | ⏳ **Sand Game Pro 2.3** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Active-Cell-Wind, schlankem Chemie-Kern und sicherem WebGL2/CPU-Fallback |
 | 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat, interaktiv auf Canvas |
 | 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Lemmings-inspiriertes Puzzle mit Pandas |
-| 🃏 **Pandataire** | [`pandataire/`](pandataire/) | Solitaire-Sammelband: TriPeaks, Golf und Pyramid mit lösbaren Deals und Undo |
-| 🕷️ **Panda Spider** | [`panda-spider/`](panda-spider/) | Spider-Solitaire mit einer, zwei oder vier Farben |
-| ♠️ **Panndike** | [`panndike/`](panndike/) | Zeitungsartiges Klondike mit Tagesdeal, Deal-Codes, Drag/Touch, Hinweisen und Foundations |
-| ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit Deal-Nummern und Supermoves |
+| 🃏 **Pandataire** | [`pandataire/`](pandataire/) | Solitaire-Sammelband: TriPeaks, Golf und Pyramid mit lösbaren Deals, Undo und Drag-and-drop |
+| 🕷️ **Panda Spider** | [`panda-spider/`](panda-spider/) | Spider-Solitaire mit einer, zwei oder vier Farben und Drag-and-drop |
+| ♠️ **Panndike** | [`panndike/`](panndike/) | Zeitungsartiges Klondike mit Tagesdeal, Deal-Codes, Drag/Touch mit Kartenvorschau, Hinweisen und Foundations |
+| ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit Deal-Nummern, Supermoves und Drag-and-drop |
 | 💣 **Minenräumkommando Foxtrott** | [`minenraeumkommando-foxtrott/`](minenraeumkommando-foxtrott/) | Minesweeper mit sicherem Erstklick und Chording |
 | 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit 1022 Lösungen, Tipp-Funktion, Tages-/Zufallsmodus und Knifflig-Modus |
 | 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku mit Notizen, Hinweisen und drei Schwierigkeitsgraden |
@@ -67,6 +67,35 @@ node pandakreuzwort/smoke-test.cjs
 node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
 ```
+
+## ✨ Neu in v2.0
+
+### Gemeinsames Kartendesign für alle Kartenspiele
+
+- Neues Modul `shared/card-deck.css` + `shared/card-deck.js` (`window.GameCards`), genutzt von
+  **Pandataire, Panda Spider, Panndike und PandaCell**. Jede Karte zeigt einen klaren Eckindex
+  (Rang + Farbe, unten gespiegelt), echte **Pip-Layouts** für 2–10, ein großes Ass und gerahmte
+  Bildkarten mit Emblem (🎋 Bube, 🌸 Dame, 👑 König). Die Typografie skaliert per Container-Query
+  mit der Kartenbreite, sodass dieselbe Karte auf 36 px und 88 px stimmig bleibt.
+- Neue **Panda-Rückseite** (Gitter mit Medaillon) für Talon, verdeckte Karten und Stock; eigene
+  Farbwerte für Nacht- und Kontrast-Ansicht.
+- Neuer Schalter **Zweifarbig/Vierfarbig** in der Toolbar der Kartenspiele: im Vierfarbdeck
+  sind ♦ blau und ♣ grün, damit sich alle Farben sofort unterscheiden lassen. Die Wahl wird
+  geräteweit gespeichert.
+
+### Flüssige Animationen und Drag-and-drop mit Kartenvorschau
+
+- **Ziehen mit Vorschau**: Karten und ganze Folgen folgen dem Finger oder Zeiger als echte
+  Kartenvorschau mit leichter Neigung; gültige Ziele werden markiert, das Ziel unter dem
+  Finger leuchtet auf. Ungültige Ablagen federn sichtbar zurück. Antippen-und-Ziel-wählen bleibt
+  parallel erhalten.
+- **FLIP-Flüge**: Bei Tipp-Zügen, Auto-Zügen, Rückgängig und Austeilen fliegen die Karten
+  sichtbar an ihren neuen Platz; freigelegte Karten drehen sich um; neue Deals werden gestaffelt
+  ausgeteilt. Alles per `prefers-reduced-motion` abschaltbar.
+- Mobile Optimierung: Bewegung über `transform`/`translate` in `requestAnimationFrame`, nur
+  bewegliche Karten blockieren das Scrollen, Touch hebt die Vorschau leicht über den Finger.
+- Panda Spider misst die Kartengeometrie jetzt wie die anderen Spiele aus der realen
+  Spaltenbreite (festes Seitenverhältnis 0,72).
 
 ## ✨ Neu in v1.9
 

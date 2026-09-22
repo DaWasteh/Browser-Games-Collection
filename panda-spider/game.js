@@ -46,7 +46,7 @@
       for (let i = 0; i < size; i += 1) { const card = deck.pop(); card.faceUp = i === size - 1; state.columns[columnIndex].push(card); }
     });
     state.stock = deck; state.completed = 0; state.moves = 0; state.history = []; state.selected = null; state.elapsed = 0; state.status = 'playing'; state.startedAt = Date.now();
-    announce('Neues Spiel gestartet. Wähle eine offene Karte.'); render();
+    announce('Neues Spiel gestartet. Wähle eine offene Karte.'); skipFlip = true; render(); skipFlip = false; if (window.GameCards) GameCards.deal(els.tableau);
   }
 
   function isMovableSequence(column, index) {
@@ -128,32 +128,52 @@
   function formatTime(seconds) { const mins = Math.floor(seconds / 60); const secs = seconds % 60; return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`; }
   function updateStats() { els.moves.textContent = String(state.moves); els.time.textContent = formatTime(state.elapsed); els.completed.textContent = `${state.completed} / 8`; els.stock.textContent = String(state.stock.length); els.undo.disabled = state.history.length === 0; els.deal.disabled = !state.stock.length || state.columns.some(column => column.length === 0) || state.status !== 'playing'; }
 
-  function makeCardButton(card, columnIndex, index, top) {
-    const button = document.createElement('button'); button.type = 'button'; button.className = 'card'; button.style.top = `${top}rem`;
+  function cardData(card) { return { id: card.id, rank: card.rank, suit: SUITS[card.suit].symbol, label: rankName(card.rank), faceDown: !card.faceUp }; }
+  function makeCardButton(card, columnIndex, index, top, height) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'card'; button.style.top = `${top}px`; button.style.height = `${height}px`; button.style.zIndex = String(index + 1);
     button.dataset.column = String(columnIndex); button.dataset.index = String(index); button.dataset.focusKey = `card-${card.id}`; button.setAttribute('aria-label', card.faceUp ? `${rankName(card.rank)} ${SUITS[card.suit].name}, Spalte ${columnIndex + 1}` : 'Verdeckte Karte');
-    if (!card.faceUp) { button.classList.add('face-down'); button.disabled = true; button.textContent = ' '; return button; }
+    GameCards.face(button, cardData(card));
+    if (!card.faceUp) { button.classList.add('face-down'); button.disabled = true; return button; }
     button.classList.toggle('is-red', SUITS[card.suit].color === 'red');
     if (state.selected && state.selected.column === columnIndex && index >= state.selected.index) button.classList.add('is-selected');
-    const rank = document.createElement('span'); rank.className = 'rank'; rank.textContent = rankName(card.rank);
-    const suit = document.createElement('span'); suit.className = 'suit'; suit.textContent = SUITS[card.suit].symbol;
-    const indexLabel = document.createElement('span'); indexLabel.className = 'card-index'; indexLabel.textContent = String(index + 1);
-    button.append(rank, suit, indexLabel); button.addEventListener('click', () => selectCard(columnIndex, index)); return button;
+    button.addEventListener('click', () => selectCard(columnIndex, index)); return button;
   }
 
+  // Kartengeometrie aus der realen Spaltenbreite: Karten behalten überall das Seitenverhältnis 0,72.
+  function geometry() {
+    const style = getComputedStyle(els.tableau);
+    const gap = Number.parseFloat(style.columnGap) || 4;
+    const width = Math.max(300, els.tableau.clientWidth || 700);
+    const columnWidth = (width - gap * 9) / 10;
+    const cardWidth = Math.max(26, columnWidth - 4);
+    const cardHeight = Math.min(120, cardWidth / .72);
+    return { cardHeight, labelHeight: 22, upStep: Math.max(16, Math.min(40, cardHeight * .38)), downStep: Math.max(8, Math.min(18, cardHeight * .18)) };
+  }
+
+  // Jedes Rendering läuft als FLIP-Animation: Karten fliegen sichtbar an ihren neuen Platz.
+  let flipOverrides = null;
+  let skipFlip = false;
   function render() {
+    if (skipFlip || !window.GameCards) { renderNow(); return; }
+    const overrides = flipOverrides; flipOverrides = null;
+    GameCards.flip(els.tableau, renderNow, { overrides, appearNew: true });
+  }
+
+  function renderNow() {
     const active = document.activeElement;
     const focusKey = active && els.tableau.contains(active) ? active.dataset.focusKey : '';
     els.tableau.replaceChildren();
     const wrappers = [];
-    let maximumHeight = 30;
+    const g = geometry();
+    let maximumHeight = 320;
     state.columns.forEach((column, columnIndex) => {
-      const wrapper = document.createElement('div'); wrapper.className = 'column'; wrapper.dataset.column = String(columnIndex); wrapper.dataset.focusKey = `column-${columnIndex}`; wrapper.setAttribute('role', 'group'); wrapper.setAttribute('aria-label', `Spalte ${columnIndex + 1}, ${column.length} Karten`);
+      const wrapper = document.createElement('div'); wrapper.className = 'column'; wrapper.dataset.column = String(columnIndex); wrapper.dataset.dropColumn = String(columnIndex); wrapper.dataset.focusKey = `column-${columnIndex}`; wrapper.setAttribute('role', 'group'); wrapper.setAttribute('aria-label', `Spalte ${columnIndex + 1}, ${column.length} Karten`);
       const label = document.createElement('span'); label.className = 'column-label'; label.textContent = String(columnIndex + 1); wrapper.append(label);
       wrapper.tabIndex = 0;
       if (state.selected && state.selected.column !== columnIndex && column.length === 0) wrapper.classList.add('selected-target');
-      let top = 1.7;
-      column.forEach((card, index) => { wrapper.append(makeCardButton(card, columnIndex, index, top)); top += card.faceUp ? 2.05 : 1.05; });
-      maximumHeight = Math.max(maximumHeight, top + 4.5);
+      let top = g.labelHeight;
+      column.forEach((card, index) => { wrapper.append(makeCardButton(card, columnIndex, index, top, g.cardHeight)); top += card.faceUp ? g.upStep : g.downStep; });
+      maximumHeight = Math.max(maximumHeight, top + g.cardHeight + 12);
       wrappers.push(wrapper);
       wrapper.addEventListener('click', event => {
         if (state.selected && !event.target.closest('.card')) moveTo(columnIndex);
@@ -161,8 +181,8 @@
       wrapper.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && state.selected) { event.preventDefault(); moveTo(columnIndex); } });
       els.tableau.append(wrapper);
     });
-    els.tableau.style.minHeight = `${maximumHeight}rem`;
-    wrappers.forEach(wrapper => { wrapper.style.minHeight = `${maximumHeight - .5}rem`; });
+    els.tableau.style.minHeight = `${Math.ceil(maximumHeight)}px`;
+    wrappers.forEach(wrapper => { wrapper.style.minHeight = `${Math.ceil(maximumHeight - 6)}px`; });
     updateStats();
     if (focusKey) els.tableau.querySelector(`[data-focus-key="${focusKey}"]`)?.focus({ preventScroll: true });
   }
@@ -171,5 +191,38 @@
   els.newGame.addEventListener('click', newGame); els.mode.addEventListener('change', newGame); els.deal.addEventListener('click', dealStock);
   els.undo.addEventListener('click', () => { const previous = state.history.pop(); if (previous) { restore(previous); sfx('undo'); announce('Letzten Zug rückgängig gemacht.'); } });
   document.addEventListener('keydown', event => { if (event.target instanceof Element && event.target.matches('input, select, textarea')) return; if (event.key.toLowerCase() === 'n') newGame(); if (event.key.toLowerCase() === 'u') els.undo.click(); });
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => { window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(renderNow, 120); });
+
+  // Drag & Drop mit Kartenvorschau (Maus, Stift, Touch) – ergänzt das Antippen.
+  if (window.GameCards) {
+    GameCards.makeDraggable({
+      root: els.tableau,
+      cardSelector: '.card',
+      targetSelector: '[data-drop-column]',
+      start(element) {
+        if (state.status !== 'playing') return null;
+        const column = Number(element.dataset.column); const index = Number(element.dataset.index);
+        return isMovableSequence(state.columns[column], index) ? { column, index } : null;
+      },
+      cards(payload) { return state.columns[payload.column].slice(payload.index).map(cardData); },
+      sourceElements(payload) { return state.columns[payload.column].slice(payload.index).map(card => els.tableau.querySelector(`[data-focus-key="card-${card.id}"]`)).filter(Boolean); },
+      canDrop(payload, target) {
+        const column = Number(target.dataset.dropColumn);
+        if (column === payload.column) return false;
+        return canPlace(state.columns[payload.column][payload.index], state.columns[column].at(-1));
+      },
+      drop(payload, target, ghostRects) {
+        state.selected = payload;
+        flipOverrides = ghostRects;
+        const moved = moveTo(Number(target.dataset.dropColumn));
+        flipOverrides = null;
+        if (!moved) { state.selected = null; render(); }
+        return moved;
+      },
+      cancel(payload, hadTarget) { state.selected = null; render(); if (!hadTarget) announce('Karte losgelassen – kein Ziel gewählt.'); }
+    });
+  }
+
   timerId = window.setInterval(tick, 1000); void timerId; newGame();
 })();
