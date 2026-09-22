@@ -68,6 +68,16 @@ node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
 ```
 
+## ✨ Neu in v2.1
+
+### Kartengesichter ohne Überlappungen
+
+- Festes Raster für alle Karten: Der Eckindex belegt die oberen rund 19 % der Kartenhöhe
+  (unten gespiegelt), das Pip-Feld liegt zwischen 29,5 % und 70,5 %, Bildkarten-Rahmen
+  zwischen 27 % und 73 % – das Emblem (🎋/🌸/👑) sitzt jetzt innerhalb des Rahmens.
+- Kompakterer Index (Rang 23 cqw, Farbe 17 cqw), engere Pips bei 9 und 10, größere Bildkarten-Initiale.
+- Bei sehr schmalen Karten (unter 36 px) entfallen unterer Index und Emblem, das Initial rückt in die Mitte.
+
 ## ✨ Neu in v2.0
 
 ### Gemeinsames Kartendesign für alle Kartenspiele

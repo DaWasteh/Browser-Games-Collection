@@ -69,60 +69,56 @@ html[data-card-deck="four"] .pc-card[data-suit="C"] { --pc-ink: var(--pc-ink-gre
 .pc-card:disabled { cursor: default; }
 .pc-card > * { pointer-events: none; }
 
+/* Raster: Eckindex belegt die oberen ~19 % der Kartenhöhe (bzw. gespiegelt die
+   unteren), das Pip-Feld liegt dazwischen (28–72 %). So überlappt nichts. */
 .pc-index {
   position: absolute;
-  top: 4cqw;
-  left: 6cqw;
+  top: 3.5cqw;
+  left: 5cqw;
   display: inline-flex;
   align-items: baseline;
-  gap: 2cqw;
+  gap: 1.5cqw;
+  height: 24cqw;
   white-space: nowrap;
+  line-height: 1;
 }
-.pc-index.pc-index-bottom { top: auto; left: auto; right: 6cqw; bottom: 4cqw; rotate: 180deg; }
-.pc-rank { font-size: clamp(9px, 30cqw, 32px); font-weight: 900; letter-spacing: -.04em; }
-.pc-index .pc-pip { font-size: clamp(8px, 24cqw, 26px); }
+.pc-index.pc-index-bottom { top: auto; left: auto; right: 5cqw; bottom: 3.5cqw; rotate: 180deg; }
+.pc-rank { font-size: clamp(9px, 23cqw, 24px); font-weight: 900; letter-spacing: -.05em; }
+.pc-index .pc-pip { font-size: clamp(8px, 17cqw, 18px); }
 
 .pc-center { position: absolute; inset: 0; }
-.pc-center i { position: absolute; font-style: normal; translate: -50% -50%; font-size: clamp(7px, 22cqw, 24px); }
+.pc-center i { position: absolute; font-style: normal; translate: -50% -50%; font-size: clamp(7px, 19cqw, 21px); line-height: 1; }
+.pc-dense .pc-center i { font-size: clamp(6px, 16.5cqw, 18px); }
 .pc-center i.pc-inv { rotate: 180deg; }
-.pc-ace i { font-size: clamp(14px, 62cqw, 64px); }
+.pc-ace i { font-size: clamp(14px, 56cqw, 58px); }
 .pc-ace[data-suit] i { filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .08)); }
 
 /* Bildkarten: gerahmtes Feld mit Serifen-Initial und Panda-Emblem. */
 .pc-court {
   position: absolute;
-  left: 18cqw;
-  right: 18cqw;
-  top: 36cqw;
-  bottom: 36cqw;
+  left: 20cqw;
+  right: 20cqw;
+  top: 27%;
+  bottom: 27%;
   display: grid;
+  grid-template-rows: auto 1fr;
   place-items: center;
+  overflow: hidden;
   border: 1.5px solid currentColor;
   border-radius: 3cqw;
   background:
     repeating-linear-gradient(45deg, color-mix(in srgb, currentColor 9%, transparent) 0 4%, transparent 4% 8%),
     color-mix(in srgb, var(--pc-face) 94%, currentColor);
 }
-.pc-court .pc-letter { font: 700 clamp(12px, 44cqw, 48px)/1 Georgia, "Times New Roman", serif; }
-.pc-court .pc-crest {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  translate: -50% -55%;
-  padding: 0 2cqw;
-  border-radius: 999px;
-  background: var(--pc-face);
-  font-size: clamp(7px, 17cqw, 18px);
-  line-height: 1.2;
-}
-.pc-court .pc-mini { position: absolute; font-size: clamp(6px, 15cqw, 16px); }
-.pc-court .pc-mini.pc-tl { left: 3cqw; top: 3cqw; }
-.pc-court .pc-mini.pc-br { right: 3cqw; bottom: 3cqw; rotate: 180deg; }
+.pc-court .pc-letter { align-self: start; margin-top: -1cqw; font: 700 clamp(12px, 36cqw, 40px)/1 Georgia, "Times New Roman", serif; }
+.pc-court .pc-crest { margin-top: 2cqw; font-size: clamp(7px, 14cqw, 16px); line-height: 1.15; }
 
 /* Sehr schmale Karten (unter ~36 px): nur der obere Index bleibt sichtbar. */
 @container (max-width: 36px) {
-  .pc-index.pc-index-bottom, .pc-court .pc-crest, .pc-court .pc-mini { display: none; }
-  .pc-center i { font-size: 18cqw; }
+  .pc-index.pc-index-bottom, .pc-court .pc-crest { display: none; }
+  .pc-court { grid-template-rows: 1fr; }
+  .pc-court .pc-letter { align-self: center; margin-top: 0; }
+  .pc-center i { font-size: 16cqw; }
 }
 
 /* --- Rückseite ----------------------------------------------------------- */

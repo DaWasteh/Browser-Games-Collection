@@ -22,16 +22,18 @@
   const CRESTS = { 11: '🎋', 12: '🌸', 13: '👑' };
   const DEFAULT_LABELS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'B', 'D', 'K'];
   // Pip-Positionen in Prozent; drittes Feld = um 180° gedrehte untere Hälfte.
+  // Das Pip-Feld liegt zwischen 29,5 % und 70,5 % der Kartenhöhe, damit es sich
+  // weder mit dem oberen noch mit dem gespiegelten unteren Eckindex überschneidet.
   const PIPS = {
-    2: [[50, 22], [50, 78, 1]],
-    3: [[50, 22], [50, 50], [50, 78, 1]],
-    4: [[31, 24], [69, 24], [31, 76, 1], [69, 76, 1]],
-    5: [[31, 24], [69, 24], [50, 50], [31, 76, 1], [69, 76, 1]],
-    6: [[31, 24], [69, 24], [31, 50], [69, 50], [31, 76, 1], [69, 76, 1]],
-    7: [[31, 24], [69, 24], [50, 37], [31, 50], [69, 50], [31, 76, 1], [69, 76, 1]],
-    8: [[31, 24], [69, 24], [50, 37], [31, 50], [69, 50], [50, 63, 1], [31, 76, 1], [69, 76, 1]],
-    9: [[31, 22], [69, 22], [31, 41], [69, 41], [50, 50], [31, 59, 1], [69, 59, 1], [31, 78, 1], [69, 78, 1]],
-    10: [[31, 22], [69, 22], [50, 31], [31, 41], [69, 41], [31, 59, 1], [69, 59, 1], [50, 69, 1], [31, 78, 1], [69, 78, 1]]
+    2: [[50, 29.5], [50, 70.5, 1]],
+    3: [[50, 29.5], [50, 50], [50, 70.5, 1]],
+    4: [[31, 29.5], [69, 29.5], [31, 70.5, 1], [69, 70.5, 1]],
+    5: [[31, 29.5], [69, 29.5], [50, 50], [31, 70.5, 1], [69, 70.5, 1]],
+    6: [[31, 29.5], [69, 29.5], [31, 50], [69, 50], [31, 70.5, 1], [69, 70.5, 1]],
+    7: [[31, 29.5], [69, 29.5], [50, 40], [31, 50], [69, 50], [31, 70.5, 1], [69, 70.5, 1]],
+    8: [[31, 29.5], [69, 29.5], [50, 40], [31, 50], [69, 50], [50, 60, 1], [31, 70.5, 1], [69, 70.5, 1]],
+    9: [[31, 29.5], [69, 29.5], [31, 43.2], [69, 43.2], [50, 50], [31, 56.8, 1], [69, 56.8, 1], [31, 70.5, 1], [69, 70.5, 1]],
+    10: [[31, 29.5], [69, 29.5], [50, 36.4], [31, 43.2], [69, 43.2], [31, 56.8, 1], [69, 56.8, 1], [50, 63.6, 1], [31, 70.5, 1], [69, 70.5, 1]]
   };
 
   const reduceQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -59,7 +61,7 @@
 
   /* Räumt alle Kartenmerkmale von einem Element (z. B. leere Ablage). */
   function clear(element) {
-    element.classList.remove('pc-card', 'pc-back', 'pc-ace', 'pc-court-card');
+    element.classList.remove('pc-card', 'pc-back', 'pc-ace', 'pc-court-card', 'pc-dense');
     delete element.dataset.suit;
     delete element.dataset.cardId;
     element.replaceChildren();
@@ -73,7 +75,7 @@
     else delete element.dataset.cardId;
     if (!card || card.faceDown) {
       element.classList.add('pc-back');
-      element.classList.remove('pc-ace', 'pc-court-card');
+      element.classList.remove('pc-ace', 'pc-court-card', 'pc-dense');
       delete element.dataset.suit;
       return element;
     }
@@ -85,6 +87,7 @@
     element.dataset.suit = key;
     element.classList.toggle('pc-ace', rank === 1);
     element.classList.toggle('pc-court-card', rank >= 11);
+    element.classList.toggle('pc-dense', rank >= 9 && rank <= 10);
 
     const top = span('pc-index pc-index-top');
     top.append(span('pc-rank', label), span('pc-pip', symbol));
@@ -95,7 +98,7 @@
       center.append(pipNode(symbol, 50, 50, false));
     } else if (rank >= 11) {
       const court = span('pc-court');
-      court.append(span('pc-crest', CRESTS[rank] || ''), span('pc-letter', label), span('pc-mini pc-tl', symbol), span('pc-mini pc-br', symbol));
+      court.append(span('pc-crest', CRESTS[rank] || ''), span('pc-letter', label));
       center.append(court);
     } else {
       (PIPS[rank] || []).forEach(([x, y, inverted]) => center.append(pipNode(symbol, x, y, inverted)));
