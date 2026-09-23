@@ -1365,12 +1365,13 @@ try {
       allTargetsLoad: responses.every(Boolean),
       hasBubbles: hrefs.includes('panda-bubbles/index.html') && cards.some(card => card.textContent.includes('Panda: Jäger der Blasen')),
       hasJewels: hrefs.includes('des-pandas-juwelen/index.html') && cards.some(card => card.textContent.includes('Des Pandas Juwelen')),
+      hasAsteroids: hrefs.includes('asteroids/asteroids.html') && cards.some(card => card.textContent.includes('Asteroids')),
       version: document.querySelector('footer')?.textContent || '',
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
     };
   })()`);
-  assert(launcher.count === 18 && launcher.unique === 18 && launcher.allTargetsLoad, `launcher: expected 18 unique loadable games ${JSON.stringify(launcher)}`);
-  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.1') && !launcher.overflow, `launcher: v2.1 integration is incomplete ${JSON.stringify(launcher)}`);
+  assert(launcher.count === 19 && launcher.unique === 19 && launcher.allTargetsLoad, `launcher: expected 19 unique loadable games ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.2') && launcher.hasAsteroids && !launcher.overflow, `launcher: v2.2 integration is incomplete ${JSON.stringify(launcher)}`);
 
   // v1.9: Kategorie-Chips, Suche und Ton-Schalter des Launchers.
   const launcherFilters = await evaluate(`(async () => {
@@ -1400,7 +1401,7 @@ try {
     if (sound) sound.click();
     return { cardsOnly, chipPressed, searched, emptyShown, restored, soundToggle: !!sound, toggled: before !== after, stored };
   })()`);
-  assert(launcherFilters.cardsOnly === 5 && launcherFilters.chipPressed && launcherFilters.searched === 1 && launcherFilters.emptyShown && launcherFilters.restored === 18, `launcher: filter/search broken ${JSON.stringify(launcherFilters)}`);
+  assert(launcherFilters.cardsOnly === 5 && launcherFilters.chipPressed && launcherFilters.searched === 1 && launcherFilters.emptyShown && launcherFilters.restored === 19, `launcher: filter/search broken ${JSON.stringify(launcherFilters)}`);
   assert(launcherFilters.soundToggle && launcherFilters.toggled && (launcherFilters.stored === 'off' || launcherFilters.stored === 'on'), `launcher: sound toggle broken ${JSON.stringify(launcherFilters)}`);
 
   await navigate('pahjong/index.html');
@@ -1526,7 +1527,7 @@ try {
   assert(pahjongKeys.compactHistory, 'pahjong: undo history still stores full 144-tile state clones');
   assert(pahjongKeys.won && pahjongKeys.resultFocused && pahjongKeys.terminalUndo, `pahjong: full solution/result/terminal undo failed ${JSON.stringify(pahjongKeys)}`);
 
-  console.log(`browser smoke ok (${games.length} styled games, 18 launcher games, 10 Phone portrait/landscape, Tablet/Desktop/Widescreen/Ultrawide-Viewports at DPR 1–3 × 3 styles, navigation, contrast, focus)`);
+  console.log(`browser smoke ok (${games.length} styled games, 19 launcher games, 10 Phone portrait/landscape, Tablet/Desktop/Widescreen/Ultrawide-Viewports at DPR 1–3 × 3 styles, navigation, contrast, focus)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();

@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Asteroids</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff; }
+  body { font-family: 'Courier New', monospace; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .toolbar { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: calc(env(safe-area-inset-right, 0px) + 10px); display: flex; gap: 8px; z-index: 5; }
+  .tool, .pad-btn { display: grid; place-items: center; padding: 0; border: 2px solid rgba(77, 240, 255, .7); border-radius: 50%; background: rgba(0, 12, 20, .72); color: #fff; font: 700 20px/1 'Courier New', monospace; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .tool { width: 44px; height: 44px; }
+  .tool:hover { background: rgba(77, 240, 255, .18); }
+  .tool:focus-visible, .pad-btn:focus-visible, .game-collection-link:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .tool[hidden] { display: none; }
+  .touch { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 calc(env(safe-area-inset-right, 0px) + 12px) calc(env(safe-area-inset-bottom, 0px) + 12px) calc(env(safe-area-inset-left, 0px) + 12px); pointer-events: none; z-index: 4; }
+  .touch[hidden] { display: none; }
+  .cluster { display: flex; gap: 10px; pointer-events: auto; }
+  .pad-btn { width: min(64px, 17vw); height: min(64px, 17vw); font-size: 26px; user-select: none; -webkit-user-select: none; }
+  .pad-btn.fire { border-color: rgba(255, 179, 71, .85); }
+  .pad-btn.active { background: rgba(77, 240, 255, .35); }
+  .pad-btn.fire.active { background: rgba(255, 179, 71, .4); }
+  .game-collection-link { position: fixed; left: calc(env(safe-area-inset-left, 0px) + 12px); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 6; padding: 10px 14px; border: 1px solid #4df0ff; border-radius: 999px; background: rgba(0, 0, 0, .9); color: #fff; text-decoration: none; font-weight: 700; box-shadow: 0 4px 16px rgba(0, 0, 0, .45); }
+  .game-collection-link:hover { background: #044; }
+  .game-collection-link[hidden] { display: none; }
+</style>
+</head>
+<body>
+<canvas id="game" role="application" tabindex="0" aria-label="Asteroids-Spielfläche" aria-describedby="help"></canvas>
+<p id="help" class="sr-only">Pfeiltasten oder A und D drehen, Pfeil hoch oder W gibt Schub, Leertaste schießt, 1 bis 4 wählen die Waffe, P oder Escape pausiert, M schaltet den Ton. Enter startet das Spiel.</p>
+<div id="status" class="sr-only" role="status" aria-live="polite"></div>
+<div class="toolbar">
+  <button class="tool" id="btn-weapon" type="button" aria-label="Nächste Waffe" hidden>⇄</button>
+  <button class="tool" id="btn-pause" type="button" aria-label="Pause">⏸</button>
+  <button class="tool" id="btn-sound" type="button" aria-label="Ton ausschalten" aria-pressed="true">🔊</button>
+</div>
+<div class="touch" id="touch" hidden>
+  <div class="cluster">
+    <button class="pad-btn" type="button" data-key="ArrowLeft" aria-label="Nach links drehen">⟲</button>
+    <button class="pad-btn" type="button" data-key="ArrowRight" aria-label="Nach rechts drehen">⟳</button>
+  </div>
+  <div class="cluster">
+    <button class="pad-btn" type="button" data-key="ArrowUp" aria-label="Schub">▲</button>
+    <button class="pad-btn fire" type="button" data-key="Space" aria-label="Feuer">✹</button>
+  </div>
+</div>
+<a class="game-collection-link" id="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
+<script>
+(() => {
+'use strict';
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const touchPad = document.getElementById('touch');
+const pauseBtn = document.getElementById('btn-pause');
+const soundBtn = document.getElementById('btn-sound');
+const weaponBtn = document.getElementById('btn-weapon');
+const backLink = document.getElementById('back-link');
+const statusEl = document.getElementById('status');
+
+// Bildschirm (CSS-Pixel), Pixeldichte, Weltmaßstab und Weltgröße.
+// Auf kleinen Displays wird die Welt verkleinert dargestellt, damit genug Raum zum Ausweichen bleibt.
+let VW = 0, VH = 0, DPR = 1, S = 1, W = 0, H = 0;
+
+// ---------- Konstanten ----------
+const ROT_SPEED = 4.2;      // rad/s
+const THRUST = 260;          // px/s²
+const FRICTION = 0.6;        // Dämpfung pro Sekunde
+const FUEL_BURN = 4;         // Treibstoff pro Sekunde beim Thrusten
+const FUEL_MAX_BASE = 100;   // Basis-Treibstofftank
+const FUEL_RESERVE = 0.2;    // unter 20 % füllt sich der Reservetank langsam nach
+const BLASTER_RESERVE = 20;  // unter 20 Schuss lädt der Blaster langsam nach
+const RADII = { large: 46, medium: 24, small: 12 };
+const SCORES = { large: 20, medium: 50, small: 100 };
+const SPEEDS = { large: [30, 80], medium: [50, 110], small: [80, 160] };
+const HPS = { large: 3, medium: 2, small: 1 };
+const UFO_SCORES = { large: 500, small: 1000 };
+const UFO_HPS = { large: 6, small: 3 };
+const HI_KEY = 'asteroids-highscore';
+const SOUND_KEY = 'browser-games-sound';
+
+// ---------- Waffen-Katalog ----------
+// projectile: braucht Munition + Abklingzeit
+// homing:     Projektil, selbstsuchend, Munition + Abklingzeit
+// energy:     unendliche Munition, aber Hitze (laden + kühlen)
+// wearable:   stark, nutzt sich mit jeder Schussabgabe ab bis kaputt
+const WEAPONS = {
+  blaster: { name: 'BLASTER', short: 'BLA', type: 'projectile', damage: 1, cooldown: 0.22, ammoMax: 120, refill: 30, speed: 460, life: 1.1, r: 4, spread: 0.12, color: '#fff' },
+  laser:   { name: 'LASER',   short: 'LAS', type: 'energy',     damage: 2, cooldown: 0.30, heatPerShot: 14, heatMax: 100, coolRate: 28, speed: 720, life: 0.9, r: 3, spread: 0.08, color: '#4df0ff' },
+  missile: { name: 'MISSILE', short: 'MIS', type: 'homing',     damage: 3, cooldown: 1.2, ammoMax: 30, refill: 10, speed: 320, life: 6, r: 5, turnRate: 4.5, spread: 0.1, color: '#9ff0ff' },
+  cannon:  { name: 'CANNON',  short: 'CAN', type: 'wearable',   damage: 4, cooldown: 0.9, durMax: 60, refill: 30, speed: 380, life: 1.4, r: 7, spread: 0.15, color: '#ffb347' }
+};
+const WEAPON_IDS = ['blaster', 'laser', 'missile', 'cannon'];
+
+// ---------- Pickup-Katalog ----------
+// common: aus Asteroiden (Treibstoff, Munition, temporäre Power-ups, seltene permanente Upgrades)
+// rare:   nur aus UFOs (Waffen-Freischaltungen + epische permanente Upgrades)
+const PICKUP_DEFS = {
+  fuel:          { label: 'FUEL',   color: '#ffb347', kind: 'common', weight: 30 },
+  ammo:          { label: 'AMMO',   color: '#9ef0ff', kind: 'common', weight: 20 },
+  dblshot:       { label: 'DBL',    color: '#7CFC00', kind: 'temp', weight: 8, dur: 10 },
+  rapid:         { label: 'RAPID',  color: '#ffd700', kind: 'temp', weight: 8, dur: 10 },
+  overcharge:    { label: 'PWR',    color: '#ff9ff3', kind: 'temp', weight: 7, dur: 10 },
+  shield:        { label: 'SHLD',   color: '#ff6b6b', kind: 'temp', weight: 6, dur: 10 },
+  speed:         { label: 'SPD',    color: '#40e0d0', kind: 'temp', weight: 6, dur: 10 },
+  perm_dmg:      { label: 'DMG+',   color: '#e040fb', kind: 'perm', weight: 2, stat: 'dmg' },
+  perm_multishot:{ label: 'MULTI',  color: '#e040fb', kind: 'perm', weight: 2, stat: 'multi' },
+  perm_cd:       { label: 'TURBO',  color: '#e040fb', kind: 'perm', weight: 2, stat: 'cd' },
+  perm_tank:     { label: 'TANK+',  color: '#e040fb', kind: 'perm', weight: 1.5, stat: 'tank' },
+  perm_thrust:   { label: 'ENGINE', color: '#e040fb', kind: 'perm', weight: 1.5, stat: 'thrust' },
+  perm_rot:      { label: 'GYRO',   color: '#e040fb', kind: 'perm', weight: 1.5, stat: 'rot' },
+  unlock_laser:  { label: 'LASER!',  color: '#4df0ff', kind: 'rare', weight: 3 },
+  unlock_missile:{ label: 'MISSILE!', color: '#9ff0ff', kind: 'rare', weight: 3 },
+  unlock_cannon: { label: 'CANNON!', color: '#ffb347', kind: 'rare', weight: 3 },
+  perm_shield:   { label: 'Q-SHIELD',  color: '#e040fb', kind: 'rare', weight: 2, stat: 'shield' },
+  perm_overdrive:{ label: 'OVERDRIVE', color: '#e040fb', kind: 'rare', weight: 2, stat: 'overdrive' },
+  perm_plasma:   { label: 'PLASMA',    color: '#e040fb', kind: 'rare', weight: 2, stat: 'plasma' },
+  perm_triple:   { label: 'TRIPLE',    color: '#e040fb', kind: 'rare', weight: 2, stat: 'triple' }
+};
+const COMMON_POOL = Object.keys(PICKUP_DEFS).filter(t => PICKUP_DEFS[t].kind !== 'rare');
+const STACKABLE_IDS = ['perm_dmg', 'perm_multishot', 'perm_cd', 'perm_tank', 'perm_thrust', 'perm_rot', 'perm_triple'];
+// Obergrenzen der stapelbaren Upgrades – darüber wäre das Schiff nicht mehr steuerbar.
+const STACK_CAPS = { dmg: 8, multi: 3, cd: 4, tank: 6, thrust: 4, rot: 4, triple: 2 };
+const MAX_UPGRADE_BONUS = 250;
+
+// ---------- State ----------
+let state = 'menu';
+let paused = false;
+let score = 0, lives = 3, level = 1, nextExtraLife = 10000;
+let hi = 0;
+try { hi = +(localStorage.getItem(HI_KEY) || 0) || 0; } catch (e) {}
+let muted = false;
+try { muted = localStorage.getItem(SOUND_KEY) === 'off'; } catch (e) {}
+let ship = null, respawnT = 0, levelBanner = 0, thrustSfxT = 0, shakeT = 0, gameoverT = 0;
+let currentWeapon = 'blaster', ufoTimer = 40, dryFireT = 0, overheatWarnT = 0, fuelWarned = false;
+const shots = [], asteroids = [], particles = [], popups = [], stars = [], ufos = [], pickups = [], enemyBullets = [];
+let weapons = initWeapons();
+let upgrades = freshUpgrades();
+let last = performance.now();
+let touchMode = false;
+const reducedMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+const coarseQuery = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+if (coarseQuery && coarseQuery.matches) touchMode = true;
+
+// ---------- Input ----------
+const keys = {};
+const GAME_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
+const INTERACTIVE = 'button, a, input, select, textarea';
+function isInteractive(target) {
+  const active = document.activeElement;
+  return !!((target && target.closest && target.closest(INTERACTIVE)) || (active && active.closest && active.closest(INTERACTIVE)));
+}
+window.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // Leertaste/Enter auf einem fokussierten Button oder Link gehören dem Element, nicht dem Spiel.
+  if ((e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') && isInteractive(e.target)) return;
+  if (GAME_KEYS.includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  initAudio();
+  if (e.repeat) return;
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+    if (state === 'menu' || (state === 'gameover' && gameoverT <= 0)) startGame();
+    else if (state === 'playing' && paused) setPaused(false);
+  }
+  if ((e.code === 'KeyP' || e.code === 'Escape') && state === 'playing') setPaused(!paused);
+  if (e.code === 'KeyM') setMuted(!muted);
+  if (state === 'playing' && !paused) {
+    if (e.code === 'Digit1' || e.code === 'Numpad1') switchWeapon('blaster');
+    if (e.code === 'Digit2' || e.code === 'Numpad2') switchWeapon('laser');
+    if (e.code === 'Digit3' || e.code === 'Numpad3') switchWeapon('missile');
+    if (e.code === 'Digit4' || e.code === 'Numpad4') switchWeapon('cannon');
+    if (e.code === 'KeyQ') cycleWeapon();
+  }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+function releaseAllKeys() {
+  for (const k of Object.keys(keys)) keys[k] = false;
+  if (touchPad) touchPad.querySelectorAll('.pad-btn.active').forEach(b => b.classList.remove('active'));
+}
+// Fokusverlust: gedrückte Tasten lösen und das laufende Spiel pausieren.
+window.addEventListener('blur', () => {
+  releaseAllKeys();
+  if (state === 'playing' && !paused) setPaused(true);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    releaseAllKeys();
+    if (state === 'playing' && !paused) setPaused(true);
+  }
+});
+window.addEventListener('pointerdown', e => {
+  initAudio();
+  if (e.pointerType === 'touch' && !touchMode) { touchMode = true; syncUi(); }
+}, true);
+canvas.addEventListener('pointerdown', e => {
+  canvas.focus({ preventScroll: true });
+  if (state === 'menu' || (state === 'gameover' && gameoverT <= 0)) { e.preventDefault(); startGame(); }
+  else if (state === 'playing' && paused) { e.preventDefault(); setPaused(false); }
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// Touch-Steuerkreuz: Buttons halten die jeweiligen Tasten gedrückt.
+if (touchPad) {
+  touchPad.addEventListener('contextmenu', e => e.preventDefault());
+  touchPad.querySelectorAll('.pad-btn').forEach(btn => {
+    const code = btn.dataset.key;
+    const release = e => {
+      keys[code] = false;
+      btn.classList.remove('active');
+      if (e && e.pointerId !== undefined && btn.hasPointerCapture && btn.hasPointerCapture(e.pointerId)) btn.releasePointerCapture(e.pointerId);
+    };
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      if (btn.setPointerCapture) { try { btn.setPointerCapture(e.pointerId); } catch (err) {} }
+      keys[code] = true;
+      btn.classList.add('active');
+    });
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('lostpointercapture', release);
+  });
+}
+function afterPointerClick(e) {
+  // Nach Maus-/Touch-Klick den Fokus zurück aufs Spielfeld, damit die Leertaste wieder schießt.
+  if (e && e.detail > 0) canvas.focus({ preventScroll: true });
+}
+if (pauseBtn) pauseBtn.addEventListener('click', e => {
+  if (state === 'playing') setPaused(!paused);
+  else if (state === 'menu' || (state === 'gameover' && gameoverT <= 0)) startGame();
+  afterPointerClick(e);
+});
+if (soundBtn) soundBtn.addEventListener('click', e => { initAudio(); setMuted(!muted); afterPointerClick(e); });
+if (weaponBtn) weaponBtn.addEventListener('click', e => { if (state === 'playing' && !paused) cycleWeapon(); afterPointerClick(e); });
+
+function setPaused(value) {
+  paused = !!value;
+  releaseAllKeys();
+  announce(paused ? 'Pause' : 'Weiter geht’s');
+  syncUi();
+}
+
+function setMuted(value) {
+  muted = !!value;
+  try { localStorage.setItem(SOUND_KEY, muted ? 'off' : 'on'); } catch (e) {}
+  syncUi();
+}
+
+function announce(text) {
+  if (statusEl) statusEl.textContent = text;
+}
+
+// Sichtbarkeit von Touch-Steuerung, Toolbar-Symbolen und Rücklink an den Spielzustand anpassen.
+let uiKey = '';
+function syncUi() {
+  const playing = state === 'playing' && !paused;
+  const key = [state, paused, touchMode, muted].join('|');
+  if (key === uiKey) return;
+  uiKey = key;
+  if (touchPad) touchPad.hidden = !(touchMode && playing);
+  if (weaponBtn) weaponBtn.hidden = !(touchMode && playing);
+  if (backLink) backLink.hidden = playing;
+  if (pauseBtn) {
+    const showPlay = state !== 'playing' || paused;
+    pauseBtn.textContent = showPlay ? '▶' : '⏸';
+    pauseBtn.setAttribute('aria-label', state !== 'playing' ? 'Spiel starten' : paused ? 'Weiterspielen' : 'Pause');
+  }
+  if (soundBtn) {
+    soundBtn.textContent = muted ? '🔇' : '🔊';
+    soundBtn.setAttribute('aria-pressed', String(!muted));
+    soundBtn.setAttribute('aria-label', muted ? 'Ton einschalten' : 'Ton ausschalten');
+  }
+}
+
+// ---------- Audio ----------
+let actx = null;
+function initAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    if (!actx) actx = new AC();
+    if (actx.state === 'suspended') actx.resume();
+  } catch (e) { actx = null; }
+}
+function beep(freq, dur, type, vol, slideTo) {
+  if (!actx || muted) return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(actx.destination);
+  o.start(t);
+  o.stop(t + dur);
+}
+function noise(dur, vol, filterFreq) {
+  if (!actx || muted) return;
+  const t = actx.currentTime;
+  const len = Math.max(1, Math.floor(actx.sampleRate * dur));
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+  const src = actx.createBufferSource();
+  src.buffer = buf;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  let node = src;
+  if (filterFreq) {
+    const f = actx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = filterFreq;
+    src.connect(f);
+    node = f;
+  }
+  node.connect(g).connect(actx.destination);
+  src.start(t);
+}
+const sfx = {
+  shoot: () => beep(900, 0.12, 'square', 0.06, 200),
+  explode: () => noise(0.4, 0.12, 900),
+  thrust: () => beep(90, 0.12, 'sawtooth', 0.04),
+  extraLife: () => beep(523, 0.15, 'triangle', 0.08),
+  levelup: () => { beep(440, 0.12, 'square', 0.07); setTimeout(() => beep(660, 0.12, 'square', 0.07), 130); },
+  gameover: () => beep(220, 0.8, 'sawtooth', 0.08, 55),
+  respawn: () => beep(330, 0.2, 'triangle', 0.07, 660),
+  pickup: () => { beep(660, 0.12, 'triangle', 0.07, 990); setTimeout(() => beep(880, 0.12, 'triangle', 0.07, 1320), 110); },
+  unlock: () => { beep(523, 0.15, 'square', 0.08); setTimeout(() => beep(659, 0.15, 'square', 0.08), 140); setTimeout(() => beep(784, 0.2, 'square', 0.08), 280); },
+  overheat: () => beep(300, 0.3, 'sawtooth', 0.06, 150),
+  break: () => { noise(0.3, 0.1, 600); beep(180, 0.3, 'square', 0.06, 60); },
+  shieldHit: () => beep(440, 0.2, 'triangle', 0.08, 880),
+  ufo: () => beep(700, 0.25, 'sine', 0.04, 300),
+  ufoSpawn: () => beep(440, 0.2, 'square', 0.06, 880),
+  enemyShoot: () => beep(500, 0.1, 'square', 0.05, 150),
+  hit: () => noise(0.15, 0.08, 1200),
+  dryFire: () => beep(120, 0.08, 'square', 0.04),
+  noFuel: () => beep(220, 0.25, 'sawtooth', 0.06, 110),
+  switch: () => beep(440, 0.08, 'square', 0.05)
+};
+
+// ---------- Setup ----------
+function resize() {
+  const oldW = W, oldH = H;
+  VW = Math.max(1, window.innerWidth || 1);
+  VH = Math.max(1, window.innerHeight || 1);
+  DPR = Math.min(Math.max(1, window.devicePixelRatio || 1), 2.5);
+  S = clamp(Math.min(VW, VH) / 560, 0.62, 1);
+  W = VW / S;
+  H = VH / S;
+  canvas.width = Math.round(VW * DPR);
+  canvas.height = Math.round(VH * DPR);
+  if (oldW > 0 && oldH > 0 && (oldW !== W || oldH !== H)) rescaleWorld(W / oldW, H / oldH);
+  makeStars();
+}
+
+// Bei Größen-/Orientierungswechsel bleiben alle Objekte relativ an ihrer Stelle.
+function rescaleWorld(fx, fy) {
+  const lists = [shots, asteroids, particles, popups, ufos, pickups, enemyBullets];
+  for (const list of lists) for (const o of list) { o.x *= fx; o.y *= fy; }
+  if (ship) { ship.x *= fx; ship.y *= fy; }
+}
+
+function makeStars() {
+  stars.length = 0;
+  const n = Math.min(600, Math.floor(W * H / 9000));
+  for (let i = 0; i < n; i++)
+    stars.push({ x: Math.random() * W, y: Math.random() * H, r: 0.5 + Math.random() * 1.5, a: 0.2 + Math.random() * 0.8 });
+}
+
+function freshUpgrades() {
+  return { dmg: 0, multi: 0, cd: 0, tank: 0, thrust: 0, rot: 0, shield: false, overdrive: false, plasma: false, triple: 0 };
+}
+
+function initWeapons() {
+  const ws = {};
+  for (const id of WEAPON_IDS) {
+    const def = WEAPONS[id];
+    ws[id] = {
+      id, owned: id === 'blaster', broken: false, cd: 0,
+      ammo: def.ammoMax !== undefined ? def.ammoMax : 0,
+      dur: def.durMax !== undefined ? def.durMax : 0,
+      heat: 0, overheated: false, regenT: 0
+    };
+  }
+  return ws;
+}
+
+function startGame() {
+  score = 0; lives = 3; level = 1; nextExtraLife = 10000;
+  respawnT = 0; levelBanner = 2.5; paused = false; shakeT = 0; gameoverT = 0;
+  dryFireT = 0; overheatWarnT = 0; fuelWarned = false; thrustSfxT = 0;
+  shots.length = 0; asteroids.length = 0; particles.length = 0; popups.length = 0;
+  ufos.length = 0; pickups.length = 0; enemyBullets.length = 0;
+  ship = { x: W / 2, y: H / 2, vx: 0, vy: 0, angle: -Math.PI / 2, r: 13, alive: true, inv: 2, thrusting: false, fuel: FUEL_MAX_BASE, fuelRegenT: 0, powerups: {}, shieldCharge: 0 };
+  upgrades = freshUpgrades();
+  weapons = initWeapons();
+  currentWeapon = 'blaster';
+  ufoTimer = 40 + Math.random() * 25;
+  releaseAllKeys();
+  spawnLevel();
+  state = 'playing';
+  announce('Level 1 – los geht’s!');
+  syncUi();
+}
+
+function spawnLevel() {
+  const count = 2 + level;
+  for (let i = 0; i < count; i++) {
+    let x, y, tries = 0;
+    do {
+      x = Math.random() * W;
+      y = Math.random() * H;
+      tries++;
+    } while (tries < 30 && ship && Math.hypot(x - ship.x, y - ship.y) < 180);
+    asteroids.push(makeAsteroid(x, y, 'large'));
+  }
+}
+
+function makeAsteroid(x, y, size) {
+  const r = RADII[size];
+  const n = 9 + Math.floor(Math.random() * 5);
+  const verts = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const rad = r * (0.7 + Math.random() * 0.6);
+    verts.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad });
+  }
+  const [sMin, sMax] = SPEEDS[size];
+  const dir = Math.random() * Math.PI * 2;
+  const sp = sMin + Math.random() * (sMax - sMin);
+  return { x, y, vx: Math.cos(dir) * sp, vy: Math.sin(dir) * sp, angle: 0, spin: (Math.random() - 0.5) * 2.5, size, r, verts, hp: HPS[size] };
+}
+
+function spawnUfo() {
+  const size = Math.random() < 0.5 ? 'large' : 'small';
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
+  if (edge === 0) { x = -10; y = Math.random() * H; }
+  else if (edge === 1) { x = W + 10; y = Math.random() * H; }
+  else if (edge === 2) { x = Math.random() * W; y = -10; }
+  else { x = Math.random() * W; y = H + 10; }
+  const u = {
+    x, y, size,
+    r: size === 'large' ? 16 : 12,
+    hp: UFO_HPS[size],
+    maxHp: UFO_HPS[size],
+    speed: size === 'large' ? 70 : 140,
+    vx: 0, vy: 0, dir: 0, wanderT: 0,
+    fireCd: 1.0, fireRate: size === 'large' ? 1.6 : 1.0,
+    warbleT: 1.2, flash: 0
+  };
+  ufos.push(u);
+  popups.push({ x: W / 2, y: 110, text: '⚠ UFO AM HORIZONT!', life: 2.5, maxLife: 2.5, color: '#ff9ff3' });
+  sfx.ufoSpawn();
+  shake(0.3);
+}
+
+// ---------- Upgrade-Statistiken ----------
+function effDamage(def) {
+  let d = def.damage * Math.pow(1.25, upgrades.dmg);
+  if (upgrades.plasma) d *= 1.5;
+  if (ship && ship.powerups.overcharge > 0) d *= 1.5;
+  return d;
+}
+function effCooldown(def) {
+  let c = def.cooldown * Math.pow(0.75, upgrades.cd);
+  if (ship && ship.powerups.rapid > 0) c *= 0.5;
+  return c;
+}
+function effShots() {
+  return Math.min(4, 1 + upgrades.multi + upgrades.triple + ((ship && ship.powerups.dblshot > 0) ? 1 : 0));
+}
+function effThrust() {
+  return THRUST * Math.pow(1.3, upgrades.thrust) * (upgrades.overdrive ? 1.5 : 1) * ((ship && ship.powerups.speed > 0) ? 1.6 : 1);
+}
+function effRot() {
+  return ROT_SPEED * Math.pow(1.3, upgrades.rot);
+}
+function effMaxFuel() {
+  return FUEL_MAX_BASE + upgrades.tank * 50;
+}
+
+// ---------- Update ----------
+function wrap(o) {
+  const m = o.r || 0;
+  if (o.x < -m) o.x = W + m; else if (o.x > W + m) o.x = -m;
+  if (o.y < -m) o.y = H + m; else if (o.y > H + m) o.y = -m;
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function normAng(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+function shake(t) {
+  if (reducedMotionQuery && reducedMotionQuery.matches) return;
+  shakeT = Math.max(shakeT, t);
+}
+
+function updateShip(dt) {
+  if (!ship.alive) {
+    if (respawnT > 0) {
+      respawnT -= dt;
+      if (respawnT <= 0) respawn();
+    }
+    return;
+  }
+  if (keys['ArrowLeft'] || keys['KeyA']) ship.angle -= effRot() * dt;
+  if (keys['ArrowRight'] || keys['KeyD']) ship.angle += effRot() * dt;
+  ship.thrusting = !!(keys['ArrowUp'] || keys['KeyW']) && ship.fuel > 0;
+  if (ship.thrusting) {
+    ship.fuel = Math.max(0, ship.fuel - FUEL_BURN * dt);
+    ship.vx += Math.cos(ship.angle) * effThrust() * dt;
+    ship.vy += Math.sin(ship.angle) * effThrust() * dt;
+    thrustSfxT -= dt;
+    if (thrustSfxT <= 0) { thrustSfxT = 0.16; sfx.thrust(); }
+    if (ship.fuel <= 0 && !fuelWarned) {
+      fuelWarned = true;
+      ship.thrusting = false;
+      popups.push({ x: ship.x, y: ship.y - 30, text: 'KEIN TREIBSTOFF!', life: 2, maxLife: 2, color: '#ff6b6b' });
+      sfx.noFuel();
+    }
+  } else if (ship.fuel < effMaxFuel() * FUEL_RESERVE) {
+    // Reservetank: ohne Schub tröpfelt langsam Treibstoff nach – kein Festsitzen ohne Pickups.
+    ship.fuel = Math.min(effMaxFuel() * FUEL_RESERVE, ship.fuel + dt);
+  }
+  const damp = Math.exp(-FRICTION * dt);
+  ship.vx *= damp;
+  ship.vy *= damp;
+  ship.x += ship.vx * dt;
+  ship.y += ship.vy * dt;
+  wrap(ship);
+  if (ship.inv > 0) ship.inv -= dt;
+}
+
+function respawn() {
+  ship.alive = true;
+  ship.vx = 0; ship.vy = 0; ship.angle = -Math.PI / 2;
+  ship.inv = 3;
+  ship.thrusting = false;
+  // Beim Wiedereinstieg mindestens halben Tank und etwas Blaster-Munition mitgeben.
+  ship.fuel = Math.max(ship.fuel, effMaxFuel() * 0.5);
+  weapons.blaster.ammo = Math.max(weapons.blaster.ammo, 40);
+  fuelWarned = false;
+  for (let tries = 0; tries < 40; tries++) {
+    const x = tries === 0 ? W / 2 : Math.random() * W;
+    const y = tries === 0 ? H / 2 : Math.random() * H;
+    const clear = asteroids.every(a => Math.hypot(x - a.x, y - a.y) > a.r + 70) &&
+                  ufos.every(u => Math.hypot(x - u.x, y - u.y) > u.r + 70);
+    if (clear || tries === 39) {
+      ship.x = x; ship.y = y;
+      break;
+    }
+  }
+  sfx.respawn();
+}
+
+function updateWeapons(dt) {
+  for (const id of WEAPON_IDS) {
+    const w = weapons[id], def = WEAPONS[id];
+    w.cd = Math.max(0, w.cd - dt);
+    if (def.type === 'energy') {
+      w.heat = Math.max(0, w.heat - def.coolRate * dt);
+      if (w.overheated && w.heat < def.heatMax * 0.7) w.overheated = false;
+    }
+  }
+  // Notreserve: Der Blaster lädt unterhalb von 20 Schuss langsam nach (1 Schuss / 1,5 s).
+  const bl = weapons.blaster;
+  if (bl.ammo < BLASTER_RESERVE) {
+    bl.regenT += dt;
+    if (bl.regenT >= 1.5) { bl.regenT = 0; bl.ammo++; }
+  } else {
+    bl.regenT = 0;
+  }
+  for (const k of Object.keys(ship.powerups)) {
+    ship.powerups[k] -= dt;
+    if (ship.powerups[k] <= 0) {
+      delete ship.powerups[k];
+      // Kurze Schonfrist, falls das Schild ausläuft, während das Schiff in einem Asteroiden steckt.
+      if (k === 'shield' && ship.alive) ship.inv = Math.max(ship.inv, 1);
+    }
+  }
+  if (upgrades.shield && ship.shieldCharge < 1) {
+    ship.shieldCharge = Math.min(1, ship.shieldCharge + dt / 8);
+  }
+}
+
+function acquireTarget(index) {
+  const targets = [];
+  for (const a of asteroids) targets.push({ ref: a, d: Math.hypot(a.x - ship.x, a.y - ship.y) });
+  for (const u of ufos) targets.push({ ref: u, d: Math.hypot(u.x - ship.x, u.y - ship.y) });
+  if (!targets.length) return null;
+  targets.sort((p, q) => p.d - q.d);
+  return targets[index % targets.length].ref;
+}
+
+function weaponEmpty(w) {
+  const def = WEAPONS[w.id];
+  if (def.type === 'energy') return false;
+  if (def.type === 'wearable') return w.dur <= 0;
+  return w.ammo <= 0;
+}
+
+function tryFire() {
+  if (!ship.alive || !keys['Space']) return;
+  const w = weapons[currentWeapon], def = WEAPONS[w.id];
+  if (!w.owned || w.broken) return;
+  if (w.cd > 0) return;
+  if (weaponEmpty(w)) {
+    if (dryFireT <= 0) { dryFireT = 0.5; sfx.dryFire(); }
+    return;
+  }
+  if (def.type === 'energy' && w.overheated) {
+    if (overheatWarnT <= 0) { overheatWarnT = 1; sfx.overheat(); }
+    return;
+  }
+  fireWeapon(w, def);
+}
+
+function fireWeapon(w, def) {
+  const n = effShots();
+  const dmg = effDamage(def);
+  w.cd = effCooldown(def);
+  if (def.type === 'energy') {
+    w.heat = Math.min(def.heatMax, w.heat + def.heatPerShot * n);
+    // Überhitzung direkt nach dem Schuss prüfen – vorher wurde die Hitze im selben Frame
+    // schon wieder heruntergekühlt, sodass der Laser nie überhitzen konnte.
+    if (!w.overheated && w.heat >= def.heatMax) {
+      w.overheated = true;
+      if (overheatWarnT <= 0) {
+        overheatWarnT = 1;
+        sfx.overheat();
+        popups.push({ x: ship.x, y: ship.y - 30, text: 'OVERHEAT!', life: 1.4, maxLife: 1.4, color: '#ff6b6b' });
+      }
+    }
+  } else if (def.type === 'wearable') {
+    w.dur = Math.max(0, w.dur - 1);
+  } else {
+    w.ammo = Math.max(0, w.ammo - 1);
+  }
+  for (let i = 0; i < n; i++) {
+    const off = (i - (n - 1) / 2) * def.spread;
+    const a = ship.angle + off;
+    shots.push({
+      x: ship.x + Math.cos(a) * 15,
+      y: ship.y + Math.sin(a) * 15,
+      vx: ship.vx + Math.cos(a) * def.speed,
+      vy: ship.vy + Math.sin(a) * def.speed,
+      life: def.life, r: def.r, damage: dmg, kind: def.type, color: def.color,
+      angle: a,
+      target: def.type === 'homing' ? acquireTarget(i) : null,
+      speed: def.speed,
+      turnRate: def.turnRate || 0
+    });
+  }
+  sfx.shoot();
+  if (def.type === 'wearable' && w.dur === 0) breakWeapon(w, def);
+}
+
+function breakWeapon(w, def) {
+  w.broken = true;
+  if (currentWeapon === w.id) {
+    const alt = WEAPON_IDS.find(id => id !== w.id && weapons[id].owned && !weapons[id].broken);
+    if (alt) currentWeapon = alt;
+  }
+  popups.push({ x: ship.x, y: ship.y - 30, text: def.name + ' ZERSTÖRT!', life: 1.6, maxLife: 1.6, color: '#ff6b6b' });
+  announce(def.name + ' ist zerstört. UFOs können sie wieder reparieren.');
+  sfx.break();
+  shake(0.25);
+}
+
+function switchWeapon(id) {
+  const w = weapons[id];
+  if (w.owned && !w.broken) {
+    if (currentWeapon !== id) {
+      currentWeapon = id;
+      sfx.switch();
+    }
+  } else {
+    const why = w.owned ? 'KAPUTT' : 'NOCH GESCHLOSSEN';
+    popups.push({ x: ship.x, y: ship.y - 30, text: WEAPONS[id].name + ': ' + why, life: 1.4, maxLife: 1.4, color: '#ff6b6b' });
+    sfx.dryFire();
+  }
+}
+
+function cycleWeapon() {
+  const start = WEAPON_IDS.indexOf(currentWeapon);
+  for (let step = 1; step < WEAPON_IDS.length; step++) {
+    const id = WEAPON_IDS[(start + step) % WEAPON_IDS.length];
+    if (weapons[id].owned && !weapons[id].broken) { switchWeapon(id); return; }
+  }
+  sfx.dryFire();
+}
+
+function updateShots(dt) {
+  tryFire();
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const b = shots[i];
+    b.life -= dt;
+    if (b.kind === 'homing') {
+      if (b.target && !(asteroids.includes(b.target) || ufos.includes(b.target))) b.target = acquireTarget(0);
+      if (b.target) {
+        const desired = Math.atan2(b.target.y - b.y, b.target.x - b.x);
+        const da = normAng(desired - b.angle);
+        const mt = b.turnRate * dt;
+        b.angle += clamp(da, -mt, mt);
+      }
+      b.vx = Math.cos(b.angle) * b.speed;
+      b.vy = Math.sin(b.angle) * b.speed;
+      if (Math.random() < dt * 40) {
+        particles.push({ x: b.x - Math.cos(b.angle) * 9, y: b.y - Math.sin(b.angle) * 9, vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40, life: 0.35, maxLife: 0.35, color: '#ffb347', size: 2 });
+      }
+    }
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    wrap(b);
+    if (b.life <= 0) {
+      if (b.kind === 'homing') explode(b.x, b.y, '#ffb347', 8);
+      shots.splice(i, 1);
+    }
+  }
+}
+
+function updateEnemyBullets(dt) {
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
+    const b = enemyBullets[i];
+    b.life -= dt;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    wrap(b);
+    if (b.life <= 0) enemyBullets.splice(i, 1);
+  }
+}
+
+function updateUfos(dt) {
+  const shipAlive = !!(ship && ship.alive);
+  for (let i = ufos.length - 1; i >= 0; i--) {
+    const u = ufos[i];
+    if (u.flash > 0) u.flash -= dt;
+    if (u.size === 'small' && shipAlive) {
+      const a = Math.atan2(ship.y - u.y, ship.x - u.x);
+      u.vx = Math.cos(a) * u.speed;
+      u.vy = Math.sin(a) * u.speed;
+    } else {
+      u.wanderT -= dt;
+      if (u.wanderT <= 0) {
+        u.wanderT = 2 + Math.random() * 2;
+        u.dir = Math.random() * Math.PI * 2;
+        u.vx = Math.cos(u.dir) * u.speed;
+        u.vy = Math.sin(u.dir) * u.speed;
+      }
+    }
+    u.x += u.vx * dt;
+    u.y += u.vy * dt;
+    wrap(u);
+    u.fireCd -= dt;
+    if (u.fireCd <= 0 && shipAlive && state === 'playing') {
+      u.fireCd = u.fireRate;
+      fireUfoBullet(u);
+    }
+    u.warbleT -= dt;
+    if (u.warbleT <= 0) { u.warbleT = 1.2; if (state === 'playing') sfx.ufo(); }
+  }
+}
+
+function fireUfoBullet(u) {
+  if (!ship.alive) return;
+  const a = Math.atan2(ship.y - u.y, ship.x - u.x);
+  const sp = u.size === 'large' ? 320 : 420;
+  enemyBullets.push({
+    x: u.x + Math.cos(a) * 15,
+    y: u.y + Math.sin(a) * 15,
+    vx: Math.cos(a) * sp,
+    vy: Math.sin(a) * sp,
+    life: 3, r: 4, damage: 1
+  });
+  sfx.enemyShoot();
+}
+
+function spawnPickup(x, y, type) {
+  const def = PICKUP_DEFS[type];
+  const dir = Math.random() * Math.PI * 2;
+  const sp = 15 + Math.random() * 25;
+  pickups.push({ x, y, vx: Math.cos(dir) * sp, vy: Math.sin(dir) * sp, angle: 0, spin: (Math.random() - 0.5) * 3, r: 12, type, life: 15, maxLife: 15, color: def.color, label: def.label, kind: def.kind });
+}
+
+function updatePickups(dt) {
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i];
+    p.life -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.angle += p.spin * dt;
+    wrap(p);
+    if (p.life <= 0) pickups.splice(i, 1);
+  }
+}
+
+function updateAsteroids(dt) {
+  for (const a of asteroids) {
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+    a.angle += a.spin * dt;
+    wrap(a);
+  }
+}
+
+function updateParticles(dt) {
+  const damp = Math.exp(-1.5 * dt);
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= damp; p.vy *= damp;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function updatePopups(dt) {
+  for (let i = popups.length - 1; i >= 0; i--) {
+    const p = popups[i];
+    p.life -= dt;
+    p.y -= 26 * dt;
+    if (p.life <= 0) popups.splice(i, 1);
+  }
+}
+
+// ---------- Kollisionen & Drops ----------
+function weightedPick(pairs) {
+  let total = 0;
+  for (const [, w] of pairs) total += w;
+  let roll = Math.random() * total;
+  for (const [id, w] of pairs) {
+    roll -= w;
+    if (roll <= 0) return id;
+  }
+  return pairs[pairs.length - 1][0];
+}
+
+function stackMaxed(type) {
+  const stat = PICKUP_DEFS[type].stat;
+  return (upgrades[stat] || 0) >= STACK_CAPS[stat];
+}
+
+function pickRareType() {
+  const cands = [];
+  for (const id of ['unlock_laser', 'unlock_missile', 'unlock_cannon']) {
+    const w = weapons[id.slice(7)];
+    // Auch zerstörte Waffen können über ein UFO wiederhergestellt werden.
+    if (!w.owned || w.broken) cands.push([id, PICKUP_DEFS[id].weight]);
+  }
+  for (const id of ['perm_shield', 'perm_overdrive', 'perm_plasma']) {
+    if (!upgrades[id.slice(5)]) cands.push([id, PICKUP_DEFS[id].weight]);
+  }
+  for (const id of STACKABLE_IDS) {
+    if (!stackMaxed(id)) cands.push([id, PICKUP_DEFS[id].weight]);
+  }
+  // Alles ausgebaut: das UFO lässt einen Munitionskanister fallen.
+  if (!cands.length) return 'ammo';
+  return weightedPick(cands);
+}
+
+function pickStackableType() {
+  const open = STACKABLE_IDS.filter(id => !stackMaxed(id));
+  if (!open.length) return null;
+  return weightedPick(open.map(id => [id, 1]));
+}
+
+function maybeDropPickup(a) {
+  const chance = { small: 0.45, medium: 0.35, large: 0.25 }[a.size];
+  if (Math.random() < chance) {
+    const type = weightedPick(COMMON_POOL.map(t => [t, PICKUP_DEFS[t].weight]));
+    spawnPickup(a.x, a.y, type);
+  }
+}
+
+function applyStackable(type) {
+  if (!type || stackMaxed(type)) {
+    score += MAX_UPGRADE_BONUS;
+    return { text: 'MAX! +' + MAX_UPGRADE_BONUS, sfx: 'pickup' };
+  }
+  const def = PICKUP_DEFS[type];
+  if (def.stat === 'triple') upgrades.triple = STACK_CAPS.triple;
+  else upgrades[def.stat] = (upgrades[def.stat] || 0) + 1;
+  if (def.stat === 'tank') ship.fuel = Math.min(effMaxFuel(), ship.fuel + 50);
+  return { text: def.label + (def.stat === 'triple' ? '-SHOT!' : ' PERMANENT'), sfx: def.stat === 'triple' ? 'unlock' : 'pickup' };
+}
+
+function applyRare(type) {
+  if (type.startsWith('unlock_')) {
+    const wid = type.slice(7);
+    const w = weapons[wid], d = WEAPONS[wid];
+    if (!w.owned || w.broken) {
+      const repaired = w.owned && w.broken;
+      w.owned = true; w.broken = false; w.cd = 0;
+      if (d.type === 'energy') { w.heat = 0; w.overheated = false; }
+      else if (d.type === 'wearable') w.dur = d.durMax;
+      else w.ammo = d.ammoMax;
+      announce((repaired ? d.name + ' repariert' : 'Neue Waffe: ' + d.name) + '. Taste ' + (WEAPON_IDS.indexOf(wid) + 1) + ' wählt sie aus.');
+      return { text: repaired ? d.name + ' REPARIERT!' : 'NEUE WAFFE: ' + d.name + '!', sfx: 'unlock' };
+    }
+    return applyStackable(pickStackableType());
+  }
+  if (type === 'perm_shield') {
+    if (!upgrades.shield) {
+      upgrades.shield = true;
+      ship.shieldCharge = 1;
+      return { text: 'QUANTUM-SHIELD!', sfx: 'unlock' };
+    }
+    return applyStackable(pickStackableType());
+  }
+  if (type === 'perm_overdrive') {
+    if (!upgrades.overdrive) { upgrades.overdrive = true; return { text: 'OVERDRIVE!', sfx: 'unlock' }; }
+    return applyStackable(pickStackableType());
+  }
+  if (type === 'perm_plasma') {
+    if (!upgrades.plasma) { upgrades.plasma = true; return { text: 'PLASMA-BOOST!', sfx: 'unlock' }; }
+    return applyStackable(pickStackableType());
+  }
+  return applyStackable(type);
+}
+
+// Munitionskanister: füllt die aktive Waffe auf. Beim Laser (keine Munition) geht er an die
+// leerste Munitionswaffe; ist alles voll, gibt es stattdessen Treibstoff.
+function applyAmmo() {
+  const cur = weapons[currentWeapon];
+  let target = null;
+  if (WEAPONS[cur.id].type !== 'energy' && !cur.broken) target = cur;
+  else {
+    let best = 2;
+    for (const id of WEAPON_IDS) {
+      const w = weapons[id], d = WEAPONS[id];
+      if (!w.owned || w.broken || d.type === 'energy') continue;
+      const frac = d.type === 'wearable' ? w.dur / d.durMax : w.ammo / d.ammoMax;
+      if (frac < 1 && frac < best) { best = frac; target = w; }
+    }
+  }
+  if (!target) {
+    ship.fuel = Math.min(effMaxFuel(), ship.fuel + 25);
+    fuelWarned = false;
+    return { text: '+25 FUEL', sfx: 'pickup' };
+  }
+  const d = WEAPONS[target.id];
+  if (d.type === 'wearable') {
+    target.dur = Math.min(d.durMax, target.dur + d.refill);
+    return { text: '+' + d.refill + ' DUR', sfx: 'pickup' };
+  }
+  target.ammo = Math.min(d.ammoMax, target.ammo + d.refill);
+  return { text: '+' + d.refill + ' ' + (target === cur ? 'AMMO' : d.short), sfx: 'pickup' };
+}
+
+function collectPickup(p) {
+  const def = PICKUP_DEFS[p.type];
+  let res;
+  if (def.kind === 'rare') {
+    res = applyRare(p.type);
+  } else if (def.kind === 'perm') {
+    res = applyStackable(p.type);
+  } else if (def.kind === 'temp') {
+    ship.powerups[p.type] = def.dur;
+    res = { text: def.label + ' (' + def.dur + 's)', sfx: 'pickup' };
+  } else if (p.type === 'fuel') {
+    ship.fuel = Math.min(effMaxFuel(), ship.fuel + 25);
+    fuelWarned = false;
+    res = { text: '+25 FUEL', sfx: 'pickup' };
+  } else {
+    res = applyAmmo();
+  }
+  score += def.kind === 'rare' ? 200 : 50;
+  checkExtraLife();
+  popups.push({ x: p.x, y: p.y, text: res.text, life: 1.6, maxLife: 1.6, color: def.color });
+  explode(p.x, p.y, def.color, 10);
+  sfx[res.sfx]();
+  shake(0.15);
+}
+
+function hitAsteroid(a, damage) {
+  a.hp -= damage;
+  if (a.hp <= 0) {
+    score += SCORES[a.size];
+    checkExtraLife();
+    popups.push({ x: a.x, y: a.y, text: '+' + SCORES[a.size], life: 1.2, maxLife: 1.2 });
+    explode(a.x, a.y, a.size === 'small' ? '#9ef0ff' : '#ffb347', a.size === 'large' ? 26 : a.size === 'medium' ? 18 : 12);
+    sfx.explode();
+    shake(0.2);
+    maybeDropPickup(a);
+    if (a.size !== 'small') {
+      const childSize = a.size === 'large' ? 'medium' : 'small';
+      const [sMin, sMax] = SPEEDS[childSize];
+      const dir = Math.random() * Math.PI * 2;
+      for (const off of [0, Math.PI]) {
+        const sp = sMin + Math.random() * (sMax - sMin);
+        const c = makeAsteroid(a.x + Math.cos(dir + off) * 12, a.y + Math.sin(dir + off) * 12, childSize);
+        c.vx = Math.cos(dir + off) * sp;
+        c.vy = Math.sin(dir + off) * sp;
+        asteroids.push(c);
+      }
+    }
+    const idx = asteroids.indexOf(a);
+    if (idx >= 0) asteroids.splice(idx, 1);
+  } else {
+    explode(a.x, a.y, '#ffffff', 4);
+    sfx.hit();
+  }
+}
+
+function hitUfo(u, damage) {
+  u.hp -= damage;
+  if (u.hp <= 0) {
+    const pts = UFO_SCORES[u.size];
+    score += pts;
+    checkExtraLife();
+    popups.push({ x: u.x, y: u.y, text: '+' + pts, life: 1.4, maxLife: 1.4, color: '#ff9ff3' });
+    explode(u.x, u.y, '#ff9ff3', 30);
+    sfx.explode();
+    shake(0.4);
+    spawnPickup(u.x, u.y, pickRareType());
+    const idx = ufos.indexOf(u);
+    if (idx >= 0) ufos.splice(idx, 1);
+  } else {
+    u.flash = 0.15;
+    explode(u.x, u.y, '#ff9ff3', 4);
+    sfx.hit();
+  }
+}
+
+function absorbShield() {
+  if (ship.powerups.shield > 0) return true;
+  if (upgrades.shield && ship.shieldCharge >= 1) {
+    ship.shieldCharge = 0;
+    // Schonfrist, damit das Schiff aus einem Asteroiden herauskommt, statt im nächsten Frame zu explodieren.
+    ship.inv = Math.max(ship.inv, 1.2);
+    sfx.shieldHit();
+    popups.push({ x: ship.x, y: ship.y - 30, text: 'SHIELD ABSORBIERT!', life: 1.4, maxLife: 1.4, color: '#4df0ff' });
+    return true;
+  }
+  return false;
+}
+
+function collide() {
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const b = shots[i];
+    let consumed = false;
+    for (let j = asteroids.length - 1; j >= 0 && !consumed; j--) {
+      const a = asteroids[j];
+      if (Math.hypot(b.x - a.x, b.y - a.y) < a.r + b.r) {
+        hitAsteroid(a, b.damage);
+        shots.splice(i, 1);
+        consumed = true;
+      }
+    }
+    if (!consumed) {
+      for (let j = ufos.length - 1; j >= 0 && !consumed; j--) {
+        const u = ufos[j];
+        if (Math.hypot(b.x - u.x, b.y - u.y) < u.r + b.r) {
+          hitUfo(u, b.damage);
+          shots.splice(i, 1);
+          consumed = true;
+        }
+      }
+    }
+  }
+  if (ship.alive) {
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+      const b = enemyBullets[i];
+      if (ship.inv <= 0 && Math.hypot(b.x - ship.x, b.y - ship.y) < ship.r + b.r) {
+        enemyBullets.splice(i, 1);
+        if (!absorbShield()) { die(); break; }
+      }
+    }
+    if (ship.alive) {
+      for (const a of asteroids) {
+        if (ship.inv <= 0 && Math.hypot(ship.x - a.x, ship.y - a.y) < a.r + ship.r) {
+          if (!absorbShield()) die();
+          break;
+        }
+      }
+    }
+    if (ship.alive) {
+      for (const u of ufos) {
+        if (ship.inv <= 0 && Math.hypot(ship.x - u.x, ship.y - u.y) < u.r + ship.r) {
+          if (!absorbShield()) die();
+          break;
+        }
+      }
+    }
+    if (ship.alive) {
+      for (let i = pickups.length - 1; i >= 0; i--) {
+        const p = pickups[i];
+        if (Math.hypot(ship.x - p.x, ship.y - p.y) < p.r + ship.r) {
+          pickups.splice(i, 1);
+          collectPickup(p);
+        }
+      }
+    }
+  }
+}
+
+function die() {
+  ship.alive = false;
+  ship.thrusting = false;
+  lives--;
+  explode(ship.x, ship.y, '#ff6b6b', 30);
+  sfx.explode();
+  shake(0.35);
+  if (lives <= 0) {
+    state = 'gameover';
+    gameoverT = 1;
+    releaseAllKeys();
+    if (score > hi) { hi = score; try { localStorage.setItem(HI_KEY, String(hi)); } catch (e) {} }
+    announce('Game Over. Punkte: ' + score + '. Enter oder Tippen startet neu.');
+    sfx.gameover();
+    syncUi();
+  } else {
+    respawnT = 2;
+  }
+}
+
+function checkExtraLife() {
+  while (score >= nextExtraLife) {
+    lives++;
+    nextExtraLife += 10000;
+    popups.push({ x: ship.x, y: ship.y - 30, text: 'EXTRA LIFE!', life: 1.6, maxLife: 1.6, color: '#7CFC00' });
+    sfx.extraLife();
+  }
+}
+
+function nextLevel() {
+  level++;
+  levelBanner = 2.5;
+  // Levelbonus: ein Viertel Tank und eine Ladung Blaster-Munition.
+  ship.fuel = Math.min(effMaxFuel(), ship.fuel + effMaxFuel() * 0.25);
+  weapons.blaster.ammo = Math.min(WEAPONS.blaster.ammoMax, weapons.blaster.ammo + WEAPONS.blaster.refill);
+  fuelWarned = false;
+  spawnLevel();
+  sfx.levelup();
+  announce('Level ' + level);
+  ufoTimer = 35 + Math.random() * 30;
+  if (level >= 2 && ufos.length < 2 && Math.random() < Math.min(0.25 + level * 0.05, 0.75)) spawnUfo();
+}
+
+function explode(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 30 + Math.random() * 140;
+    const life = 0.5 + Math.random() * 0.9;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life, maxLife: life, color, size: 1.5 + Math.random() * 2.5 });
+  }
+}
+
+function update(dt) {
+  if (state === 'playing') {
+    updateShip(dt);
+    updateWeapons(dt);
+    updateShots(dt);
+    updateEnemyBullets(dt);
+    updateUfos(dt);
+    updatePickups(dt);
+    updateAsteroids(dt);
+    collide();
+    if (state === 'playing' && ship.alive && asteroids.length === 0) nextLevel();
+    ufoTimer -= dt;
+    if (ufoTimer <= 0) {
+      ufoTimer = 35 + Math.random() * 30;
+      if (state === 'playing' && ufos.length < 2 && ship.alive) spawnUfo();
+    }
+  } else if (state === 'gameover') {
+    updateAsteroids(dt); updateUfos(dt); updatePickups(dt); updateEnemyBullets(dt);
+    if (gameoverT > 0) gameoverT -= dt;
+  }
+  updateParticles(dt);
+  updatePopups(dt);
+  if (levelBanner > 0) levelBanner -= dt;
+  if (shakeT > 0) shakeT -= dt;
+  if (dryFireT > 0) dryFireT -= dt;
+  if (overheatWarnT > 0) overheatWarnT -= dt;
+}
+
+// ---------- Draw ----------
+// Die Welt wird mit Maßstab S gezeichnet, HUD und Menüs in Bildschirm-Pixeln.
+function worldTransform() { ctx.setTransform(DPR * S, 0, 0, DPR * S, 0, 0); }
+function screenTransform() { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+
+function draw() {
+  screenTransform();
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, VW, VH);
+  worldTransform();
+  if (shakeT > 0 && !paused) ctx.translate((Math.random() - 0.5) * shakeT * 40, (Math.random() - 0.5) * shakeT * 40);
+  ctx.fillStyle = '#fff';
+  for (const s of stars) {
+    ctx.globalAlpha = s.a;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, 7);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  if (state === 'menu') { screenTransform(); drawMenu(); return; }
+
+  drawParticles();
+  for (const a of asteroids) drawAsteroid(a);
+  for (const u of ufos) drawUfo(u);
+  for (const p of pickups) drawPickup(p);
+  drawShots();
+  drawEnemyBullets();
+  if (ship.alive) drawShip();
+  drawPopups();
+
+  screenTransform();
+  if (state === 'playing') drawHUD();
+  if (state === 'gameover') drawGameover();
+  if (state === 'playing' && levelBanner > 0 && !paused) drawLevelBanner();
+  if (paused && state === 'playing') drawPause();
+}
+
+function drawShip() {
+  if (ship.inv > 0 && Math.floor(ship.inv * 8) % 2 === 0) return;
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+  ctx.rotate(ship.angle);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#4df0ff';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(15, 0);
+  ctx.lineTo(-10, 9);
+  ctx.lineTo(-6, 0);
+  ctx.lineTo(-10, -9);
+  ctx.closePath();
+  ctx.stroke();
+  if (ship.thrusting) {
+    ctx.strokeStyle = '#ffb347';
+    const f = 6 + Math.random() * 7;
+    ctx.beginPath();
+    ctx.moveTo(-10, 4);
+    ctx.lineTo(-10 - f, 0);
+    ctx.lineTo(-10, -4);
+    ctx.stroke();
+  }
+  ctx.restore();
+  if (ship.powerups.shield > 0 || (upgrades.shield && ship.shieldCharge >= 1)) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(77,240,255,0.7)';
+    ctx.shadowColor = '#4df0ff';
+    ctx.shadowBlur = 14;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ship.x, ship.y, ship.r + 7, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawAsteroid(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate(a.angle);
+  ctx.strokeStyle = a.hp < HPS[a.size] ? '#ff8a65' : '#cfd8dc';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = a.hp < HPS[a.size] ? '#ff8a65' : '#80deea';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  a.verts.forEach((v, i) => i === 0 ? ctx.moveTo(v.x, v.y) : ctx.lineTo(v.x, v.y));
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBullet(b) {
+  ctx.strokeStyle = b.color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = b.color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x - b.vx * 0.02, b.y - b.vy * 0.02);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawLaser(b) {
+  ctx.strokeStyle = b.color;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = b.color;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x - b.vx * 0.03, b.y - b.vy * 0.03);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawMissile(b) {
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  ctx.rotate(b.angle);
+  ctx.strokeStyle = b.color;
+  ctx.shadowColor = b.color;
+  ctx.shadowBlur = 10;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(8, 0);
+  ctx.lineTo(-6, 4);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-6, -4);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCannonShot(b) {
+  ctx.save();
+  ctx.fillStyle = b.color;
+  ctx.shadowColor = b.color;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawShots() {
+  for (const b of shots) {
+    if (b.kind === 'homing') drawMissile(b);
+    else if (b.kind === 'energy') drawLaser(b);
+    else if (b.kind === 'wearable') drawCannonShot(b);
+    else drawBullet(b);
+  }
+}
+
+function drawUfo(u) {
+  const s = u.size === 'large' ? 1 : 0.7;
+  ctx.save();
+  ctx.translate(u.x, u.y);
+  ctx.scale(s, s);
+  const flash = u.flash > 0;
+  ctx.strokeStyle = flash ? '#fff' : '#ff9ff3';
+  ctx.shadowColor = '#ff9ff3';
+  ctx.shadowBlur = 12;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 16, 6, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -2, 7, Math.PI, 0);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = Math.floor(performance.now() / 150) % 2 === 0 ? '#fff' : '#ff9ff3';
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.arc(i * 7, 3, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (u.hp < u.maxHp) {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,159,243,0.6)';
+    ctx.strokeRect(-16, -22, 32, 4);
+    ctx.fillStyle = '#ff9ff3';
+    ctx.fillRect(-15, -21, 30 * Math.max(0, u.hp / u.maxHp), 2);
+  }
+  ctx.restore();
+}
+
+function drawPickup(p) {
+  const fade = p.life < 2 ? Math.max(0, p.life / 2) : 1;
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.translate(p.x, p.y);
+  ctx.strokeStyle = p.color;
+  ctx.shadowColor = p.color;
+  ctx.shadowBlur = p.kind === 'rare' ? 18 : 10;
+  ctx.lineWidth = 2;
+  ctx.save();
+  ctx.rotate(p.angle);
+  ctx.beginPath();
+  ctx.arc(0, 0, p.r, 0, Math.PI * 2);
+  ctx.stroke();
+  if (p.kind === 'rare') {
+    ctx.beginPath();
+    ctx.arc(0, 0, p.r + 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = p.color;
+  ctx.font = 'bold ' + Math.round(9 / S) + 'px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(p.label, 0, 3 / S);
+  ctx.restore();
+}
+
+function drawEnemyBullets() {
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#ff6b6b';
+  ctx.shadowBlur = 8;
+  for (const b of enemyBullets) {
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - b.vx * 0.02, b.y - b.vy * 0.02);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawPopups() {
+  // Schriftgröße in Weltpixeln so wählen, dass sie auf dem Bildschirm konstant 14 px bleibt.
+  ctx.font = 'bold ' + Math.round(14 / S) + 'px monospace';
+  ctx.textAlign = 'center';
+  for (const p of popups) {
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.fillStyle = p.color || '#fff';
+    // Popups am Rand in den sichtbaren Bereich ziehen.
+    const half = ctx.measureText(p.text).width / 2 + 6;
+    ctx.fillText(p.text, clamp(p.x, half, Math.max(half, W - half)), clamp(p.y, 20, H - 10));
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+}
+
+function drawBar(x, y, bw, bh, frac, color) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, bw, bh);
+  const f = Math.min(1, Math.max(0, frac));
+  if (f > 0) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x + 1.5, y + 1.5, (bw - 2) * f, bh - 2);
+  }
+}
+
+// Unterer Freiraum für die Touch-Steuerung (in Bildschirm-Pixeln).
+function bottomInset() {
+  if (!touchPad || touchPad.hidden || !touchPad.getBoundingClientRect) return 0;
+  const rect = touchPad.getBoundingClientRect();
+  return rect.height > 0 ? Math.max(0, VH - rect.top) + 8 : 0;
+}
+
+function hudFont(size, bold) {
+  ctx.font = (bold ? 'bold ' : '') + size + 'px monospace';
+}
+
+function drawHUD() {
+  const narrow = VW < 520;
+  const f = narrow ? 13 : 16;
+  const line = f + 6;
+  hudFont(f);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('SCORE ' + String(score).padStart(6, '0'), 14, 12 + f);
+  ctx.fillStyle = '#9ef0ff';
+  ctx.fillText('LEVEL ' + level, 14, 12 + f + line);
+  ctx.fillStyle = '#7CFC00';
+  ctx.fillText('HI ' + Math.max(hi, score), 14, 12 + f + line * 2);
+  const leftBottom = 12 + f + line * 2 + 8;
+
+  // Rechts oben unter der Toolbar: Leben und Treibstoff.
+  const right = VW - 14;
+  const livesY = 78;
+  const maxShips = Math.max(1, Math.floor(Math.min(VW * 0.45, 260) / 26));
+  const shown = Math.min(lives, maxShips);
+  for (let i = 0; i < shown; i++) drawMiniShip(right - 10 - i * 26, livesY);
+  if (lives > shown) {
+    hudFont(12, true);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('×' + lives, right - shown * 26 - 2, livesY + 5);
+  }
+  drawFuelBar(right, livesY + 24);
+  drawWeaponPanel(narrow);
+  drawPowerups(narrow, leftBottom);
+  ctx.textAlign = 'left';
+}
+
+function drawWeaponPanel(narrow) {
+  const w = weapons[currentWeapon], def = WEAPONS[w.id];
+  const x = 14;
+  const base = VH - bottomInset() - 12; // Unterkante des Panels
+  const listY = base;
+  const statusY = base - 20;
+  const barY = statusY - 26;
+  const nameY = barY - 8;
+  hudFont(narrow ? 14 : 16, true);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = w.broken ? '#777' : '#fff';
+  ctx.fillText(def.name + (w.broken ? ' [KAPUTT]' : ''), x, nameY);
+  let frac, label, value, color;
+  if (def.type === 'energy') {
+    frac = w.heat / def.heatMax;
+    label = 'HEAT';
+    value = Math.round(w.heat) + '/' + def.heatMax;
+    color = w.overheated ? '#ff6b6b' : frac > 0.7 ? '#ffb347' : '#4df0ff';
+  } else if (def.type === 'wearable') {
+    frac = w.dur / def.durMax;
+    label = 'DUR';
+    value = Math.round(w.dur) + '/' + def.durMax;
+    color = frac < 0.2 ? '#ff6b6b' : '#ffb347';
+  } else {
+    frac = w.ammo / def.ammoMax;
+    label = 'AMMO';
+    value = w.ammo + '/' + def.ammoMax;
+    color = frac < 0.2 ? '#ff6b6b' : '#9ef0ff';
+  }
+  const barW = narrow ? 110 : 150;
+  drawBar(x, barY, barW, 10, frac, color);
+  hudFont(12);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(label + ' ' + value, x + barW + 10, barY + 9);
+  let status = 'BEREIT', sc = '#7CFC00';
+  if (w.broken) { status = 'KAPUTT'; sc = '#ff6b6b'; }
+  else if (def.type === 'energy' && w.overheated) { status = 'OVERHEAT!'; sc = '#ff6b6b'; }
+  else if (def.type === 'wearable' && w.dur <= 0) { status = 'VERSCHLISSEN'; sc = '#ff6b6b'; }
+  else if (def.type !== 'energy' && def.type !== 'wearable' && w.ammo <= 0) { status = 'KEINE MUNITION'; sc = '#ff6b6b'; }
+  else if (w.cd > 0) { status = 'LÄDT …'; sc = '#ffb347'; }
+  ctx.fillStyle = sc;
+  ctx.fillText(status, x, statusY);
+  const shotsN = effShots();
+  if (shotsN > 1) {
+    ctx.fillStyle = '#e040fb';
+    ctx.fillText('SHOTS ×' + shotsN, x + ctx.measureText(status).width + 14, statusY);
+  }
+  // Waffenliste: bei wenig Platz mit Kurznamen.
+  const fullWidth = WEAPON_IDS.reduce((sum, id, i) => sum + ctx.measureText((i + 1) + ' ' + WEAPONS[id].name).width + 14, 0);
+  const useShort = fullWidth > VW - 28 - (touchMode ? 0 : 180);
+  let wx = x;
+  WEAPON_IDS.forEach((id, i) => {
+    const ww = weapons[id];
+    const txt = (i + 1) + ' ' + (useShort ? WEAPONS[id].short : WEAPONS[id].name);
+    ctx.fillStyle = !ww.owned ? '#555' : ww.broken ? '#ff6b6b' : id === currentWeapon ? '#4df0ff' : '#9ef0ff';
+    ctx.fillText(txt, wx, listY);
+    const tw = ctx.measureText(txt).width;
+    if (id === currentWeapon) { ctx.fillRect(wx, listY + 3, tw, 2); }
+    if (ww.broken) { ctx.fillRect(wx, listY - 4, tw, 1); }
+    wx += tw + 14;
+  });
+}
+
+function drawFuelBar(right, y) {
+  const bw = Math.min(160, VW * 0.35);
+  hudFont(12);
+  ctx.fillStyle = '#9ef0ff';
+  ctx.textAlign = 'right';
+  ctx.fillText('FUEL ' + Math.ceil(ship.fuel) + '/' + effMaxFuel(), right, y);
+  ctx.textAlign = 'left';
+  const frac = ship.fuel / effMaxFuel();
+  drawBar(right - bw, y + 6, bw, 10, frac, frac > 0.5 ? '#7CFC00' : frac > 0.2 ? '#ffb347' : '#ff6b6b');
+}
+
+function drawPowerups(narrow, leftBottom) {
+  const active = Object.keys(ship.powerups);
+  if (!active.length) return;
+  const chipW = narrow ? 70 : 100;
+  let x, y;
+  if (narrow) { x = 10; y = leftBottom + 12; }
+  else { x = VW / 2 - (active.length * chipW) / 2; y = 26; }
+  for (const k of active) {
+    const def = PICKUP_DEFS[k];
+    const t = ship.powerups[k];
+    hudFont(11, true);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = def.color;
+    ctx.fillText(def.label, x + chipW / 2, y);
+    drawBar(x + 10, y + 5, chipW - 20, 5, t / def.dur, def.color);
+    x += chipW;
+  }
+  ctx.textAlign = 'left';
+}
+
+function drawMiniShip(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI / 2);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(-7, 6);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-7, -6);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Zeilenumbruch für Canvas-Text.
+function wrapText(text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const word of words) {
+    const test = cur ? cur + ' ' + word : word;
+    if (cur && ctx.measureText(test).width > maxWidth) { lines.push(cur); cur = word; }
+    else cur = test;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// Zeichnet Textblöcke zentriert und liefert die Gesamthöhe (dryRun misst nur).
+function layoutBlocks(blocks, cx, top, maxWidth, dryRun) {
+  let y = top;
+  for (const b of blocks) {
+    if (b.gap) { y += b.gap; continue; }
+    hudFont(b.size, b.bold);
+    const lines = b.nowrap ? [b.text] : wrapText(b.text, maxWidth);
+    for (const ln of lines) {
+      y += b.size * 1.35;
+      if (!dryRun && !b.hidden) {
+        ctx.fillStyle = b.color;
+        if (b.glow) { ctx.shadowColor = b.glow; ctx.shadowBlur = 20; }
+        ctx.fillText(ln, cx, y - b.size * 0.3);
+        ctx.shadowBlur = 0;
+      }
+    }
+  }
+  return y - top;
+}
+
+function drawCentered(blocks) {
+  ctx.textAlign = 'center';
+  const maxWidth = Math.min(VW - 32, 900);
+  const height = layoutBlocks(blocks, VW / 2, 0, maxWidth, true);
+  const top = Math.max(60, (VH - height) / 2);
+  layoutBlocks(blocks, VW / 2, top, maxWidth, false);
+  ctx.textAlign = 'left';
+}
+
+function menuSizes() {
+  const title = Math.round(clamp(Math.min(VW / 7.5, VH / 7), 32, 64));
+  const body = Math.round(clamp(VW / 40, 12, 15));
+  return { title, body };
+}
+
+function drawMenu() {
+  const { title, body } = menuSizes();
+  const blink = Math.floor(performance.now() / 500) % 2 === 0;
+  const blocks = [
+    { text: 'ASTEROIDS', size: title, bold: true, color: '#fff', glow: '#4df0ff', nowrap: true },
+    { gap: body }
+  ];
+  if (touchMode) {
+    blocks.push({ text: '⟲ ⟳ drehen · ▲ Schub · ✹ schießen · ⇄ Waffe wechseln', size: body, color: '#9ef0ff' });
+  } else {
+    blocks.push({ text: '← → / A D drehen · ↑ / W Schub · LEERTASTE schießen', size: body, color: '#9ef0ff' });
+    blocks.push({ text: '1–4 / Q Waffe wählen · P / ESC Pause · M Ton', size: body, color: '#9ef0ff' });
+  }
+  blocks.push(
+    { text: 'Treibstoff ist begrenzt – sammle FUEL-Pickups!', size: body, color: '#9ef0ff' },
+    { text: 'UFOs schießen auf dich – hol sie runter für seltene Upgrades!', size: body, color: '#ff9ff3' },
+    { text: 'WAFFEN: 1 BLASTER (Munition) · 2 LASER (Energie, muss kühlen) · 3 MISSILE (zielsuchend) · 4 CANNON (nutzt sich ab)', size: body, color: '#e040fb' },
+    { gap: body * 1.2 },
+    { text: touchMode ? 'TIPPEN zum Starten' : '[ ENTER ] zum Starten', size: Math.round(body * 1.4), bold: true, color: '#fff', hidden: !blink }
+  );
+  if (hi > 0) blocks.push({ gap: body * 0.6 }, { text: 'HI-SCORE: ' + hi, size: body, color: '#9ef0ff' });
+  drawCentered(blocks);
+}
+
+function drawGameover() {
+  const { title, body } = menuSizes();
+  const blink = Math.floor(performance.now() / 500) % 2 === 0;
+  const owned = [];
+  if (upgrades.dmg > 0) owned.push('DMG+' + upgrades.dmg);
+  if (upgrades.multi > 0) owned.push('MULTI+' + upgrades.multi);
+  if (upgrades.cd > 0) owned.push('TURBO+' + upgrades.cd);
+  if (upgrades.tank > 0) owned.push('TANK+' + upgrades.tank);
+  if (upgrades.thrust > 0) owned.push('ENGINE+' + upgrades.thrust);
+  if (upgrades.rot > 0) owned.push('GYRO+' + upgrades.rot);
+  if (upgrades.shield) owned.push('Q-SHIELD');
+  if (upgrades.overdrive) owned.push('OVERDRIVE');
+  if (upgrades.plasma) owned.push('PLASMA');
+  if (upgrades.triple > 0) owned.push('TRIPLE');
+  const blocks = [
+    { text: 'GAME OVER', size: Math.round(title * 0.88), bold: true, color: '#ff6b6b', glow: '#ff6b6b', nowrap: true },
+    { gap: body * 0.8 },
+    { text: 'SCORE: ' + score + ' · LEVEL ' + level, size: Math.round(body * 1.35), color: '#fff' },
+    { text: 'HI-SCORE: ' + hi, size: Math.round(body * 1.35), color: '#9ef0ff' }
+  ];
+  if (owned.length) blocks.push({ gap: body * 0.4 }, { text: 'UPGRADES: ' + owned.join('  '), size: body, color: '#e040fb' });
+  blocks.push({ gap: body * 1.2 }, { text: touchMode ? 'TIPPEN zum Neustarten' : '[ ENTER ] zum Neustarten', size: Math.round(body * 1.3), bold: true, color: '#fff', hidden: !blink || gameoverT > 0 });
+  drawCentered(blocks);
+}
+
+function drawPause() {
+  const { title, body } = menuSizes();
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, VW, VH);
+  drawCentered([
+    { text: 'PAUSE', size: Math.round(title * 0.75), bold: true, color: '#fff', nowrap: true },
+    { gap: body * 0.6 },
+    { text: touchMode ? 'Tippen oder ▶ zum Weitermachen' : '[ P ] / [ ESC ] zum Weitermachen', size: Math.round(body * 1.1), color: '#9ef0ff' }
+  ]);
+}
+
+function drawLevelBanner() {
+  const t = levelBanner / 2.5;
+  const { title } = menuSizes();
+  ctx.globalAlpha = Math.min(1, t * 2);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  hudFont(Math.round(title * 0.62), true);
+  ctx.shadowColor = '#4df0ff';
+  ctx.shadowBlur = 16;
+  ctx.fillText('LEVEL ' + level, VW / 2, VH / 2 - 60);
+  ctx.shadowBlur = 0;
+  if (level > 1) {
+    hudFont(13);
+    ctx.fillStyle = '#9ef0ff';
+    ctx.fillText('+25 % FUEL · +' + WEAPONS.blaster.refill + ' BLASTER-AMMO', VW / 2, VH / 2 - 32);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'left';
+}
+
+// ---------- Loop ----------
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = clamp((now - last) / 1000, 0, 0.05);
+  last = now;
+  if (!paused) update(dt);
+  syncUi();
+  draw();
+}
+
+window.addEventListener('resize', resize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+resize();
+syncUi();
+requestAnimationFrame(frame);
+
+// Diagnose-/Test-Schnittstelle (wird von den Smoke-Tests genutzt).
+window.AsteroidsGame = {
+  get state() { return state; },
+  get paused() { return paused; },
+  get ship() { return ship; },
+  get weapons() { return weapons; },
+  get upgrades() { return upgrades; },
+  get currentWeapon() { return currentWeapon; },
+  set currentWeapon(v) { currentWeapon = v; },
+  get score() { return score; },
+  get level() { return level; },
+  get lives() { return lives; },
+  set lives(v) { lives = v; },
+  get hi() { return hi; },
+  get muted() { return muted; },
+  get touchMode() { return touchMode; },
+  set touchMode(v) { touchMode = !!v; syncUi(); },
+  get gameoverT() { return gameoverT; },
+  set gameoverT(v) { gameoverT = v; },
+  get view() { return { VW, VH, DPR, S, W, H, canvasWidth: canvas.width, canvasHeight: canvas.height }; },
+  get shots() { return shots; },
+  get asteroids() { return asteroids; },
+  get ufos() { return ufos; },
+  get pickups() { return pickups; },
+  get enemyBullets() { return enemyBullets; },
+  get popups() { return popups; },
+  get keys() { return keys; },
+  WEAPONS, PICKUP_DEFS, STACK_CAPS,
+  startGame, spawnUfo, nextLevel, hitUfo, hitAsteroid, collectPickup, fireWeapon, tryFire,
+  collide, update, switchWeapon, cycleWeapon, acquireTarget, effDamage, effCooldown, effShots,
+  effThrust, effRot, effMaxFuel, absorbShield, die, respawn, spawnPickup, pickRareType,
+  applyRare, applyStackable, setPaused, setMuted, resize
+};
+})();
+</script>
+</body>
+</html>

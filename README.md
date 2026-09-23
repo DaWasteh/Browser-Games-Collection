@@ -14,6 +14,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | 🧱 **Tetris** | [`tetris/`](tetris/) | Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen |
 | 🐍 **Snake Ultimate** | [`snake-ultimate/`](snake-ultimate/) | Erweitertes Snake mit lokalem Multiplayer, 8 Themes und Addons |
 | 🏓 **Pong** | [`pong/`](pong/) | Das klassische Duell – gegen die KI oder zu zweit |
+| ☄️ **Asteroids** | [`asteroids/`](asteroids/) | Vektor-Arcade mit vier Waffen, UFOs, Upgrades, Treibstoff und Touch-Steuerung |
 | 🫧 **Panda: Jäger der Blasen** | [`panda-bubbles/`](panda-bubbles/) | Bubble Shooter mit Bandenbonus, fallenden Gruppen und Bambusblase |
 | 💎 **Des Pandas Juwelen** | [`des-pandas-juwelen/`](des-pandas-juwelen/) | Match 3 mit Kaskaden, Spezialkristallen und taktischer Panda-Pfote |
 | ⏳ **Sand Game Pro 2.3** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Active-Cell-Wind, schlankem Chemie-Kern und sicherem WebGL2/CPU-Fallback |
@@ -44,7 +45,7 @@ git clone https://github.com/DaWasteh/Browser-Games-Collection.git
 ## ✅ Tests
 
 Die browserbasierten Smoke-Tests benötigen **Node.js 22 oder neuer** sowie eine lokale
-Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 18 Spiele in
+Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 19 Spiele in
 zehn Phone-, Landscape-, Tablet-, Desktop-, Widescreen- und Ultrawide-Viewports (DPR 1–3): Boot,
 Laufzeitfehler, Navigation, Overflow, Kontrast, Zielgrößen, Tastatur-/Touch-Bedienung,
 Dialogfokus, Persistenz und kritische Zustandswechsel. Zusätzliche Logiktests stressen
@@ -66,7 +67,31 @@ node texttl/smoke-test.cjs
 node pandakreuzwort/smoke-test.cjs
 node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
+node asteroids/smoke-test.cjs
 ```
+
+## ✨ Neu in v2.2
+
+### Neues Spiel: Asteroids
+
+- **Asteroids** ist der 19. Titel der Sammlung: ein Vektor-Arcade-Shooter mit Neon-Glow,
+  begrenztem Treibstoff, UFOs, die zurückschießen, und vier Waffen mit eigenen Regeln –
+  Blaster (Munition), Laser (Hitze), zielsuchende Missiles und eine verschleißende Cannon.
+- Asteroiden lassen Treibstoff, Munition, temporäre Power-ups und seltene permanente
+  Upgrades fallen; abgeschossene UFOs liefern neue Waffen und epische Upgrades.
+- Touch-Steuerung mit Dreh-, Schub- und Feuertasten, Waffenwechsel, Pause und Ton in der
+  Toolbar, scharfe HiDPI-Darstellung und eine auf Smartphones verkleinerte Spielwelt.
+
+### Fehlerbehebungen gegenüber der Vorlage
+
+- Der Laser überhitzt jetzt wirklich (vorher wurde die Hitze im selben Frame wieder
+  heruntergekühlt), die Cannon zeigt nicht mehr dauerhaft „Keine Munition“.
+- Das Quantum-Schild gibt nach einem Treffer eine kurze Schonfrist, statt das Schiff im
+  nächsten Frame im selben Asteroiden explodieren zu lassen.
+- Kein Festsitzen mehr ohne Munition oder Treibstoff: Blaster-Notreserve, Reservetank,
+  Nachfüllen beim Respawn und Levelbonus. Zerstörte Waffen lassen sich per UFO-Drop reparieren.
+- Stapelbare Upgrades sind begrenzt (maximierte geben Bonuspunkte), Fokusverlust pausiert
+  und löst hängende Tasten, und ein kurzer Riegel verhindert versehentliche Neustarts.
 
 ## ✨ Neu in v2.1
 

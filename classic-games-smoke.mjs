@@ -3,7 +3,7 @@
 // resize/orientation, no body overflow, keyboard controls not hijacking form
 // fields, and key fixed regressions. Zero dependencies (Node 22+ + Chrome CDP).
 //
-// Scope: game-of-life, sandgame, pong, snake-ultimate, tetris,
+// Scope: game-of-life, sandgame, pong, asteroids, snake-ultimate, tetris,
 //        minenraeumkommando-foxtrott, panda-lemmings und Maulkorbraupen.
 // (Card/word games and PandaTaire are intentionally excluded.)
 import { spawn } from 'node:child_process';
@@ -460,6 +460,60 @@ try {
           return { steps, remainder: tickAccumulator, speed: gameSpeed };
         })()`);
         assert(cadence.steps === 2 && cadence.remainder === 50 && cadence.remainder < cadence.speed, `snake-ultimate: RAF accumulator loses elapsed ticks ${JSON.stringify(cadence)}`);
+      }
+    },
+    {
+      name: 'asteroids', path: 'asteroids/asteroids.html',
+      formControl: '#btn-pause',
+      regression: async () => {
+        const boot = await evaluate(`(() => {
+          const G = window.AsteroidsGame;
+          const canvas = document.getElementById('game');
+          return {
+            api: !!G, state: G && G.state,
+            role: canvas.getAttribute('role'), label: !!canvas.getAttribute('aria-label'), tabbable: canvas.tabIndex === 0,
+            live: document.getElementById('status').getAttribute('aria-live'),
+            back: !!document.querySelector('a.game-collection-link[href="../index.html"]') && !document.getElementById('back-link').hidden,
+            hiDpi: canvas.width === Math.round(innerWidth * G.view.DPR)
+          };
+        })()`);
+        assert(boot.api && boot.state === 'menu', `asteroids: Boot/Diagnose-API fehlerhaft ${JSON.stringify(boot)}`);
+        assert(boot.role === 'application' && boot.label && boot.tabbable && boot.live === 'polite' && boot.back && boot.hiDpi, `asteroids: Canvas-Semantik, Rücklink oder HiDPI fehlen ${JSON.stringify(boot)}`);
+        // Tippen startet, Touch-Steuerung erscheint und der Feuerknopf schießt.
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 187, y: 400, id: 1 }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await delay(150);
+        const started = await evaluate(`(() => {
+          const G = window.AsteroidsGame;
+          G.ship.inv = 9999;
+          const fire = document.querySelector('.pad-btn.fire').getBoundingClientRect();
+          return { state: G.state, touchMode: G.touchMode, padVisible: !document.getElementById('touch').hidden, backHidden: document.getElementById('back-link').hidden,
+            fireX: fire.left + fire.width / 2, fireY: fire.top + fire.height / 2, fireSize: Math.min(fire.width, fire.height), shots: G.shots.length };
+        })()`);
+        assert(started.state === 'playing' && started.touchMode && started.padVisible && started.backHidden, `asteroids: Tippen startet nicht mit Touch-Steuerung ${JSON.stringify(started)}`);
+        assert(started.fireSize >= 44, `asteroids: Touch-Buttons zu klein ${JSON.stringify(started)}`);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: started.fireX, y: started.fireY, id: 2 }] });
+        await delay(260);
+        const firing = await evaluate('({ shots: AsteroidsGame.shots.length, ammo: AsteroidsGame.weapons.blaster.ammo, held: !!AsteroidsGame.keys.Space })');
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await delay(60);
+        const released = await evaluate('!AsteroidsGame.keys.Space');
+        assert(firing.held && firing.ammo < 120 && released, `asteroids: Feuerknopf schießt nicht oder bleibt hängen ${JSON.stringify({ firing, released })}`);
+        const flow = await evaluate(`(() => {
+          const G = window.AsteroidsGame;
+          window.dispatchEvent(new Event('blur'));
+          const pausedOnBlur = G.paused && !document.getElementById('back-link').hidden && document.getElementById('touch').hidden;
+          G.setPaused(false);
+          G.applyRare('unlock_laser');
+          G.switchWeapon('laser');
+          G.keys.Space = true;
+          for (let i = 0; i < 480 && !G.weapons.laser.overheated; i++) G.update(1 / 60);
+          G.keys.Space = false;
+          const overheated = G.weapons.laser.overheated;
+          G.lives = 1; G.upgrades.shield = false; G.ship.powerups = {}; G.ship.inv = 0; G.die();
+          return { pausedOnBlur, overheated, state: G.state, hi: Number(localStorage.getItem('asteroids-highscore')) === G.hi };
+        })()`);
+        assert(flow.pausedOnBlur && flow.overheated && flow.state === 'gameover' && flow.hi, `asteroids: Pause/Laser-Overheat/Game-Over fehlerhaft ${JSON.stringify(flow)}`);
       }
     },
     {
