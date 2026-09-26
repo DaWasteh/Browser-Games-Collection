@@ -4,6 +4,9 @@
 const PENTA_MINOR = [0, 3, 5, 7, 10];
 const PENTA_MAJOR = [0, 2, 4, 7, 9];
 const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
+// Reverb sends are scaled by their fader relative to the default settings, so the default mix
+// sounds exactly as before while a fader at 0 also silences that bus's reverb tail.
+const SFX_SEND = 0.18, DEFAULT_VOLUME = 0.7, DEFAULT_MUSIC = 0.5;
 
 export class AudioSystem {
   constructor() {
@@ -51,8 +54,11 @@ export class AudioSystem {
     this.reverb.connect(this.reverbGain);
     this.reverbGain.connect(this.comp);
     this.sfxSend = c.createGain();
-    this.sfxSend.gain.value = 0.18;
+    this.sfxSend.gain.value = SFX_SEND;
     this.sfxSend.connect(this.reverb);
+    // the music drones feed the reverb through their own send, which follows the music fader
+    this.musicSend = c.createGain();
+    this.musicSend.connect(this.reverb);
     this.noiseBuf = this._noiseBuffer(2);
     this.applyVolumes();
     if (this.mode) { const m = this.mode; this.mode = null; this.setMode(m); }
@@ -64,6 +70,8 @@ export class AudioSystem {
     this.master.gain.setTargetAtTime(this.muted ? 0 : 1, t, 0.05);
     this.sfx.gain.setTargetAtTime(this.volume * 0.9, t, 0.05);
     this.music.gain.setTargetAtTime(this.musicVolume * 0.55, t, 0.3);
+    this.sfxSend.gain.setTargetAtTime(SFX_SEND * (this.volume / DEFAULT_VOLUME), t, 0.05);
+    this.musicSend.gain.setTargetAtTime(this.musicVolume / DEFAULT_MUSIC, t, 0.3);
   }
 
   setVolume(v) { this.volume = v; this.applyVolumes(); }
@@ -285,7 +293,7 @@ export class AudioSystem {
       gain.gain.value = 0.0001;
       gain.gain.setTargetAtTime(vol, c.currentTime, 2);
       osc.connect(f); f.connect(gain); gain.connect(this.music);
-      gain.connect(this.reverb);
+      gain.connect(this.musicSend);
       osc.start(); lfo.start();
       this.droneNodes.push({ osc, gain, lfo });
       const origStop = osc.stop.bind(osc);
@@ -304,7 +312,7 @@ export class AudioSystem {
   }
 
   update(dt) {
-    if (!this.ctx || !this.mode || this.muted) return;
+    if (!this.ctx || !this.mode || this.muted || this.musicVolume <= 0) return;
     this.musicTimer -= dt;
     if (this.musicTimer > 0) return;
     const out = this.music;

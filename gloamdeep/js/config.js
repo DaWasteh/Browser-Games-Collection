@@ -2,7 +2,7 @@
 
 export const GAME_TITLE = 'Gloamdeep';
 export const GAME_SUBTITLE = 'The Lantern Below';
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
 /** World units: one tile is 16 world pixels. The screen renders world pixels 1:1 into a low-res buffer. */
 export const TILE = 16;

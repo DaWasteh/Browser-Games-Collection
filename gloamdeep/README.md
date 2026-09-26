@@ -5,7 +5,8 @@
 > Pixel-Action-RPG mit einem Laternendorf über einem endlosen, prozeduralen Dungeon – Quests,
 > Händler, Truhe, Beute in fünf Seltenheiten, vier Zauber, Elite-Monster und Wächter auf jeder
 > fünften Etage. Grafik, Sound und Musik entstehen komplett im Code. Gesteuert wird mit
-> **Maus und Tastatur** (Touch wird nicht unterstützt).
+> **Maus und Tastatur** oder seit v2.4 **per Touch** – auf dem Tablet (auch mit Tastatur) und
+> auf dem Smartphone im Querformat.
 >
 > - **Spielen:** über die [Spieleauswahl](../index.html) bzw. online unter
 >   <https://dawasteh.github.io/Browser-Games-Collection/gloamdeep/>. Weil das Spiel aus
@@ -19,11 +20,27 @@
 >   statischen Lichter einmal pro geladenem Areal (`Lighting.useArea`). Das Flackern nutzt
 >   dasselbe Schattenpolygon und scheint nicht mehr durch Wände, das Licht-Quellrechteck wird an
 >   den Arealrändern sauber beschnitten.
+> - **Touch-Steuerung (v2.4, `js/ui/touch.js`):** schwebender Daumen-Stick links; rechts
+>   werden die Skill-Slots des HUD zu runden Daumenknöpfen – großer Angriffsknopf mit
+>   Auto-Zielen (nächster Gegner, sonst Blickrichtung), Zauber, Dash, Trank und ein ✋-Knopf, der
+>   nur bei möglicher Interaktion erscheint (auch der Hinweis unten ist antippbar). Die Welt
+>   antippen oder halten greift genau dort an – ideal für Tablets mit Tastatur (WASD laufen,
+>   Finger zielt); mit einem Finger in der Welt zielt auch der Zauberknopf dorthin. Ein Tipp auf
+>   die große Karte schließt sie. Im Inventar wählt Antippen aus, langes Drücken zeigt den
+>   Tooltip, Panels scrollen per Wischen. Einstellung **Touch controls: Automatic / Always on /
+>   Off**; „Automatic“ schaltet bei Touch-Eingabe ein und bei Maus wieder aus. Hochkant auf dem
+>   Smartphone erscheint ein Dreh-Hinweis. Die Steuerung speist nur die vorhandene
+>   Eingabe-Schicht, die Spiellogik bleibt unverändert; mit Maus sieht alles aus wie bisher.
+> - **Behoben in v2.4:** Musik auf 0 (ohne Stummschalten) ließ ein Brummen übrig – die
+>   Bordun-Töne liefen am Musikregler vorbei direkt in den Hall. Hall-Sends für Musik und
+>   Effekte folgen jetzt ihrem Regler (bei Standardwerten klingt alles identisch), bei Musik 0
+>   werden auch keine Noten mehr geplant.
 > - **Sammlungs-Integration:** „← Spieleauswahl“ im Titelbildschirm und im Pausenmenü (speichert
 >   vorher), Karte im Launcher unter „Action & RPG“.
 > - **Tests:** `node gloamdeep/smoke-test.cjs` (Unit- und Syntaxtests, läuft in der CI);
->   `classic-games-smoke.mjs` prüft Boot, Rücklink, Tastatureingabe, Viewports und misst, dass
->   Laternen und Fackeln die Szene tatsächlich aufhellen. Die ausführlichen Browser-Tests unten
+>   `classic-games-smoke.mjs` prüft Boot, Rücklink, Tastatureingabe, Viewports, misst, dass
+>   Laternen und Fackeln die Szene aufhellen und Musik 0 still ist (offline gerendert), und spielt
+>   per echten Touch-Events: Stick, Angriff, Trank, Interaktion ohne Ghost-Click, Dreh-Hinweis. Die ausführlichen Browser-Tests unten
 >   (`tests/smoke.mjs`, `tests/soak.mjs`) laufen lokal.
 >
 > Die folgende englische Originaldokumentation beschreibt Spiel, Architektur und Tests im Detail.
@@ -70,6 +87,18 @@ Tested with Chrome at 1280×720 and 1920×1080. Any current Chromium, Firefox or
 | `Esc` | Pause, or close the open window |
 | `Alt` (hold) | Show all item labels |
 | `N` | Mute · `F1`/`H` help · `F3` debug overlay (FPS, seed, entity counts) |
+
+**Touch** (tablets and phones in landscape; *Settings → Touch controls*: Automatic / Always on / Off):
+
+| Touch | Action |
+|---|---|
+| Left thumb | Floating move stick (a hardware keyboard's WASD works too) |
+| Tap / hold the world | Attack at that spot; with a finger on the world the spell button aims there |
+| Big button | Attack, auto-aimed at the nearest visible foe (or breakable) |
+| Small buttons | Spell (auto-aimed), dash, potion |
+| ✋ button or the prompt | Interact, talk, use stairs, pick up |
+| Tap the full map | Close it |
+| Long-press an item | Show its tooltip; a tap selects or moves it |
 
 The browser context menu, page scrolling and text selection are disabled inside the game.
 
@@ -155,7 +184,7 @@ js/world/           tiles, TileMap (collision, LOS, ray casting), FlowField, Are
 js/entities/        player, enemy + boss, projectile, props + traps, loot, npc, effects
 js/fx/              sprites, prop art, item icons, tile layer, particles, lighting, pixel font
 js/render/          renderer (frame composition), minimap
-js/ui/              DOM interface (HUD, panels, tooltips)
+js/ui/              DOM interface (HUD, panels, tooltips), touch controls (touch.js)
 tests/              unit tests, syntax/import check, browser smoke test, screenshot gallery
 ```
 
@@ -174,7 +203,7 @@ tests/              unit tests, syntax/import check, browser smoke test, screens
 ## Tests
 
 ```
-node tests/run-tests.mjs      # 40 unit tests: RNG, generation, items, quests, stats, saves, light baking
+node tests/run-tests.mjs      # 45 unit tests: RNG, generation, items, quests, stats, saves, light baking, audio routing, touch input
 node tests/check-syntax.mjs   # node --check on every module + verifies every named import
 node tests/smoke.mjs          # end-to-end browser test (needs a local Chrome or Edge)
 node tests/soak.mjs           # accelerated bot playthrough of 20 floors incl. all guardians
@@ -221,7 +250,7 @@ transform is used everywhere, and the tests exercise the real save module and th
 
 ## Known limitations
 
-* No gamepad or touch controls; designed for mouse and keyboard.
+* No gamepad support. Touch controls are built for landscape; phones in portrait show a rotate hint.
 * A floor is regenerated fresh when you continue a saved game in the dungeon (the layout is
   the same, monsters and loot respawn).
 * Guardians and elites share the procedural art style; there are no hand-drawn cutscenes.

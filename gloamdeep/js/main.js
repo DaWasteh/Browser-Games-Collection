@@ -8,6 +8,7 @@ import { SaveStore } from './systems/save.js';
 import { Renderer } from './render/renderer.js';
 import { Game } from './game.js';
 import { UI } from './ui/ui.js';
+import { TouchControls } from './ui/touch.js';
 
 const stage = document.getElementById('stage');
 const canvas = document.getElementById('view');
@@ -31,6 +32,7 @@ const renderer = new Renderer(canvas);
 const game = new Game({ renderer, input, audio, store });
 const ui = new UI(game, stage);
 game.ui = ui;
+const touch = new TouchControls(game, input, stage);
 
 let canvasRect = canvas.getBoundingClientRect();
 
@@ -80,6 +82,7 @@ function frame(now) {
   const dt = Math.max(0, (now - last) / 1000);
   last = now;
   try {
+    touch.update(Math.min(dt, 0.1), canvasRect);
     game.update(dt, canvasRect);
     ui.update(Math.min(dt, 0.1));
     game.render();
@@ -92,4 +95,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Debug / automation hook (used by tests/smoke.mjs). Harmless for players.
-window.__gloam = { game, ui, renderer, input, audio, store };
+window.__gloam = { game, ui, renderer, input, audio, store, touch };

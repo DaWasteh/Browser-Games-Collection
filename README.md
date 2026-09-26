@@ -11,7 +11,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 
 | Spiel | Ordner | Beschreibung |
 |---|---|---|
-| 🏮 **Gloamdeep – The Lantern Below** | [`gloamdeep/`](gloamdeep/) | Pixel-Action-RPG: Laternendorf über einem endlosen prozeduralen Dungeon mit Quests, Beute, Wächtern und dynamischem Licht (Maus & Tastatur) |
+| 🏮 **Gloamdeep – The Lantern Below** | [`gloamdeep/`](gloamdeep/) | Pixel-Action-RPG: Laternendorf über einem endlosen prozeduralen Dungeon mit Quests, Beute, Wächtern und dynamischem Licht (Maus & Tastatur oder Touch) |
 | 🧱 **Tetris** | [`tetris/`](tetris/) | Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen |
 | 🐍 **Snake Ultimate** | [`snake-ultimate/`](snake-ultimate/) | Erweitertes Snake mit lokalem Multiplayer, 8 Themes und Addons |
 | 🏓 **Pong** | [`pong/`](pong/) | Das klassische Duell – gegen die KI oder zu zweit |
@@ -79,6 +79,37 @@ Gloamdeep bringt zusätzlich eigene Browser-Tests mit: `node gloamdeep/tests/smo
 (21 Schritte mit echten Tastatur-/Mausereignissen durch Dorf, Händler, Truhe, Kampf, zehn
 Etagen und Wächter) und `node gloamdeep/tests/soak.mjs` (Bot kämpft beschleunigt durch
 20 Etagen inklusive aller vier Wächter).
+
+## ✨ Neu in v2.4
+
+### Gloamdeep: Touch-Steuerung für Tablet und Smartphone
+
+- **Tablets mit Tastatur:** WASD läuft, der Finger zielt – die Welt antippen oder halten greift
+  genau dort an. Runde Daumenknöpfe für Angriff, Zauber, Dash und Trank ersetzen die fehlende
+  rechte Maustaste; mit einem Finger in der Welt zielt auch der Zauber auf diesen Punkt.
+- **Echter Mobile-Modus** im Querformat: schwebender Daumen-Stick links, rechts ein Bogen aus den
+  HUD-Skill-Slots (Icons, Cooldowns, Manakosten, Trankzahl bleiben sichtbar) mit großem
+  Angriffsknopf, der automatisch den nächsten Gegner anvisiert, und einem ✋-Knopf, der nur
+  erscheint, wenn es etwas zu tun gibt. Größere HUD-Knöpfe, ein Tipp schließt die große Karte,
+  hochkant erscheint ein Dreh-Hinweis.
+- Inventar, Händler und Truhe per Touch: Antippen wählt aus, langes Drücken zeigt den Tooltip,
+  Panels scrollen per Wischen; langes Drücken löst keinen versehentlichen Schnell-Verkauf aus.
+- Einstellung **Touch controls: Automatic / Always on / Off**. „Automatic“ schaltet bei
+  Touch-Eingabe ein und sobald eine Maus benutzt wird wieder aus – am PC bleibt der Look unverändert.
+
+### Fehlerbehebung
+
+- **Kein Brummen mehr bei Musik 0:** Die tiefen Bordun-Töne der Musik liefen am Musikregler
+  vorbei direkt in den Hall und blieben hörbar, bis man alles stummschaltete. Die Hall-Wege von
+  Musik und Effekten folgen jetzt ihrem Regler; bei den Standardeinstellungen klingt alles
+  unverändert.
+
+### Tests
+
+- Unit-Tests bauen den Web-Audio-Graphen nach und prüfen, dass bei Regler 0 kein Pfad zum
+  Ausgang mehr hörbar ist; die Klassiker-Suite rendert die Musik zusätzlich offline und misst
+  die Stille. Touch wird mit echten Touch-Events geprüft: Stick, Angriff, Trank, Interaktion
+  (ohne Ghost-Click, der Dialoge sofort wieder schloss) und der Dreh-Hinweis.
 
 ## ✨ Neu in v2.3
 

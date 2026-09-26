@@ -8,12 +8,13 @@ export class Input {
     this.down = new Set();
     this.pressed = new Set();
     this.mouse = { cx: 0, cy: 0, inside: false, buttons: [false, false, false], clicked: [false, false, false], moved: false };
+    this.stick = { x: 0, y: 0 }; // analogue movement from the touch stick (ui/touch.js)
     this.enabled = true;
     this.lastDevice = 'mouse';
 
     const isTyping = (e) => {
       const t = e.target;
-      return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
     };
 
     window.addEventListener('keydown', (e) => {
@@ -56,6 +57,7 @@ export class Input {
   reset() {
     this.down.clear();
     this.mouse.buttons = [false, false, false];
+    this.stick.x = 0; this.stick.y = 0;
   }
 
   isDown(code) { return this.enabled && this.down.has(code); }
@@ -64,7 +66,7 @@ export class Input {
   mouseDown(b = 0) { return this.enabled && this.mouse.buttons[b]; }
   mouseClicked(b = 0) { return this.enabled && this.mouse.clicked[b]; }
 
-  /** Movement vector from WASD / arrow keys (normalised). */
+  /** Movement vector from WASD / arrow keys (normalised), or from the touch stick (length <= 1). */
   moveVector() {
     let x = 0, y = 0;
     if (this.isDown('KeyW') || this.isDown('ArrowUp')) y -= 1;
@@ -72,6 +74,7 @@ export class Input {
     if (this.isDown('KeyA') || this.isDown('ArrowLeft')) x -= 1;
     if (this.isDown('KeyD') || this.isDown('ArrowRight')) x += 1;
     if (x && y) { x *= Math.SQRT1_2; y *= Math.SQRT1_2; }
+    if (!x && !y && this.enabled) { x = this.stick.x; y = this.stick.y; }
     return { x, y };
   }
 

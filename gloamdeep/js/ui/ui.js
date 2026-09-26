@@ -15,6 +15,8 @@ import { esc, slotHtml, tooltipHtml, isUpgrade } from './tooltip.js';
 import { Minimap } from '../render/minimap.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
+/** True while the touch controls are active (ui/touch.js), for touch-specific hints. */
+const touchUi = () => document.documentElement.classList.contains('touch-mode');
 
 const WARDEN_LINES = {
   first: 'Another lantern-bearer. Good. The Gloam Stair beneath our village breathes darker every night, and the things below grow bold. I keep a ledger of tasks — pick one, and Wickhollow will pay what it can.',
@@ -93,7 +95,9 @@ export class UI {
     const root = this.modalRoot;
     root.addEventListener('click', (e) => this.onPanelClick(e));
     root.addEventListener('dblclick', (e) => this.onSlotQuick(e));
-    root.addEventListener('contextmenu', (e) => { e.preventDefault(); this.onSlotQuick(e); });
+    // a touch long-press also fires contextmenu: it must not quick-equip or sell
+    root.addEventListener('contextmenu', (e) => { e.preventDefault(); if (!this.touchDown) this.onSlotQuick(e); });
+    this.bindTouchSlots(root);
     root.addEventListener('mouseover', (e) => this.onSlotHover(e));
     root.addEventListener('mouseout', (e) => { if (e.target.closest('.slot')) this.hideTooltip(); });
     root.addEventListener('input', (e) => this.onSettingInput(e));
@@ -514,7 +518,7 @@ export class UI {
     const g = this.game, p = g.profile;
     const used = p.inventory.filter(Boolean).length;
     const ctx = {
-      emptyHint: 'Click an item to inspect it. Double-click or right-click to equip.',
+      emptyHint: touchUi() ? 'Tap an item to inspect it, then use the buttons. Long-press shows its details.' : 'Click an item to inspect it. Double-click or right-click to equip.',
       buttons: (sel, item) => {
         if (sel.src === 'eq') return [{ action: 'unequip', label: 'Unequip', cls: 'primary' }];
         return [{ action: 'equip', label: `Equip (${SLOT_NAMES[item.slot]})`, cls: 'primary' }, { action: 'drop', label: 'Drop on ground' }];
@@ -538,7 +542,7 @@ export class UI {
       <button class="btn ui-hit ${p.gold < pp || p.merchant.potions <= 0 || p.potions >= MAX_POTIONS ? 'disabled-look' : ''}" data-action="buy-potion" ${p.merchant.potions <= 0 || p.potions >= MAX_POTIONS ? 'disabled' : ''}>Buy · ${pp} g</button></div>`;
     const bb = g.buyback.length ? `<h3>Buy back</h3><div class="grid grid-bb">${g.buyback.map((b, i) => slotHtml(b.item, 'bb', i, { price: b.price, unaffordable: p.gold < b.price, selected: this.selected && this.selected.src === 'bb' && this.selected.i === i })).join('')}</div>` : '';
     const ctx = {
-      emptyHint: 'Click an item to inspect it. Right-click to buy or sell instantly.',
+      emptyHint: touchUi() ? 'Tap an item to inspect it, then buy or sell with the buttons.' : 'Click an item to inspect it. Right-click to buy or sell instantly.',
       buttons: (sel, item) => {
         if (sel.src === 'shop') { const pr = buyPrice(item); return [{ action: 'buy', label: `Buy for ${pr} gold`, cls: 'primary', disabled: p.gold < pr }]; }
         if (sel.src === 'bb') { const b = g.buyback[sel.i]; return [{ action: 'buyback', label: `Buy back for ${b.price} gold`, cls: 'primary', disabled: p.gold < b.price }]; }
@@ -567,7 +571,7 @@ export class UI {
           <div class="row-buttons"><button class="btn ui-hit" data-action="sort-store">Sort chest</button></div></div>
         <div class="col"><h3>Your pack <small>${p.inventory.filter(Boolean).length}/${INVENTORY_SLOTS}</small></h3>${this.gridHtml(p.inventory, 'inv')}
           <div class="row-buttons"><button class="btn ui-hit" data-action="deposit-all">Deposit entire pack</button></div>
-          ${this.msgHtml()}<div class="hint">Click an item to move it. Hover for details.</div></div>
+          ${this.msgHtml()}<div class="hint">${touchUi() ? 'Tap an item to move it. Long-press for details.' : 'Click an item to move it. Hover for details.'}</div></div>
       </div>
     </div>`;
   }
@@ -682,6 +686,7 @@ export class UI {
         <label class="slider">Effects volume <input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-setting="volume"></label>
         <label class="slider">Music volume <input type="range" min="0" max="1" step="0.05" value="${s.music}" data-setting="music"></label>
         ${tog('muted', 'Mute all sound (N)')}${tog('shake', 'Screen shake')}${tog('damageNumbers', 'Floating damage numbers')}${tog('showMinimap', 'Show minimap')}
+        <label class="select-row ui-hit">Touch controls <select data-setting="touch">${[['auto', 'Automatic'], ['on', 'Always on'], ['off', 'Off']].map(([v, l]) => `<option value="${v}" ${s.touch === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <div class="row-buttons"><button class="btn primary ui-hit" data-action="back">Back</button></div>
       </div>
     </div>`;
@@ -693,6 +698,11 @@ export class UI {
       ${this.panelHeader('How to Play', 'Descend, grow stronger, return home, descend again.')}
       <div class="panel-body cols">
         <div class="col">
+          <div class="touch-only">
+            <h3>Touch</h3>
+            ${k('Left stick', 'Move (or WASD on a keyboard)')}${k('Tap world', 'Attack at that spot — hold to keep swinging')}${k('Big button', 'Attack the nearest foe')}
+            ${k('Small buttons', 'Spell, dash, potion — keep a finger on the world to aim the spell there')}${k('✋ / prompt', 'Interact, talk, pick up')}${k('Top right', 'Pack · Map (tap the map to close it) · Menu')}
+          </div>
           <h3>Controls</h3>
           ${k('W A S D', 'Move')}${k('Mouse', 'Aim')}${k('Left button', 'Weapon attack (hold to keep swinging)')}${k('Right button', 'Cast your focus spell')}
           ${k('Space', 'Dash — brief invulnerability')}${k('E', 'Interact, talk, use stairs, pick up items')}${k('Q', 'Drink a health potion')}
@@ -719,6 +729,7 @@ export class UI {
 
   onPanelClick(e) {
     const g = this.game;
+    if (this.longPressed) { this.longPressed = false; return; } // the long press only showed the tooltip
     if (e.target.classList.contains('backdrop')) {
       if (this.confirmState) return;
       this.back();
@@ -809,24 +820,62 @@ export class UI {
     this.renderModal();
   }
 
+  /** Touch: taps select or move without a lingering tooltip; a long press shows the tooltip. */
+  bindTouchSlots(root) {
+    this.touchDown = false;
+    this.touchT = -1e9;
+    const cancel = () => { clearTimeout(this.pressTimer); this.pressTimer = 0; };
+    root.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      this.touchDown = true;
+      this.touchT = performance.now();
+      this.longPressed = false;
+      this.hideTooltip();
+      cancel();
+      const slot = e.target.closest('.slot');
+      if (!slot) return;
+      const x = e.clientX, y = e.clientY;
+      this.pressFrom = [x, y];
+      this.pressTimer = setTimeout(() => {
+        this.pressTimer = 0;
+        this.longPressed = this.showSlotTooltip(slot);
+        if (this.longPressed) this.positionTooltip(x, y - 30);
+      }, 450);
+    });
+    root.addEventListener('pointermove', (e) => {
+      if (this.pressTimer && this.pressFrom && Math.hypot(e.clientX - this.pressFrom[0], e.clientY - this.pressFrom[1]) > 12) cancel();
+    });
+    const up = () => { this.touchDown = false; this.touchT = performance.now(); cancel(); };
+    root.addEventListener('pointerup', up);
+    root.addEventListener('pointercancel', up);
+  }
+
   onSlotHover(e) {
     const slot = e.target.closest && e.target.closest('.slot');
     if (!slot) return;
+    // emulated mouseover / focus from a touch tap: the detail box shows the item instead
+    if (this.touchDown || performance.now() - this.touchT < 1000) return;
+    if (this.showSlotTooltip(slot) && e.type === 'focusin') {
+      const r = slot.getBoundingClientRect();
+      this.positionTooltip(r.right, r.top);
+    }
+  }
+
+  /** Fill and show the tooltip for a slot; false when the slot is empty. */
+  showSlotTooltip(slot) {
     const src = slot.dataset.src, i = Number(slot.dataset.i);
     const item = src === 'reward' ? null : this.itemAt({ src, i });
-    if (!item) { this.hideTooltip(); return; }
+    if (!item) { this.hideTooltip(); return false; }
     const g = this.game;
     const eq = src === 'eq' ? item : g.profile.equipment[item.slot];
     let hint = '';
-    if (this.current === 'inventory') hint = src === 'eq' ? 'Right-click: unequip' : 'Right-click / double-click: equip';
+    if (this.touchDown) hint = this.current === 'chest' ? 'Tap: move the item' : 'Tap: select, then use the buttons below';
+    else if (this.current === 'inventory') hint = src === 'eq' ? 'Right-click: unequip' : 'Right-click / double-click: equip';
     else if (this.current === 'merchant') hint = src === 'shop' || src === 'bb' ? 'Right-click: buy' : 'Right-click: sell';
     else if (this.current === 'chest') hint = src === 'inv' ? 'Click: move to chest' : 'Click: take into pack';
     this.tooltip.innerHTML = tooltipHtml(item, { equipped: eq, context: src === 'shop' || src === 'bb' ? 'buy' : 'sell', hint });
     this.tooltip.classList.remove('hidden');
-    if (e.type === 'focusin') {
-      const r = slot.getBoundingClientRect();
-      this.positionTooltip(r.right, r.top);
-    }
+    return true;
   }
 
   positionTooltip(x, y) {
@@ -847,7 +896,7 @@ export class UI {
     const k = el.dataset && el.dataset.setting;
     if (!k) return;
     const g = this.game;
-    g.settings[k] = el.type === 'checkbox' ? el.checked : Number(el.value);
+    g.settings[k] = el.type === 'checkbox' ? el.checked : el.tagName === 'SELECT' ? el.value : Number(el.value);
     g.saveSettings();
     if (e.type === 'change' && el.type !== 'range') g.audio.play('click');
   }

@@ -5,12 +5,14 @@ import { RNG, floorSeed, hashString, seedToText, textToSeed, mixSeed } from '../
 import { generateFloor, validateFloor, layoutHash, bfs, isBossDepth } from '../js/gen/dungeon.js';
 import { generateItem, sanitizeItem, SLOTS, AFFIXES, compareItems, describeItem, WEAPON_BASES, FOCUS_BASES, starterKit, rollRarity } from '../js/gen/items.js';
 import { questOffers, trackQuest, sanitizeQuest, makeQuest } from '../js/gen/quests.js';
-import { defaultProfile, serialize, deserialize, SaveStore, migrate } from '../js/systems/save.js';
+import { defaultProfile, serialize, deserialize, SaveStore, migrate, sanitizeSettings } from '../js/systems/save.js';
+import { Input } from '../js/core/input.js';
 import { computeStats, armorReduction } from '../js/systems/stats.js';
 import { buildTown } from '../js/gen/town.js';
 import { T, isWalkableId } from '../js/world/tiles.js';
 import { TileMap } from '../js/world/map.js';
 import { Lighting } from '../js/fx/lighting.js';
+import { AudioSystem } from '../js/core/audio.js';
 import { RARITIES, INVENTORY_SLOTS, STORAGE_SLOTS, TILE, xpForLevel } from '../js/config.js';
 
 let passed = 0;
@@ -460,6 +462,118 @@ test('static light reaches the light buffer, clipped at the area edges', () => w
     eq(rects, 1, 'only the ambient fill may be a rectangle');
   }
 }));
+
+// Minimal Web Audio stand-in: records the node graph and the latest target of every gain.
+function fakeAudioContext() {
+  const sources = [];
+  class Param {
+    constructor(v) { this.value = v; this.target = v; }
+    setValueAtTime(v) { this.value = v; this.target = v; }
+    setTargetAtTime(v) { this.target = v; }
+    exponentialRampToValueAtTime(v) { this.target = v; }
+    linearRampToValueAtTime(v) { this.target = v; }
+  }
+  class Node {
+    constructor(kind) { this.kind = kind; this.outs = []; }
+    connect(t) { if (t instanceof Node) this.outs.push(t); return t; }
+    disconnect() { this.outs = []; }
+  }
+  const source = (kind) => {
+    const n = new Node(kind);
+    n.frequency = new Param(440); n.detune = new Param(0);
+    n.start = () => {}; n.stop = () => {};
+    sources.push(n);
+    return n;
+  };
+  return class FakeContext {
+    constructor() { this.currentTime = 0; this.sampleRate = 4000; this.state = 'running'; this.destination = new Node('destination'); this.sources = sources; }
+    resume() {}
+    createGain() { const n = new Node('gain'); n.gain = new Param(1); return n; }
+    createOscillator() { return source('osc'); }
+    createBufferSource() { return source('buffer'); }
+    createBiquadFilter() { const n = new Node('filter'); n.frequency = new Param(350); n.Q = new Param(1); return n; }
+    createConvolver() { return new Node('convolver'); }
+    createDynamicsCompressor() { const n = new Node('comp'); n.threshold = new Param(-24); n.ratio = new Param(12); return n; }
+    createBuffer(ch, len) { return { getChannelData: () => new Float32Array(len) }; }
+  };
+}
+
+/** True when some path from `node` reaches the destination with every gain above zero. */
+function audible(node, dest, seen = new Set()) {
+  if (node === dest) return true;
+  if (seen.has(node)) return false;
+  seen.add(node);
+  if (node.kind === 'gain' && !(node.gain.target > 1e-6)) return false;
+  return node.outs.some((n) => audible(n, dest, seen));
+}
+
+function withAudio(fn) {
+  const prev = globalThis.window;
+  const Ctx = fakeAudioContext();
+  globalThis.window = { AudioContext: Ctx };
+  try {
+    const a = new AudioSystem();
+    a.unlock();
+    fn(a, a.ctx);
+  } finally { globalThis.window = prev; }
+}
+
+console.log('\nAudio');
+test('music at zero is silent: the drones no longer reach the reverb past the music fader', () => withAudio((a, ctx) => {
+  a.setMode('dungeon');
+  const drones = a.droneNodes.map((d) => d.osc);
+  assert(drones.length === 2, 'dungeon mode starts two drones');
+  assert(drones.every((o) => audible(o, ctx.destination)), 'drones are audible at the default music volume');
+  a.musicVolume = 0; a.applyVolumes();
+  for (const o of drones) assert(!audible(o, ctx.destination), 'a drone is still audible with the music fader at 0 (hum bug)');
+  const before = ctx.sources.length;
+  a.update(10);
+  eq(ctx.sources.length, before, 'no music notes are scheduled at music volume 0');
+  a.musicVolume = 0.5; a.applyVolumes();
+  assert(drones.every((o) => audible(o, ctx.destination)), 'drones come back when the fader is raised');
+}));
+
+test('effects at zero are silent including their reverb; mute silences everything', () => withAudio((a, ctx) => {
+  a.setMode('town');
+  const start = ctx.sources.length;
+  a.play('explode');
+  const boom = ctx.sources.slice(start);
+  assert(boom.length > 0 && boom.every((s) => audible(s, ctx.destination)), 'effects are audible by default');
+  a.volume = 0; a.applyVolumes();
+  for (const s of boom) assert(!audible(s, ctx.destination), 'effect reverb still audible with the effects fader at 0');
+  a.volume = 0.7; a.setMuted(true);
+  for (const s of ctx.sources) assert(!audible(s, ctx.destination), 'something is audible while muted');
+}));
+
+test('default mix is unchanged by the fader-following reverb sends', () => withAudio((a) => {
+  eq(a.sfxSend.gain.target, 0.18, 'effects reverb send at default volume');
+  eq(a.musicSend.gain.target, 1, 'music reverb send at default volume');
+}));
+
+console.log('\nTouch');
+test('touch controls setting defaults to auto and rejects unknown values', () => {
+  eq(sanitizeSettings({}).touch, 'auto');
+  eq(sanitizeSettings({ touch: 'on' }).touch, 'on');
+  eq(sanitizeSettings({ touch: 'off' }).touch, 'off');
+  eq(sanitizeSettings({ touch: 'always' }).touch, 'auto');
+  eq(sanitizeSettings({ touch: 1 }).touch, 'auto');
+});
+test('touch stick feeds movement, keyboard keys take precedence, reset clears it', () => {
+  const prev = [globalThis.window, globalThis.document];
+  const noop = { addEventListener() {} };
+  globalThis.window = noop; globalThis.document = noop;
+  try {
+    const inp = new Input(noop);
+    inp.stick.x = 0.6; inp.stick.y = -0.3;
+    const v = inp.moveVector();
+    assert(v.x === 0.6 && v.y === -0.3, `stick not used: ${JSON.stringify(v)}`);
+    inp.down.add('KeyA');
+    eq(inp.moveVector().x, -1, 'keys override the stick');
+    inp.reset();
+    const r = inp.moveVector();
+    assert(r.x === 0 && r.y === 0, 'reset (blur) must release the stick');
+  } finally { [globalThis.window, globalThis.document] = prev; }
+});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {

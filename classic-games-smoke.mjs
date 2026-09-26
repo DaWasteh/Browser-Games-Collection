@@ -603,6 +603,68 @@ try {
           return { link: true, savedGold: saved.profile ? saved.profile.gold : saved.gold };
         })()`);
         assert(leave.link && leave.savedGold === 4242, `gloamdeep: Rücklink im Pausenmenü fehlt oder speichert nicht ${JSON.stringify(leave)}`);
+        // v2.4-Fix: Musikregler auf 0 ist wirklich still (die Bordun-Töne liefen am Regler vorbei
+        // in den Hall und brummten weiter). Offline gerendert, damit es ohne Audiogerät läuft.
+        const hum = await evaluate(`(async () => {
+          const { AudioSystem } = await import('./js/core/audio.js');
+          const sr = 22050, orig = window.AudioContext;
+          let ctx;
+          window.AudioContext = function () { ctx = new OfflineAudioContext(1, sr * 6, sr); return ctx; };
+          try {
+            const a = new AudioSystem(); a.unlock(); a.setMode('dungeon');
+            ctx.suspend(3).then(() => { a.musicVolume = 0; a.applyVolumes(); ctx.resume(); });
+            const d = (await ctx.startRendering()).getChannelData(0);
+            const rms = (t0, t1) => { let s = 0; for (let i = t0 * sr; i < t1 * sr; i++) s += d[i] * d[i]; return Math.sqrt(s / ((t1 - t0) * sr)); };
+            return { on: rms(2, 3), off: rms(5.5, 6) };
+          } finally { window.AudioContext = orig; }
+        })()`);
+        assert(hum.on > 1e-3 && hum.off < hum.on / 50, `gloamdeep: Musik 0 brummt weiter ${JSON.stringify(hum)}`);
+        // v2.4: Touch-Steuerung (Tablet mit/ohne Tastatur, Smartphone im Querformat).
+        await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+        await setViewport(812, 375, 'landscapePrimary', true, 2);
+        const tp = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y, id]) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 })) });
+        const tapAt = async (x, y) => { await tp('touchStart', [[x, y, 1]]); await delay(70); await tp('touchEnd', []); await delay(150); };
+        const centerOf = sel => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+        await evaluate(`(() => { const g = window.__gloam.game; g.loadTown(false, true); g.player.place(19 * 16 + 8, 15 * 16 + 8); g.snapCamera(); return true; })()`);
+        await delay(250);
+        const worldPt = await evaluate(`(() => { const r = document.getElementById('view').getBoundingClientRect(); return [r.left + r.width * 0.6, r.top + r.height * 0.3]; })()`);
+        await tapAt(...worldPt);
+        const tmode = await evaluate(`(() => ({
+          on: document.documentElement.classList.contains('touch-mode'), buttons: !!document.querySelector('#touch-buttons #sk-attack'),
+          hintHidden: getComputedStyle(document.getElementById('controls-hint')).display === 'none',
+          rotateHidden: document.getElementById('touch-rotate').classList.contains('hidden'),
+          attackSize: Math.round(document.getElementById('sk-attack').getBoundingClientRect().width),
+          smallSize: Math.round(document.getElementById('sk-dash').getBoundingClientRect().width)
+        }))()`);
+        assert(tmode.on && tmode.buttons && tmode.hintHidden && tmode.rotateHidden && tmode.attackSize >= 60 && tmode.smallSize >= 44, `gloamdeep: Touch-Modus startet nicht sauber ${JSON.stringify(tmode)}`);
+        const zone = await evaluate(`(() => { const r = document.getElementById('touch-stick-zone').getBoundingClientRect(); return [r.left + r.width * 0.45, r.top + r.height * 0.6]; })()`);
+        const x0 = await evaluate('window.__gloam.game.player.x');
+        await tp('touchStart', [[zone[0], zone[1], 2]]);
+        for (let i = 1; i <= 6; i++) { await tp('touchMove', [[zone[0] + i * 9, zone[1], 2]]); await delay(16); }
+        await delay(600);
+        const moved = await evaluate('window.__gloam.game.player.x') - x0;
+        await tp('touchEnd', []);
+        await delay(80);
+        const stickZero = await evaluate('window.__gloam.input.stick.x === 0 && window.__gloam.input.stick.y === 0');
+        assert(moved > 20 && stickZero, `gloamdeep: Touch-Stick bewegt nicht oder bleibt hängen ${JSON.stringify({ moved, stickZero })}`);
+        await evaluate(`(() => { const p = window.__gloam.game.player; p.attackCd = 0; p.hp = 20; p.potionCd = 0; return true; })()`);
+        await tapAt(...await centerOf('#sk-attack'));
+        const potionsBefore = await evaluate('window.__gloam.game.profile.potions');
+        await tapAt(...await centerOf('#sk-potion'));
+        const acted = await evaluate(`(() => { const g = window.__gloam.game; return { swung: g.player.attackCd > 0 || !!g.player.swing, potions: g.profile.potions }; })()`);
+        assert(acted.swung && acted.potions === potionsBefore - 1, `gloamdeep: Angriffs-/Trankknopf wirkungslos ${JSON.stringify({ acted, potionsBefore })}`);
+        await evaluate(`(() => { const g = window.__gloam.game; const n = g.area.npcs.find(n => /Isolde/.test(n.name || '')); g.player.place(n.x + 14, n.y + 10); g.snapCamera(); return true; })()`);
+        await delay(200);
+        const handShown = await evaluate(`document.querySelector('.t-interact').classList.contains('show')`);
+        await tapAt(...await centerOf('.t-interact'));
+        await delay(200);
+        const dialog = await evaluate('window.__gloam.game.modal');
+        assert(handShown && dialog === 'quest', `gloamdeep: Interaktion per Touch öffnet den Dialog nicht (oder Ghost-Click schließt ihn) ${JSON.stringify({ handShown, dialog })}`);
+        await evaluate('window.__gloam.game.closeModal(true)');
+        await setViewport(375, 812, 'portraitPrimary', true, 3);
+        const rotate = await evaluate(`!document.getElementById('touch-rotate').classList.contains('hidden')`);
+        assert(rotate, 'gloamdeep: Hochkant-Hinweis fehlt im Touch-Modus');
+        await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false });
       }
     },
     {

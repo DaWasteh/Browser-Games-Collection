@@ -1374,7 +1374,7 @@ try {
     };
   })()`);
   assert(launcher.count === 20 && launcher.unique === 20 && launcher.allTargetsLoad && launcher.headerCount === '20', `launcher: expected 20 unique loadable games ${JSON.stringify(launcher)}`);
-  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.3') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.3 integration is incomplete ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.4') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.4 integration is incomplete ${JSON.stringify(launcher)}`);
 
   // v1.9: Kategorie-Chips, Suche und Ton-Schalter des Launchers.
   const launcherFilters = await evaluate(`(async () => {

@@ -42,7 +42,9 @@ export const DEFAULT_SETTINGS = {
   shake: true,
   damageNumbers: true,
   showMinimap: true,
+  touch: 'auto', // touch controls: 'auto' (shown after touch input), 'on' or 'off'
 };
+export const TOUCH_MODES = ['auto', 'on', 'off'];
 
 export function serialize(profile) {
   return JSON.stringify({ ...profile, version: SAVE_VERSION, savedAt: Date.now() });
@@ -168,6 +170,7 @@ export function sanitizeSettings(raw) {
   s.volume = f(raw.volume, s.volume);
   s.music = f(raw.music, s.music);
   for (const k of ['muted', 'shake', 'damageNumbers', 'showMinimap']) if (typeof raw[k] === 'boolean') s[k] = raw[k];
+  if (TOUCH_MODES.includes(raw.touch)) s.touch = raw.touch;
   return s;
 }
 
