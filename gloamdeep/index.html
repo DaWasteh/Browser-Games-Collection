@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gloamdeep — The Lantern Below</title>
+  <meta name="description" content="Gloamdeep: an original pixel-art action RPG with an endless procedural dungeon. Vanilla JavaScript + Canvas 2D, fully offline.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2310091a'/%3E%3Crect x='6' y='2' width='4' height='2' fill='%238a6a3a'/%3E%3Crect x='5' y='4' width='6' height='8' fill='%23ffb84a'/%3E%3Crect x='7' y='6' width='2' height='4' fill='%23fff4c8'/%3E%3Crect x='5' y='12' width='6' height='2' fill='%238a6a3a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <canvas id="view" aria-label="Game view"></canvas>
+      <div id="hurt"></div>
+      <div id="lowhp"></div>
+
+      <div id="hud" class="hidden">
+        <div id="hud-top-left">
+          <div id="loc-name"></div>
+          <div id="quest-tracker"></div>
+          <div id="buffs"></div>
+        </div>
+        <div id="hud-top-right">
+          <canvas id="minimap" width="168" height="120" aria-label="Minimap"></canvas>
+          <div id="hud-resources"><span class="coin"></span><span id="gold">0</span><span id="depth"></span></div>
+          <div id="hud-buttons">
+            <button class="hud-btn ui-hit" data-act="inventory" title="Inventory (I)"><kbd>I</kbd> Pack</button>
+            <button class="hud-btn ui-hit" data-act="map" title="Map (M)"><kbd>M</kbd> Map</button>
+            <button class="hud-btn ui-hit" data-act="menu" title="Menu (Esc)"><kbd>Esc</kbd> Menu</button>
+            <button class="hud-btn ui-hit" data-act="mute" id="btn-mute" title="Mute (N)">🔊</button>
+          </div>
+        </div>
+        <div id="bossbar" class="hidden"></div>
+        <div id="prompt"></div>
+        <div id="actionbar">
+          <div class="orb hp" id="orb-hp"><div class="orb-liquid"></div><div class="orb-gloss"></div><span class="orb-text"></span></div>
+          <div class="skills">
+            <div class="skill" id="sk-attack"><img alt=""><div class="cd"></div><span class="key">LMB</span><span class="lbl"></span></div>
+            <div class="skill" id="sk-spell"><img alt=""><div class="cd"></div><span class="key">RMB</span><span class="cost"></span><span class="lbl"></span></div>
+            <div class="skill" id="sk-dash"><span class="glyph">»</span><div class="cd"></div><span class="key">SPACE</span><span class="lbl">Dash</span></div>
+            <div class="skill" id="sk-potion"><img alt=""><div class="cd"></div><span class="key">Q</span><span class="count"></span><span class="lbl">Potion</span></div>
+          </div>
+          <div class="orb mp" id="orb-mp"><div class="orb-liquid"></div><div class="orb-gloss"></div><span class="orb-text"></span></div>
+          <div id="xpbar"><div class="fill"></div><span></span></div>
+        </div>
+        <div id="controls-hint" class="hidden">
+          <div class="ch-title">Controls</div>
+          <div><kbd>WASD</kbd> move · <kbd>Mouse</kbd> aim</div>
+          <div><kbd>LMB</kbd> attack · <kbd>RMB</kbd> spell · <kbd>Space</kbd> dash</div>
+          <div><kbd>E</kbd> interact · <kbd>Q</kbd> potion · <kbd>I</kbd> pack · <kbd>M</kbd> map</div>
+          <div class="ch-foot"><kbd>F1</kbd> full help · <kbd>Esc</kbd> pause</div>
+        </div>
+        <div id="debug"></div>
+      </div>
+
+      <canvas id="bigmap" class="hidden" aria-label="Map"></canvas>
+      <div id="banner"></div>
+      <div id="toasts" aria-live="polite"></div>
+
+      <div id="title-screen">
+        <div class="title-inner">
+          <div class="logo" aria-label="Gloamdeep">GLOAMDEEP</div>
+          <div class="subtitle">The Lantern Below</div>
+          <div class="menu">
+            <button id="btn-continue" class="btn big primary ui-hit">Continue</button>
+            <button id="btn-new" class="btn big ui-hit">New Game</button>
+            <label class="seed-row">World seed <input id="seed-input" maxlength="24" placeholder="random" autocomplete="off" spellcheck="false"></label>
+            <div class="menu-row">
+              <button id="btn-title-help" class="btn ui-hit">How to Play</button>
+              <button id="btn-title-settings" class="btn ui-hit">Settings</button>
+            </div>
+          </div>
+          <div class="title-foot">WASD move · Mouse aim · LMB attack · RMB spell · Space dash · E interact · Q potion · I pack · M map · Esc pause</div>
+        </div>
+        <a class="btn ui-hit game-collection-link" id="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
+      </div>
+
+      <div id="death-screen" class="hidden"></div>
+      <div id="modal-root"></div>
+      <div id="tooltip" class="hidden"></div>
+      <div id="fade"></div>
+
+      <div id="file-warning" class="hidden">
+        <h1>Gloamdeep needs a local web server</h1>
+        <p>Browsers block JavaScript modules on <code>file://</code> pages. Start a server in this folder and open the address it prints:</p>
+        <pre>python -m http.server 8000</pre>
+        <p>…then visit <code>http://localhost:8000</code>. On Windows you can also double-click <code>start.bat</code>.</p>
+        <hr>
+        <p lang="de"><b>Deutsch:</b> Bitte über einen lokalen Server starten (z.&nbsp;B. <code>start.bat</code> oder <code>python -m http.server 8000</code>) und dann <code>http://localhost:8000</code> öffnen.</p>
+        <p lang="de">Oder direkt online spielen: <a href="https://dawasteh.github.io/Browser-Games-Collection/gloamdeep/">dawasteh.github.io/Browser-Games-Collection/gloamdeep/</a></p>
+        <p><a class="game-collection-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a></p>
+      </div>
+      <noscript><div id="noscript">Gloamdeep requires JavaScript.</div></noscript>
+    </div>
+  </div>
+  <script>
+    if (location.protocol === 'file:') document.getElementById('file-warning').classList.remove('hidden');
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

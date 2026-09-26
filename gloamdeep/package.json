@@ -1,0 +1,15 @@
+{
+  "name": "gloamdeep",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gloamdeep - a vanilla JS / Canvas 2D action RPG with an endless procedural dungeon",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/run-tests.mjs",
+    "check": "node tests/check-syntax.mjs",
+    "smoke": "node tests/smoke.mjs",
+    "soak": "node tests/soak.mjs",
+    "gallery": "node tests/gallery.mjs",
+    "start": "node serve.mjs 8000"
+  }
+}

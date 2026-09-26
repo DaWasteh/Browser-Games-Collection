@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Browser Games Collection</title>
-  <meta name="description" content="Eine Sammlung von 18 Browser-Spielen – kein Server, keine Abhängigkeiten, einfach spielen.">
+  <meta name="description" content="Eine Sammlung von 20 Browser-Spielen – kein Server, keine Abhängigkeiten, einfach spielen.">
   <script src="shared/game-shell.js"></script>
   <script src="shared/game-audio.js"></script>
   <script src="shared/game-fx.js"></script>
@@ -234,7 +234,7 @@
     <h1>🕹️ Browser <span class="neon">Games</span> Collection</h1>
     <p>Kein Server, keine Abhängigkeiten – Spiel auswählen und losspielen.</p>
     <p class="stats-row">
-      <span><strong>18</strong> Spiele</span>
+      <span><strong>20</strong> Spiele</span>
       <span class="sep" aria-hidden="true">·</span>
       <span>Läuft auf PC, Ultrawide, Tablet und Smartphone</span>
       <span class="sep" aria-hidden="true">·</span>
@@ -249,6 +249,7 @@
       <button class="chip" type="button" data-filter="puzzle" aria-pressed="false">Puzzle</button>
       <button class="chip" type="button" data-filter="karten" aria-pressed="false">Karten &amp; Steine</button>
       <button class="chip" type="button" data-filter="worte" aria-pressed="false">Wörter &amp; Story</button>
+      <button class="chip" type="button" data-filter="action" aria-pressed="false">Action &amp; RPG</button>
     </div>
     <label class="search">
       <span aria-hidden="true">🔍</span>
@@ -257,6 +258,12 @@
   </div>
 
   <main class="grid" id="games" aria-live="polite" aria-label="Spieleliste">
+    <a class="card" href="gloamdeep/index.html" data-category="action" data-tags="action rpg dungeon crawler hack and slash loot quests wächter pixel laterne licht">
+      <div class="card-head"><span class="icon">🏮</span><span class="badges"><span class="badge new">Neu</span><span class="badge">Action-RPG</span></span></div>
+      <h2>Gloamdeep – The Lantern Below</h2>
+      <p>Pixel-Action-RPG: ein Laternendorf über einem endlosen Dungeon mit Beute, Quests, Wächtern und dynamischem Licht. Für Maus &amp; Tastatur.</p>
+      <span class="play">▶ Spielen</span>
+    </a>
     <a class="card" href="tetris/tetris.html" data-category="klassiker" data-tags="blöcke reihen arcade">
       <div class="card-head"><span class="icon">🧱</span><span class="badges"><span class="badge">Klassiker</span></span></div>
       <h2>Tetris</h2>
@@ -276,7 +283,7 @@
       <span class="play">▶ Spielen</span>
     </a>
     <a class="card" href="asteroids/asteroids.html" data-category="klassiker" data-tags="arcade weltraum ufo shooter waffen upgrades">
-      <div class="card-head"><span class="icon">☄️</span><span class="badges"><span class="badge new">Neu</span><span class="badge">Klassiker</span></span></div>
+      <div class="card-head"><span class="icon">☄️</span><span class="badges"><span class="badge">Klassiker</span></span></div>
       <h2>Asteroids</h2>
       <p>Vektor-Arcade mit vier Waffen, UFOs, seltenen Upgrades, begrenztem Treibstoff und Touch-Steuerung.</p>
       <span class="play">▶ Spielen</span>
@@ -375,7 +382,7 @@
   <p class="empty" id="empty" hidden>Kein Spiel passt zu dieser Suche.</p>
 
   <footer>
-    <p><strong>Version 2.2</strong> · Alle Spiele sind eigenständige HTML-Dateien mit gemeinsamem Ton-, Effekt-, Karten- und Ansichtsystem.
+    <p><strong>Version 2.3</strong> · Alle Spiele sind eigenständige HTML-Dateien mit gemeinsamem Ton-, Effekt-, Karten- und Ansichtsystem.
        Quellcode auf <a href="https://github.com/DaWasteh/Browser-Games-Collection">GitHub</a>.</p>
   </footer>
 

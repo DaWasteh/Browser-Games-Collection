@@ -1,0 +1,3 @@
+# Windows batch labels need CRLF, POSIX shell scripts need LF.
+*.bat text eol=crlf
+*.sh text eol=lf

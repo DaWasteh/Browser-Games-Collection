@@ -3,7 +3,7 @@
 // resize/orientation, no body overflow, keyboard controls not hijacking form
 // fields, and key fixed regressions. Zero dependencies (Node 22+ + Chrome CDP).
 //
-// Scope: game-of-life, sandgame, pong, asteroids, snake-ultimate, tetris,
+// Scope: game-of-life, sandgame, pong, asteroids, gloamdeep, snake-ultimate, tetris,
 //        minenraeumkommando-foxtrott, panda-lemmings und Maulkorbraupen.
 // (Card/word games and PandaTaire are intentionally excluded.)
 import { spawn } from 'node:child_process';
@@ -514,6 +514,95 @@ try {
           return { pausedOnBlur, overheated, state: G.state, hi: Number(localStorage.getItem('asteroids-highscore')) === G.hi };
         })()`);
         assert(flow.pausedOnBlur && flow.overheated && flow.state === 'gameover' && flow.hi, `asteroids: Pause/Laser-Overheat/Game-Over fehlerhaft ${JSON.stringify(flow)}`);
+      }
+    },
+    {
+      name: 'gloamdeep', path: 'gloamdeep/index.html',
+      regression: async () => {
+        // ES-Module booten bis zum Titelbildschirm.
+        let booted = false;
+        for (let i = 0; i < 100 && !booted; i++) {
+          booted = await evaluate(`!!(window.__gloam && window.__gloam.game.state === 'title' && window.__gloam.game.area)`);
+          if (!booted) await delay(100);
+        }
+        assert(booted, 'gloamdeep: Module/Titelbildschirm starten nicht');
+        const boot = await evaluate(`(() => {
+          const link = document.querySelector('#title-screen a.game-collection-link[href="../index.html"]');
+          const r = link && link.getBoundingClientRect(), st = document.getElementById('stage').getBoundingClientRect();
+          return { link: !!link, visible: !!r && r.width > 0 && r.left >= st.left && r.bottom <= st.bottom + 1,
+            fileWarningHidden: document.getElementById('file-warning').classList.contains('hidden') };
+        })()`);
+        assert(boot.link && boot.visible && boot.fileWarningHidden, `gloamdeep: Rücklink im Titel fehlt oder file://-Hinweis sichtbar ${JSON.stringify(boot)}`);
+        // Echte Tastatureingabe ins Seed-Feld wird nicht vom Spiel verschluckt.
+        await evaluate(`(() => { const i = document.getElementById('seed-input'); i.value = ''; i.focus(); return document.activeElement === i; })()`);
+        for (const [key, code, vk] of [['a', 'KeyA', 65], [' ', 'Space', 32], ['b', 'KeyB', 66]]) {
+          await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, text: key, windowsVirtualKeyCode: vk });
+          await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vk });
+        }
+        const typed = await evaluate(`({ value: document.getElementById('seed-input').value, held: window.__gloam.input.down.has('Space') })`);
+        assert(typed.value === 'a b' && !typed.held, `gloamdeep: Seed-Feld verliert Tastatureingaben ${JSON.stringify(typed)}`);
+        // v2.3-Fix: Fackeln, Laternen und Kohlebecken werfen gebackenes Licht (vorher nie gebacken).
+        const LUM = `(g, wx, wy, r) => {
+          const x = document.getElementById('view').getContext('2d');
+          const sx = Math.round(wx - Math.round(g.cam.x + g.shakeX)), sy = Math.round(wy - Math.round(g.cam.y + g.shakeY));
+          const d = x.getImageData(sx - r, sy - r, 2 * r, 2 * r).data; let s = 0;
+          for (let i = 0; i < d.length; i += 4) s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+          return s / (d.length / 4);
+        }`;
+        const COMPARE = `(g, wx, wy, r) => {
+          const L = g.renderer.lighting, lum = ${LUM};
+          g.render(); const lit = lum(g, wx, wy, r);
+          const use = L.useArea; L.useArea = function () { this.static = null; this.flickerLights = []; this.staticSource = null; };
+          g.render(); const unlit = lum(g, wx, wy, r);
+          L.useArea = use; g.render();
+          return { lit: Math.round(lit), unlit: Math.round(unlit), baked: L.staticSource === g.area && !!L.static, flicker: L.flickerLights.length };
+        }`;
+        const title = await evaluate(`(() => {
+          const g = window.__gloam.game, L = g.renderer.lighting;
+          return { baked: L.staticSource === g.area && !!L.static, lights: g.area.lights.length, flicker: L.flickerLights.length };
+        })()`);
+        assert(title.baked && title.lights > 0 && title.flicker > 0, `gloamdeep: statisches Licht im Titel nicht gebacken ${JSON.stringify(title)}`);
+        await evaluate(`(() => { localStorage.removeItem('gloamdeep.save'); document.getElementById('seed-input').value = 'COLLECTION'; document.getElementById('btn-new').click(); return true; })()`);
+        let inTown = false;
+        for (let i = 0; i < 60 && !inTown; i++) {
+          inTown = await evaluate(`(() => { const g = window.__gloam.game; return g.state === 'play' && g.area.type === 'town' && !g.trans; })()`);
+          if (!inTown) await delay(100);
+        }
+        assert(inTown, 'gloamdeep: Neues Spiel startet nicht im Dorf');
+        const lamp = await evaluate(`(() => {
+          const g = window.__gloam.game;
+          const post = g.area.props.find(p => p.type === 'lampPost' && Math.abs(p.x - 248) < 2 && Math.abs(p.y - 312) < 2);
+          g.player.place(post.x + 70, post.y + 30); g.snapCamera();
+          return (${COMPARE})(g, post.x - 26, post.y - 4, 6);
+        })()`);
+        assert(lamp.baked && lamp.flicker > 0 && lamp.lit >= lamp.unlit + 15, `gloamdeep: Laterne wirft kein Licht ${JSON.stringify(lamp)}`);
+        const torch = await evaluate(`(() => {
+          const g = window.__gloam.game;
+          g.loadDungeon(1, true);
+          const a = g.area; a.explored.fill(1); a.exploreVersion++;
+          // the torch farthest from the spawn, so the player's own lantern cannot mask the result
+          const dist = p => Math.hypot(p.x - a.spawn.x, p.y - a.spawn.y);
+          const t = a.props.filter(p => p.type === 'wallTorch').sort((p, q) => dist(q) - dist(p))[0];
+          if (!t) return { baked: false, reason: 'no wall torch on floor 1' };
+          g.player.place(a.spawn.x, a.spawn.y);
+          g.cam.x = t.x - g.renderer.vw / 2; g.cam.y = t.y - g.renderer.vh / 2;
+          return Object.assign({ distance: Math.round(dist(t)) }, (${COMPARE})(g, t.x, t.y + 22, 6));
+        })()`);
+        assert(torch.baked && torch.lit >= torch.unlit + 25, `gloamdeep: Wandfackel wirft kein Licht ${JSON.stringify(torch)}`);
+        // Pausenmenü: Rücklink speichert, bevor er zur Spieleauswahl navigiert.
+        const leave = await evaluate(`(() => {
+          const g = window.__gloam.game;
+          g.openModal('pause');
+          const link = document.querySelector('#modal-root a.game-collection-link[data-action="leave"][href="../index.html"]');
+          if (!link) return { link: false };
+          g.profile.gold = 4242;
+          link.addEventListener('click', e => e.preventDefault(), { once: true });
+          link.click();
+          const saved = JSON.parse(localStorage.getItem('gloamdeep.save') || '{}');
+          g.closeModal(true);
+          return { link: true, savedGold: saved.profile ? saved.profile.gold : saved.gold };
+        })()`);
+        assert(leave.link && leave.savedGold === 4242, `gloamdeep: Rücklink im Pausenmenü fehlt oder speichert nicht ${JSON.stringify(leave)}`);
       }
     },
     {

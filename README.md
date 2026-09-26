@@ -11,6 +11,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 
 | Spiel | Ordner | Beschreibung |
 |---|---|---|
+| 🏮 **Gloamdeep – The Lantern Below** | [`gloamdeep/`](gloamdeep/) | Pixel-Action-RPG: Laternendorf über einem endlosen prozeduralen Dungeon mit Quests, Beute, Wächtern und dynamischem Licht (Maus & Tastatur) |
 | 🧱 **Tetris** | [`tetris/`](tetris/) | Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen |
 | 🐍 **Snake Ultimate** | [`snake-ultimate/`](snake-ultimate/) | Erweitertes Snake mit lokalem Multiplayer, 8 Themes und Addons |
 | 🏓 **Pong** | [`pong/`](pong/) | Das klassische Duell – gegen die KI oder zu zweit |
@@ -37,6 +38,9 @@ Jeder Spiel-Ordner enthält ein eigenes README mit Details, Steuerung und Featur
 
 - **Online:** Die [Startseite](https://dawasteh.github.io/Browser-Games-Collection/) öffnen und ein Spiel auswählen.
 - **Lokal:** Repository klonen und `index.html` im Browser öffnen – fertig.
+  Ausnahme: **Gloamdeep** besteht aus ES-Modulen, die Browser nicht per `file://` laden.
+  Dafür im Repository-Ordner einen kleinen Webserver starten (z. B. `python -m http.server 8000`
+  und dann <http://localhost:8000> öffnen) oder online spielen.
 
 ```bash
 git clone https://github.com/DaWasteh/Browser-Games-Collection.git
@@ -45,7 +49,7 @@ git clone https://github.com/DaWasteh/Browser-Games-Collection.git
 ## ✅ Tests
 
 Die browserbasierten Smoke-Tests benötigen **Node.js 22 oder neuer** sowie eine lokale
-Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 19 Spiele in
+Installation von Chrome, Edge oder Chromium. Gemeinsam prüfen sie alle 20 Spiele in
 zehn Phone-, Landscape-, Tablet-, Desktop-, Widescreen- und Ultrawide-Viewports (DPR 1–3): Boot,
 Laufzeitfehler, Navigation, Overflow, Kontrast, Zielgrößen, Tastatur-/Touch-Bedienung,
 Dialogfokus, Persistenz und kritische Zustandswechsel. Zusätzliche Logiktests stressen
@@ -68,7 +72,42 @@ node pandakreuzwort/smoke-test.cjs
 node sandgame/smoke-test.cjs
 node maulkorbraupen-das-spiel/smoke-test.cjs
 node asteroids/smoke-test.cjs
+node gloamdeep/smoke-test.cjs
 ```
+
+Gloamdeep bringt zusätzlich eigene Browser-Tests mit: `node gloamdeep/tests/smoke.mjs`
+(21 Schritte mit echten Tastatur-/Mausereignissen durch Dorf, Händler, Truhe, Kampf, zehn
+Etagen und Wächter) und `node gloamdeep/tests/soak.mjs` (Bot kämpft beschleunigt durch
+20 Etagen inklusive aller vier Wächter).
+
+## ✨ Neu in v2.3
+
+### Neues Spiel: Gloamdeep – The Lantern Below
+
+- **Gloamdeep** ist der 20. Titel der Sammlung und das erste Action-RPG: Im Laternendorf
+  Wickhollow gibt es Quests bei Wächterin Isolde, einen Händler, eine Lagertruhe und die
+  Gloam-Treppe hinab in einen endlosen, aus dem Welt-Seed erzeugten Dungeon mit vier Biomen.
+- Fünf Waffenarten, vier Zauber, Dash, sechs Gegner-Archetypen mit eigener KI, sieben
+  Elite-Modifikatoren und alle fünf Etagen ein Wächter mit zwei Phasen. Beute in fünf
+  Seltenheiten mit Affixen und legendären Kräften, Vergleichs-Tooltips und Speicherstand.
+- Pixel-Art mit dynamischem Licht, Raycast-Schatten, Bloom, Partikeln und bleibenden
+  Blut-, Brand- und Trümmerspuren – Grafik, Sound und Musik entstehen komplett im Code.
+- Neue Launcher-Kategorie **Action & RPG**; „← Spieleauswahl“ im Titelbildschirm und im
+  Pausenmenü (speichert vorher). Gesteuert wird mit Maus und Tastatur.
+
+### Fehlerbehebung gegenüber der Vorlage
+
+- **Laternen und Fackeln werfen jetzt Licht.** Das Backen der statischen Lichter mit
+  Raycast-Schatten wurde nie aufgerufen, sodass Wandfackeln, Laternenpfähle, Kohlebecken,
+  Kerzen, Lagerfeuer und Fensterschein nur als Glühpunkt sichtbar waren. Der Renderer backt sie
+  jetzt einmal pro Areal; ihr Flackern folgt demselben Schattenpolygon und dringt nicht mehr
+  durch Wände.
+
+### Launcher und Tests
+
+- Der Launcher-Kopf zählt wieder korrekt (**20 Spiele**, vorher noch „18“).
+- Die Klassiker-Suite prüft Gloamdeep in allen zehn Viewports und misst per Pixel-Luminanz,
+  dass Laterne und Wandfackel die Szene aufhellen; zwei neue Unit-Tests sichern das Licht-Baking.
 
 ## ✨ Neu in v2.2
 
