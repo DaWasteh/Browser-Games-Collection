@@ -234,6 +234,72 @@ doublePrismBoard[0][1] = Logic.makeGem('amber', 'prism');
 const doublePrism = Logic.resolveTurn(doublePrismBoard, { row: 0, col: 0 }, { row: 0, col: 1 }, { random: Logic.seededRandom('double-prism'), colorCount: 4 });
 assert.equal(doublePrism.steps[0].cleared.length, 16, 'two prisms clear the complete board');
 
+// A swapped prism clears exactly its partner colour (it no longer also fires the most common colour).
+const prismOnlyBoard = boardFromRows(['ABCDEF', 'BCDEFA', 'CDEFAB', 'DEFABC', 'EFABCD', 'FABCDE']);
+prismOnlyBoard[0][0] = Logic.makeGem('jade', 'prism');
+const prismOnly = Logic.resolveTurn(prismOnlyBoard, { row: 0, col: 0 }, { row: 0, col: 1 }, { random: Logic.seededRandom('prism-only') });
+assert.ok(prismOnly.steps[0].cleared.every(item => item.gem.special === 'prism' || item.gem.color === 'amber'), 'prism swap clears only the partner colour');
+assert.equal(prismOnly.steps[0].cleared.length, 1 + prismOnlyBoard.flat().filter(gem => gem.color === 'amber').length);
+assert.equal(prismOnly.steps[0].activations[0].special, 'prism');
+assert.equal(prismOnly.steps[0].activations[0].targetColor, 'amber');
+assert.ok(prismOnly.steps[0].cleared.every(item => item.cause === 0), 'prism rays are linked to the prism activation');
+
+// Chain timing metadata: a line clears outward one step per cell, a bomb hit later fires afterwards.
+const timingBoard = boardFromRows(['ABCDEF', 'BCDEFA', 'CDEFAB', 'DEFABC', 'EFABCD', 'FABCDE']);
+timingBoard[2][1] = Logic.makeGem('ruby', 'row');
+timingBoard[2][5] = Logic.makeGem('amber', 'bomb');
+const timing = Logic.expandSpecialsDetailed(timingBoard, new Set(['2:1']), new Set());
+assert.equal(timing.times.get('2:1'), 0);
+assert.equal(timing.times.get('2:0'), 1);
+assert.equal(timing.times.get('2:4'), 3);
+assert.equal(timing.times.get('2:5'), 4, 'beam reaches the bomb after four cells');
+assert.equal(timing.times.get('1:5'), 5, 'bomb fires one step after it is reached');
+assert.deepEqual(timing.activations.map(item => item.special), ['row', 'bomb']);
+assert.equal(timing.causes.get('3:4'), 1, 'bomb cells point to the bomb activation');
+
+// Fundstücke: only spawned gems carry them, the cap is respected, the main RNG stream is untouched.
+assert.deepEqual(Logic.BOOSTERS, ['hammer', 'cross', 'color']);
+assert.deepEqual(Logic.makeGem('jade', null, 'hammer'), { color: 'jade', special: null, treasure: 'hammer' });
+assert.deepEqual(Logic.cloneGem(Logic.makeGem('jade', null, 'cross')), { color: 'jade', special: null, treasure: 'cross' });
+assert.throws(() => Logic.makeGem('jade', null, 'sword'), TypeError);
+const emptyColumn = Logic.createEmptyBoard(4, 3);
+emptyColumn[3][0] = Logic.makeGem('ruby', null);
+const withTreasure = Logic.collapseAndRefillDetailed(emptyColumn, Logic.seededRandom('fund-main'), 4, { random: () => 0, chance: 1, max: 2 });
+const withoutTreasure = Logic.collapseAndRefillDetailed(emptyColumn, Logic.seededRandom('fund-main'), 4);
+assert.equal(Logic.countTreasures(withTreasure.board), 2, 'treasure cap is respected');
+assert.equal(Logic.countTreasures(withoutTreasure.board), 0, 'no treasures without the option');
+assert.equal(Logic.boardSignature(withTreasure.board), Logic.boardSignature(withoutTreasure.board), 'treasures do not consume the main random stream');
+assert.ok(!withTreasure.board[3][0].treasure, 'survivors never gain a treasure');
+
+const treasureTurnBoard = Logic.createBoard({ random: Logic.seededRandom('treasure-turn') });
+const treasureMove = Logic.findValidMoves(treasureTurnBoard)[0];
+const treasureCell = Logic.resolveTurn(treasureTurnBoard, treasureMove.from, treasureMove.to, { random: Logic.seededRandom('x') }).steps[0].cleared[0];
+treasureTurnBoard[treasureCell.row][treasureCell.col].treasure = 'color';
+const treasureTurn = Logic.resolveTurn(treasureTurnBoard, treasureMove.from, treasureMove.to, { random: Logic.seededRandom('x') });
+assert.ok(treasureTurn.collected.some(item => item.treasure === 'color' && item.row === treasureCell.row && item.col === treasureCell.col), 'clearing a treasure gem collects it');
+
+// Booster: free, valid on any gem, cascades settle to a stable playable board.
+const boosterBase = Logic.createBoard({ random: Logic.seededRandom('booster-base') });
+const boosterSignature = Logic.boardSignature(boosterBase);
+const hammer = Logic.useBooster(boosterBase, 'hammer', { row: 4, col: 4 }, { random: Logic.seededRandom('booster-a') });
+assert.equal(hammer.valid, true);
+assert.ok(hammer.steps[0].cleared.some(item => item.row === 4 && item.col === 4));
+assert.equal(hammer.steps[0].activations[0].special, 'hammer');
+assert.equal(Logic.findMatches(hammer.board).cells.length, 0);
+assert.ok(Logic.findValidMoves(hammer.board).length > 0);
+assert.equal(Logic.boardSignature(boosterBase), boosterSignature, 'booster must not mutate input');
+const cross = Logic.useBooster(boosterBase, 'cross', { row: 2, col: 5 }, { random: Logic.seededRandom('booster-b') });
+assert.ok(cross.steps[0].cleared.length >= 15, 'cross clears row and column');
+assert.ok([0, 1, 2, 3, 4, 5, 6, 7].every(col => cross.steps[0].cleared.some(item => item.row === 2 && item.col === col)));
+assert.ok([0, 1, 2, 3, 4, 5, 6, 7].every(row => cross.steps[0].cleared.some(item => item.row === row && item.col === 5)));
+const colorTarget = boosterBase[0][0].color;
+const colorBoost = Logic.useBooster(boosterBase, 'color', { row: 0, col: 0 }, { random: Logic.seededRandom('booster-c') });
+assert.equal(colorBoost.steps[0].cleared.length, boosterBase.flat().filter(gem => gem.color === colorTarget).length, 'colour booster clears one colour');
+assert.equal(colorBoost.steps[0].activations[0].targetColor, colorTarget);
+assert.equal(Logic.useBooster(boosterBase, 'laser', { row: 0, col: 0 }).valid, false);
+assert.equal(Logic.useBooster(boosterBase, 'hammer', { row: 9, col: 0 }).reason, 'bounds');
+assert.equal(Logic.CONFIG.boosterMax, 3);
+
 // Panda-Pfote supports exactly the promised non-adjacent productive swap.
 let remoteFixture = null;
 for (let seed = 0; seed < 30 && !remoteFixture; seed++) {
@@ -319,7 +385,13 @@ assert.match(html, /id="level-banner" class="level-banner" hidden/);
 assert.doesNotMatch(html, /onclick=/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 assert.match(css, /min-height: 2\.75rem/);
-for (const animation of ['jewel-swap', 'jewel-reject', 'jewel-crack', 'jewel-fall', 'special-born', 'jewel-victory', 'jewel-shuffle-out', 'prism-glow']) {
+assert.match(html, /id="special-tip" class="special-tip" hidden/);
+assert.match(html, /class="treasure-bag"/);
+for (const booster of ['hammer', 'cross', 'color']) assert.match(html, new RegExp('class="bag-slot" data-booster="' + booster + '"'));
+assert.match(html, /class="gem gem-sapphire special-row"/, 'legend shows a real line jewel');
+assert.match(game, /des-pandas-juwelen-settings-v1/, 'settings key stays stable so saved high scores survive');
+assert.match(game, /Logic\.useBooster/);
+for (const animation of ['jewel-swap', 'jewel-reject', 'jewel-crack', 'jewel-merge', 'jewel-fall', 'jewel-enter', 'special-born', 'jewel-victory', 'jewel-shuffle-out', 'prism-glow', 'board-shake', 'hint-nudge', 'bomb-throb']) {
   assert.match(css, new RegExp('@keyframes ' + animation), `${animation} animation exists`);
 }
 assert.match(game, /AudioContext \|\| window\.webkitAudioContext/);

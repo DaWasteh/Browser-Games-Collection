@@ -17,7 +17,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 | 🏓 **Pong** | [`pong/`](pong/) | Das klassische Duell – gegen die KI oder zu zweit |
 | ☄️ **Asteroids** | [`asteroids/`](asteroids/) | Vektor-Arcade mit vier Waffen, UFOs, Upgrades, Treibstoff und Touch-Steuerung |
 | 🫧 **Panda: Jäger der Blasen** | [`panda-bubbles/`](panda-bubbles/) | Bubble Shooter mit Bandenbonus, fallenden Gruppen und Bambusblase |
-| 💎 **Des Pandas Juwelen** | [`des-pandas-juwelen/`](des-pandas-juwelen/) | Match 3 mit Kaskaden, Spezialkristallen und taktischer Panda-Pfote |
+| 💎 **Des Pandas Juwelen** | [`des-pandas-juwelen/`](des-pandas-juwelen/) | Match 3 mit Kaskaden, selbsterklärenden Spezialjuwelen, sammelbaren Boostern und taktischer Panda-Pfote |
 | ⏳ **Sand Game Pro 2.3** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Active-Cell-Wind, schlankem Chemie-Kern und sicherem WebGL2/CPU-Fallback |
 | 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat, interaktiv auf Canvas |
 | 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Lemmings-inspiriertes Puzzle mit Pandas |
@@ -79,6 +79,49 @@ Gloamdeep bringt zusätzlich eigene Browser-Tests mit: `node gloamdeep/tests/smo
 (21 Schritte mit echten Tastatur-/Mausereignissen durch Dorf, Händler, Truhe, Kampf, zehn
 Etagen und Wächter) und `node gloamdeep/tests/soak.mjs` (Bot kämpft beschleunigt durch
 20 Etagen inklusive aller vier Wächter).
+
+## ✨ Neu in v2.5
+
+### Des Pandas Juwelen: Animationen und Spezialjuwelen überarbeitet
+
+- **Echte Schwerkraft beim Fallen:** Juwelen beschleunigen beim Fallen, die Fallzeit wächst
+  mit der Fallhöhe, Steine einer Spalte starten von unten nach oben versetzt und landen mit
+  Stauchung, kleinem Rückprall und Staubwolke. Neue Juwelen fallen sichtbar von oben ins
+  Feld, eine neue Runde rieselt spaltenweise herein.
+- **Linien, Explosionen und Prisma neu inszeniert:** Linienstrahlen schießen vom Stein bis zum
+  Rand und lassen jedes Juwel genau dann zerspringen, wenn der Strahl es erreicht. Die
+  Pfotenbombe zündet mit Lichtblitz über exakt 3 × 3 Felder, Druckwelle und Funkenregen, das
+  Prisma schickt Blitze zu jedem Juwel der Zielfarbe. Kettenreaktionen laufen zeitlich
+  nacheinander ab, das Feld bebt bei Spezialsteinen.
+- **Allgemein aufgehübscht:** Splitter fliegen auf echten Wurfbahnen, bei neuen Spezialsteinen
+  fliegen die übrigen Steine der Reihe in den neuen Stein hinein, der Tausch hebt den gezogenen
+  Stein an, Hinweise wackeln die beiden Steine aufeinander zu, Punkte zählen hoch und
+  Kaskaden-Anzeigen werden mit jeder Stufe größer und bunter.
+- **Spezialjuwelen erklären sich selbst:** Linienjuwelen tragen Pfeilspitzen in Strahlrichtung
+  und ein Lichtband, die Pfotenbombe pocht mit Zündring und Funke, das Prisma hat einen eigenen
+  Stern. Wer einen Spezialstein antippt (oder mit der Maus darüberfährt), sieht seinen
+  Wirkungsbereich samt Kettenreaktionen markiert. Beim ersten Entstehen erklärt eine Tipp-Karte,
+  was der Stein tut, und die Seitenleiste zeigt echte Vorschauen statt abstrakter Symbole.
+- **Neu: Fundstücke und Schatzbeutel:** Ab und zu fällt ein Juwel mit goldenem Abzeichen ins
+  Feld. Wird es abgeräumt, fliegt der Booster in den Schatzbeutel: 🔨 Bambushammer (ein Juwel),
+  ✚ Sternkreuz (Zeile und Spalte) oder 🌈 Farbfunke (eine ganze Farbe). Booster kosten keinen
+  Zug, lösen aber Spezialsteine und Kaskaden aus. Der Beutel fasst drei je Sorte und bleibt
+  über Runden hinweg gefüllt; zum Start liegt ein Hammer bereit. Bedienung per Klick/Touch oder
+  Tasten 1–3, Esc bricht ab.
+- **Spielstände bleiben erhalten:** Bestwert und Ton-Einstellung liegen weiter unter demselben
+  Speicherschlüssel; Schatzbeutel und gesehene Tipps kommen nur als zusätzliche Felder hinzu.
+
+### Fehlerbehebung
+
+- Ein getauschtes **Panda-Prisma** räumte zusätzlich zur Partnerfarbe auch noch die häufigste
+  Farbe ab. Jetzt verschwindet – wie beschrieben – genau die Farbe des Tauschpartners.
+
+### Tests
+
+- Die Logiktests prüfen den Prisma-Fix, die Zeit- und Ursachen-Daten der Kettenreaktionen,
+  Fundstücke (eigener Zufallsstrom, Obergrenze, Einsammeln) und alle drei Booster. Die
+  Browser-Suite prüft Aura, Vorschau, Barrierefreiheits-Texte, einen Booster-Einsatz ohne
+  Zugverbrauch und das Speichern des Schatzbeutels.
 
 ## ✨ Neu in v2.4
 

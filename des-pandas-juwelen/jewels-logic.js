@@ -7,7 +7,8 @@
 
   var GEM_TYPES = Object.freeze(['jade', 'amber', 'ruby', 'sapphire', 'amethyst', 'pearl']);
   var SPECIALS = Object.freeze(['row', 'column', 'bomb', 'prism']);
-  var CONFIG = Object.freeze({ rows: 8, cols: 8, colorCount: 6, moves: 24, target: 9000, pandaCharge: 5 });
+  var BOOSTERS = Object.freeze(['hammer', 'cross', 'color']);
+  var CONFIG = Object.freeze({ rows: 8, cols: 8, colorCount: 6, moves: 24, target: 9000, pandaCharge: 5, boosterMax: 3 });
 
   function safeRandom(random) {
     var value = typeof random === 'function' ? Number(random()) : Math.random();
@@ -33,16 +34,23 @@
     };
   }
 
-  function makeGem(color, special) {
+  // Fundstücke (treasure) sitzen nur auf normalen Juwelen und landen beim Abräumen im Schatzbeutel.
+  function makeGem(color, special, treasure) {
     var normalizedSpecial = special == null ? null : special;
     if (SPECIALS.indexOf(normalizedSpecial) === -1 && normalizedSpecial !== null) throw new TypeError('Unbekannter Spezialstein');
+    if (treasure != null && BOOSTERS.indexOf(treasure) === -1) throw new TypeError('Unbekanntes Fundstück');
     if (normalizedSpecial === 'prism') return { color: null, special: 'prism' };
     if (GEM_TYPES.indexOf(color) === -1) throw new TypeError('Unbekannte Juwelenfarbe');
-    return { color: color, special: normalizedSpecial };
+    var gem = { color: color, special: normalizedSpecial };
+    if (treasure && !normalizedSpecial) gem.treasure = treasure;
+    return gem;
   }
 
   function cloneGem(gem) {
-    return gem ? { color: gem.color, special: gem.special || null } : null;
+    if (!gem) return null;
+    var copy = { color: gem.color, special: gem.special || null };
+    if (gem.treasure) copy.treasure = gem.treasure;
+    return copy;
   }
 
   function cloneBoard(board) {
@@ -282,43 +290,90 @@
     return creations;
   }
 
-  function expandSpecials(board, initialKeys, protectedKeys) {
-    var clear = new Set(initialKeys);
-    var protectedSet = protectedKeys || new Set();
-    protectedSet.forEach(function (protectedKey) { clear.delete(protectedKey); });
-    var queue = Array.from(clear);
-    var processed = new Set();
-    var size = dimensions(board);
+  // Zeit in „Zellschritten“: Ein Linienstrahl erreicht die Nachbarzelle einen Schritt später,
+  // ein Prisma blitzt seine Ziele nach Entfernung gestaffelt an. Die Oberfläche nutzt das für
+  // synchrone Strahlen, Druckwellen und gestaffeltes Zerspringen.
+  function prismDelay(fromRow, fromCol, row, col) {
+    return 1 + Math.max(Math.abs(row - fromRow), Math.abs(col - fromCol)) * 0.5;
+  }
 
-    function add(row, col) {
+  function expandSpecialsDetailed(board, initialKeys, protectedKeys, consumedKeys) {
+    var protectedSet = protectedKeys || new Set();
+    var consumed = consumedKeys || new Set();
+    var size = dimensions(board);
+    var times = new Map();
+    var causes = new Map();
+    var processed = new Set();
+    var activations = [];
+    var queue = [];
+
+    function add(row, col, time, cause) {
       var cellKey = key(row, col);
-      if (row < 0 || row >= size.rows || col < 0 || col >= size.cols || !board[row][col] || protectedSet.has(cellKey) || clear.has(cellKey)) return;
-      clear.add(cellKey);
+      if (row < 0 || row >= size.rows || col < 0 || col >= size.cols || !board[row][col] || protectedSet.has(cellKey)) return;
+      if (times.has(cellKey)) {
+        if (!processed.has(cellKey) && time < times.get(cellKey)) {
+          times.set(cellKey, time);
+          causes.set(cellKey, cause);
+        }
+        return;
+      }
+      times.set(cellKey, time);
+      causes.set(cellKey, cause);
       queue.push(cellKey);
     }
 
+    if (initialKeys instanceof Map) initialKeys.forEach(function (time, cellKey) { var p = parseKey(cellKey); add(p.row, p.col, time, -1); });
+    else Array.from(initialKeys || []).forEach(function (cellKey) { var p = parseKey(cellKey); add(p.row, p.col, 0, -1); });
+
     while (queue.length) {
-      var currentKey = queue.shift();
-      if (processed.has(currentKey)) continue;
+      var best = 0;
+      for (var q = 1; q < queue.length; q++) if (times.get(queue[q]) < times.get(queue[best])) best = q;
+      var currentKey = queue.splice(best, 1)[0];
       processed.add(currentKey);
       var current = parseKey(currentKey);
       var gem = board[current.row][current.col];
-      if (!gem || !gem.special) continue;
+      if (!gem || !gem.special || consumed.has(currentKey)) continue;
+      var time = times.get(currentKey);
+      var index = activations.length;
+      var activation = { row: current.row, col: current.col, special: gem.special, color: gem.color, time: time, targetColor: null };
+      activations.push(activation);
       if (gem.special === 'row') {
-        for (var col = 0; col < size.cols; col++) add(current.row, col);
+        for (var col = 0; col < size.cols; col++) add(current.row, col, time + Math.abs(col - current.col), index);
       } else if (gem.special === 'column') {
-        for (var row = 0; row < size.rows; row++) add(row, current.col);
+        for (var row = 0; row < size.rows; row++) add(row, current.col, time + Math.abs(row - current.row), index);
       } else if (gem.special === 'bomb') {
-        for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) add(current.row + dr, current.col + dc);
+        for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) add(current.row + dr, current.col + dc, time + 1, index);
       } else if (gem.special === 'prism') {
         var targetColor = mostCommonColor(board);
-        for (var r = 0; r < size.rows; r++) for (var c = 0; c < size.cols; c++) if (board[r][c] && board[r][c].color === targetColor) add(r, c);
+        activation.targetColor = targetColor;
+        for (var r = 0; r < size.rows; r++) {
+          for (var c = 0; c < size.cols; c++) {
+            if (board[r][c] && board[r][c].color === targetColor) add(r, c, time + prismDelay(current.row, current.col, r, c), index);
+          }
+        }
       }
     }
-    return clear;
+    return { keys: new Set(times.keys()), times: times, causes: causes, activations: activations };
   }
 
-  function collapseAndRefillDetailed(board, random, colorCount) {
+  function expandSpecials(board, initialKeys, protectedKeys) {
+    return expandSpecialsDetailed(board, initialKeys, protectedKeys).keys;
+  }
+
+  function pickTreasure(random) {
+    var roll = safeRandom(random);
+    return roll < 0.5 ? 'hammer' : roll < 0.82 ? 'cross' : 'color';
+  }
+
+  function countTreasures(board) {
+    var count = 0;
+    for (var row = 0; row < board.length; row++) for (var col = 0; col < board[row].length; col++) if (board[row][col] && board[row][col].treasure) count++;
+    return count;
+  }
+
+  // treasure = { random, chance, max } – ohne diese Option entstehen keine Fundstücke, und der
+  // Haupt-Zufallsstrom bleibt unberührt (gleiche Seeds ergeben weiterhin gleiche Felder).
+  function collapseAndRefillDetailed(board, random, colorCount, treasure) {
     var size = dimensions(board);
     var next = createEmptyBoard(size.rows, size.cols);
     var palette = GEM_TYPES.slice(0, colorCount || CONFIG.colorCount);
@@ -348,6 +403,16 @@
         writeRow--;
       }
     }
+    if (treasure && typeof treasure.random === 'function') {
+      var chance = Number(treasure.chance) || 0;
+      var max = Number.isInteger(treasure.max) ? treasure.max : 1;
+      var present = countTreasures(next);
+      for (var m = 0; m < movements.length && present < max; m++) {
+        if (!movements[m].spawned || safeRandom(treasure.random) >= chance) continue;
+        next[movements[m].to.row][movements[m].to.col].treasure = pickTreasure(treasure.random);
+        present++;
+      }
+    }
     return { board: next, movements: movements };
   }
 
@@ -355,19 +420,43 @@
     return collapseAndRefillDetailed(board, random, colorCount).board;
   }
 
-  function createClearStep(board, initialKeys, creations, cascade, random, colorCount, matchedCells) {
+  // extra: { consumed, activations, defaultCause, treasure }
+  // consumed – Spezialsteine, deren Wirkung schon in initialKeys steckt (z. B. das getauschte Prisma)
+  // activations – vorab ausgelöste Effekte (Prisma-Tausch, Booster); defaultCause verknüpft die
+  // Startzellen mit diesem Effekt.
+  function createClearStep(board, initialKeys, creations, cascade, random, colorCount, matchedCells, extra) {
+    extra = extra || {};
     var protectedKeys = new Set(creations.map(function (creation) { return key(creation.row, creation.col); }));
-    var clearKeys = expandSpecials(board, initialKeys, protectedKeys);
+    var detail = expandSpecialsDetailed(board, initialKeys, protectedKeys, extra.consumed);
+    var preActivations = (extra.activations || []).map(function (activation) { return Object.assign({}, activation); });
+    var offset = preActivations.length;
+    var defaultCause = Number.isInteger(extra.defaultCause) ? extra.defaultCause : -1;
     var before = cloneBoard(board);
     var afterClear = cloneBoard(board);
     var cleared = [];
-    clearKeys.forEach(function (cellKey) {
+    var collected = [];
+    detail.keys.forEach(function (cellKey) {
       var cell = parseKey(cellKey);
-      if (afterClear[cell.row][cell.col]) cleared.push({ row: cell.row, col: cell.col, gem: cloneGem(afterClear[cell.row][cell.col]) });
+      var gem = afterClear[cell.row][cell.col];
+      if (gem) {
+        var cause = detail.causes.get(cellKey);
+        cleared.push({
+          row: cell.row,
+          col: cell.col,
+          gem: cloneGem(gem),
+          delay: detail.times.get(cellKey) || 0,
+          cause: cause >= 0 ? cause + offset : defaultCause
+        });
+        if (gem.treasure) collected.push({ row: cell.row, col: cell.col, treasure: gem.treasure });
+      }
       afterClear[cell.row][cell.col] = null;
     });
-    for (var i = 0; i < creations.length; i++) afterClear[creations[i].row][creations[i].col] = cloneGem(creations[i].gem);
-    var collapse = collapseAndRefillDetailed(afterClear, random, colorCount);
+    for (var i = 0; i < creations.length; i++) {
+      var source = board[creations[i].row][creations[i].col];
+      if (source && source.treasure) collected.push({ row: creations[i].row, col: creations[i].col, treasure: source.treasure });
+      afterClear[creations[i].row][creations[i].col] = cloneGem(creations[i].gem);
+    }
+    var collapse = collapseAndRefillDetailed(afterClear, random, colorCount, extra.treasure);
     var afterFall = collapse.board;
     var specialTriggers = cleared.filter(function (cell) { return !!cell.gem.special; }).length;
     var points = cleared.length * 60 * cascade + specialTriggers * 120 + creations.length * 90;
@@ -376,6 +465,8 @@
       matched: (matchedCells || []).map(function (cell) { return { row: cell.row, col: cell.col }; }),
       cleared: cleared,
       created: creations.map(function (creation) { return { row: creation.row, col: creation.col, gem: cloneGem(creation.gem) }; }),
+      activations: preActivations.concat(detail.activations),
+      collected: collected,
       before: before,
       afterClear: afterClear,
       afterFall: afterFall,
@@ -394,18 +485,48 @@
   function prismClearKeys(board, from, to) {
     var first = board[from.row][from.col];
     var second = board[to.row][to.col];
-    var clear = new Set([key(from.row, from.col), key(to.row, to.col)]);
+    var prism = first.special === 'prism' ? from : to;
+    var clear = new Map([[key(from.row, from.col), 0], [key(to.row, to.col), 0]]);
     if (first.special === 'prism' && second.special === 'prism') {
-      for (var row = 0; row < board.length; row++) for (var col = 0; col < board[row].length; col++) if (board[row][col]) clear.add(key(row, col));
-      return clear;
+      for (var row = 0; row < board.length; row++) {
+        for (var col = 0; col < board[row].length; col++) {
+          if (board[row][col] && !clear.has(key(row, col))) clear.set(key(row, col), prismDelay(prism.row, prism.col, row, col));
+        }
+      }
+      return { keys: clear, prism: prism, targetColor: null };
     }
     var target = first.special === 'prism' ? second.color : first.color;
     for (var r = 0; r < board.length; r++) {
       for (var c = 0; c < board[r].length; c++) {
-        if (board[r][c] && board[r][c].color === target) clear.add(key(r, c));
+        if (board[r][c] && board[r][c].color === target && !clear.has(key(r, c))) clear.set(key(r, c), prismDelay(prism.row, prism.col, r, c));
       }
     }
-    return clear;
+    return { keys: clear, prism: prism, targetColor: target };
+  }
+
+  function boosterClearKeys(board, type, target) {
+    var size = dimensions(board);
+    var times = new Map();
+    function put(row, col, time) {
+      if (row < 0 || row >= size.rows || col < 0 || col >= size.cols || !board[row][col]) return;
+      var cellKey = key(row, col);
+      if (!times.has(cellKey) || time < times.get(cellKey)) times.set(cellKey, time);
+    }
+    var targetColor = null;
+    put(target.row, target.col, 0);
+    if (type === 'cross') {
+      for (var col = 0; col < size.cols; col++) put(target.row, col, Math.abs(col - target.col));
+      for (var row = 0; row < size.rows; row++) put(row, target.col, Math.abs(row - target.row));
+    } else if (type === 'color') {
+      var gem = board[target.row][target.col];
+      targetColor = gem.special === 'prism' ? mostCommonColor(board) : gem.color;
+      for (var r = 0; r < size.rows; r++) {
+        for (var c = 0; c < size.cols; c++) {
+          if (board[r][c] && board[r][c].color === targetColor) put(r, c, prismDelay(target.row, target.col, r, c));
+        }
+      }
+    }
+    return { keys: times, targetColor: targetColor };
   }
 
   function shuffleArray(values, random) {
@@ -442,33 +563,47 @@
 
     var work = swapCells(board, from, to);
     var steps = [];
-    var score = 0;
-    var clearedTotal = 0;
-    var createdTotal = 0;
     var cascade = 1;
     var firstGem = work[from.row][from.col];
     var secondGem = work[to.row][to.col];
 
     if (firstGem.special === 'prism' || secondGem.special === 'prism') {
-      var prismStep = createClearStep(work, prismClearKeys(work, from, to), [], cascade, random, colorCount, [from, to]);
+      // Das getauschte Prisma räumt genau die Partnerfarbe; es löst nicht zusätzlich noch die
+      // häufigste Farbe aus (das passiert nur, wenn eine Explosion ein Prisma trifft).
+      var prismPlan = prismClearKeys(work, from, to);
+      var prismActivation = { row: prismPlan.prism.row, col: prismPlan.prism.col, special: 'prism', color: null, time: 0, targetColor: prismPlan.targetColor };
+      var consumed = new Set([key(prismPlan.prism.row, prismPlan.prism.col)]);
+      if (firstGem.special === 'prism' && secondGem.special === 'prism') {
+        consumed.add(key(from.row, from.col));
+        consumed.add(key(to.row, to.col));
+      }
+      var prismStep = createClearStep(work, prismPlan.keys, [], cascade, random, colorCount, [from, to], {
+        consumed: consumed,
+        activations: [prismActivation],
+        defaultCause: 0,
+        treasure: options.treasure
+      });
       steps.push(prismStep);
-      score += prismStep.score;
-      clearedTotal += prismStep.cleared.length;
       work = prismStep.afterFall;
       cascade++;
     }
 
+    var settled = settleCascades(work, steps, cascade, [to, from], random, colorCount, options.treasure);
+    return Object.assign(summarizeTurn(settled, steps), {
+      swapped: { from: { row: from.row, col: from.col }, to: { row: to.row, col: to.col } },
+      usedPower: allowRemote && !isAdjacent(from, to)
+    });
+  }
+
+  function settleCascades(work, steps, cascade, preferredFirst, random, colorCount, treasure) {
     var matches = findMatches(work);
     var guard = 0;
     while (matches.cells.length && guard++ < 40) {
-      var preferred = cascade === 1 ? [to, from] : [];
+      var preferred = cascade === 1 ? preferredFirst : [];
       var creations = planCreations(work, matches, preferred);
       var initialKeys = new Set(matches.cells.map(function (cell) { return key(cell.row, cell.col); }));
-      var step = createClearStep(work, initialKeys, creations, cascade, random, colorCount, matches.cells);
+      var step = createClearStep(work, initialKeys, creations, cascade, random, colorCount, matches.cells, { treasure: treasure });
       steps.push(step);
-      score += step.score;
-      clearedTotal += step.cleared.length;
-      createdTotal += step.created.length;
       work = step.afterFall;
       cascade++;
       matches = findMatches(work);
@@ -483,21 +618,51 @@
       reshuffled = true;
       preserved = shuffleResult.preserved;
     }
+    return { board: work, reshuffled: reshuffled, preserved: preserved };
+  }
 
+  function summarizeTurn(settled, steps) {
     return {
       valid: true,
       reason: null,
-      board: cloneBoard(work),
-      swapped: { from: { row: from.row, col: from.col }, to: { row: to.row, col: to.col } },
+      board: cloneBoard(settled.board),
       steps: steps,
-      score: score,
-      cleared: clearedTotal,
+      score: steps.reduce(function (sum, step) { return sum + step.score; }, 0),
+      cleared: steps.reduce(function (sum, step) { return sum + step.cleared.length; }, 0),
       cascades: steps.length,
-      created: createdTotal,
-      usedPower: allowRemote && !isAdjacent(from, to),
-      reshuffled: reshuffled,
-      shufflePreserved: preserved
+      created: steps.reduce(function (sum, step) { return sum + step.created.length; }, 0),
+      collected: steps.reduce(function (list, step) { return list.concat(step.collected); }, []),
+      reshuffled: settled.reshuffled,
+      shufflePreserved: settled.preserved
     };
+  }
+
+  // Booster aus dem Schatzbeutel: kostet keinen Zug, löst aber Spezialsteine und Kaskaden aus.
+  function useBooster(board, type, target, options) {
+    options = options || {};
+    var random = options.random;
+    var colorCount = Number.isInteger(options.colorCount) ? Math.max(4, Math.min(GEM_TYPES.length, options.colorCount)) : CONFIG.colorCount;
+    function invalid(reason) { return { valid: false, reason: reason, board: cloneBoard(board), steps: [], score: 0 }; }
+    if (BOOSTERS.indexOf(type) === -1) return invalid('booster');
+    if (!inBounds(board, target)) return invalid('bounds');
+    var gem = board[target.row][target.col];
+    if (!gem) return invalid('empty');
+
+    var work = cloneBoard(board);
+    var plan = boosterClearKeys(work, type, target);
+    var activation = { row: target.row, col: target.col, special: type, booster: true, color: gem.color, time: 0, targetColor: plan.targetColor };
+    var steps = [];
+    var first = createClearStep(work, plan.keys, [], 1, random, colorCount, [], {
+      activations: [activation],
+      defaultCause: 0,
+      treasure: options.treasure
+    });
+    steps.push(first);
+    var settled = settleCascades(first.afterFall, steps, 2, [], random, colorCount, options.treasure);
+    return Object.assign(summarizeTurn(settled, steps), {
+      booster: { type: type, row: target.row, col: target.col },
+      usedPower: false
+    });
   }
 
   function boardSignature(board) {
@@ -509,6 +674,7 @@
   return Object.freeze({
     GEM_TYPES: GEM_TYPES,
     SPECIALS: SPECIALS,
+    BOOSTERS: BOOSTERS,
     CONFIG: CONFIG,
     seededRandom: seededRandom,
     makeGem: makeGem,
@@ -526,10 +692,13 @@
     mostCommonColor: mostCommonColor,
     planCreations: planCreations,
     expandSpecials: expandSpecials,
+    expandSpecialsDetailed: expandSpecialsDetailed,
     collapseAndRefill: collapseAndRefill,
     collapseAndRefillDetailed: collapseAndRefillDetailed,
+    countTreasures: countTreasures,
     reshuffleBoard: reshuffleBoard,
     resolveTurn: resolveTurn,
+    useBooster: useBooster,
     boardSignature: boardSignature
   });
 });

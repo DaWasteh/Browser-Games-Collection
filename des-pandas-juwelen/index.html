@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f5f0ff">
   <title>Des Pandas Juwelen – Match 3</title>
-  <meta name="description" content="Elegantes Match-3-Spiel mit Spezialjuwelen, Kaskaden, Panda-Pfote, Sound und Animationen – komplett offline.">
+  <meta name="description" content="Elegantes Match-3-Spiel mit selbsterklärenden Spezialjuwelen, Kaskaden, sammelbaren Boostern, Panda-Pfote, Sound und Animationen – komplett offline.">
   <script src="../shared/game-shell.js"></script>
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
@@ -44,6 +44,10 @@
         <div id="board" class="board" role="grid" aria-label="Juwelenfeld, acht mal acht" aria-rowcount="8" aria-colcount="8"></div>
         <div id="board-effects" class="board-effects" aria-hidden="true"></div>
         <div id="combo-pop" class="combo-pop" hidden aria-hidden="true"></div>
+        <div id="special-tip" class="special-tip" hidden role="status" aria-live="polite" title="Antippen zum Schließen">
+          <span id="tip-visual" class="tip-visual" aria-hidden="true"></span>
+          <div><strong id="tip-title"></strong><p id="tip-text"></p></div>
+        </div>
         <div id="level-banner" class="level-banner" hidden aria-hidden="true">
           <span>🐼</span><strong>Ziel erreicht!</strong><small>Der Schatzgarten strahlt</small>
         </div>
@@ -64,17 +68,48 @@
           <button id="power-btn" type="button" disabled aria-pressed="false">🐾 Fern-Tausch</button>
         </section>
 
+        <section class="treasure-bag" aria-labelledby="bag-title">
+          <div class="power-head">
+            <span aria-hidden="true">🎒</span>
+            <div>
+              <h2 id="bag-title">Schatzbeutel</h2>
+              <p id="bag-copy">Juwelen mit Fundstück abräumen</p>
+            </div>
+          </div>
+          <div class="bag-slots">
+            <button type="button" class="bag-slot" data-booster="hammer" aria-pressed="false" title="Bambushammer (Taste 1): zerschlägt ein beliebiges Juwel – kostet keinen Zug">
+              <span class="slot-icon" aria-hidden="true">🔨</span><span class="slot-name">Hammer</span><span class="slot-count">×0</span>
+            </button>
+            <button type="button" class="bag-slot" data-booster="cross" aria-pressed="false" title="Sternkreuz (Taste 2): räumt Zeile und Spalte des Ziels – kostet keinen Zug">
+              <span class="slot-icon" aria-hidden="true">✚</span><span class="slot-name">Kreuz</span><span class="slot-count">×0</span>
+            </button>
+            <button type="button" class="bag-slot" data-booster="color" aria-pressed="false" title="Farbfunke (Taste 3): entfernt alle Juwelen einer Farbe – kostet keinen Zug">
+              <span class="slot-icon" aria-hidden="true">🌈</span><span class="slot-name">Farbe</span><span class="slot-count">×0</span>
+            </button>
+          </div>
+        </section>
+
         <div class="controls" role="group" aria-label="Aktionen">
           <button id="hint-btn" type="button">💡 Hinweis</button>
           <button id="sound-btn" type="button" aria-pressed="true">🔊 Ton an</button>
           <button id="new-btn" type="button">↻ Neues Spiel</button>
         </div>
 
-        <section class="special-legend" aria-label="Spezialjuwelen">
-          <h2>Spezialjuwelen</h2>
-          <div><span class="mini line" aria-hidden="true">4</span><p><strong>Viererreihe</strong><br>räumt eine Linie</p></div>
-          <div><span class="mini bomb" aria-hidden="true">✦</span><p><strong>T- oder L-Form</strong><br>sprengt 3 × 3</p></div>
-          <div><span class="mini prism" aria-hidden="true">5</span><p><strong>Fünferreihe</strong><br>erzeugt ein Prisma</p></div>
+        <section class="special-legend" aria-labelledby="legend-title">
+          <h2 id="legend-title">Spezialjuwelen</h2>
+          <div class="legend-item">
+            <span class="legend-gem" aria-hidden="true"><span class="gem gem-sapphire special-row"><span class="gem-mark"></span><span class="gem-symbol">◆</span></span></span>
+            <p><strong>Linienjuwel ↔ ↕</strong><em>4 gleiche in einer Reihe</em>Räumt die ganze Zeile oder Spalte in Pfeilrichtung.</p>
+          </div>
+          <div class="legend-item">
+            <span class="legend-gem" aria-hidden="true"><span class="gem gem-ruby special-bomb"><span class="gem-mark"></span><span class="gem-symbol">●</span></span></span>
+            <p><strong>Pfotenbombe</strong><em>T- oder L-Form</em>Sprengt alle Juwelen im 3 × 3-Feld.</p>
+          </div>
+          <div class="legend-item">
+            <span class="legend-gem" aria-hidden="true"><span class="gem gem-prism"><span class="gem-mark"></span><span class="gem-symbol">★</span></span></span>
+            <p><strong>Panda-Prisma</strong><em>5 gleiche in einer Reihe</em>Mit einem Nachbarn tauschen: Diese Farbe verschwindet.</p>
+          </div>
+          <p class="legend-note">Linien und Bomben zünden, sobald sie Teil einer Reihe sind oder von einer Explosion getroffen werden. Antippen zeigt ihren Wirkungsbereich.</p>
         </section>
       </aside>
     </div>
@@ -88,6 +123,7 @@
           <li><strong>Tastatur:</strong> Mit <kbd>Pfeiltasten</kbd> bewegen, mit <kbd>Enter</kbd>/<kbd>Leertaste</kbd> auswählen, <kbd>H</kbd> zeigt einen Zug, <kbd>N</kbd> startet neu.</li>
           <li>Vierer-, Fünfer- sowie T-/L-Reihen erzeugen Liniensteine, Prismen und Pfotenbomben.</li>
           <li><strong>Panda-Pfote:</strong> Jede Kaskadenstufe lädt ein Blatt. Bei fünf Blättern darfst du einmal zwei beliebige Juwelen tauschen – der Tausch muss weiterhin eine Reihe bilden.</li>
+          <li><strong>Fundstücke:</strong> Manchmal fällt ein Juwel mit goldenem Abzeichen (🔨, ✚ oder 🌈) herab. Räumst du es ab, wandert der Booster in den Schatzbeutel (höchstens drei je Sorte, er bleibt auch für spätere Runden). Einsetzen kostet keinen Zug – Booster wählen (oder <kbd>1</kbd>–<kbd>3</kbd>) und das Ziel antippen.</li>
         </ul>
       </div>
     </details>

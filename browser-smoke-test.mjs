@@ -591,6 +591,40 @@ try {
         soundButton.click();
         const audioMute = !muted.sound && muted.audioMuted && PandaJewels.getState().sound;
 
+        // v2.5: sichtbare Spezialsteine, Wirkungsbereich-Vorschau und Schatzbeutel-Booster.
+        PandaJewels.newGame('booster-check');
+        const boosterBoard = PandaJewels.getState().board;
+        boosterBoard[2][2].special = 'row';
+        boosterBoard[6][6].treasure = 'cross';
+        const boardLoaded = PandaJewels.loadBoard(boosterBoard);
+        const boardCells = document.querySelectorAll('#board .cell');
+        const auraShown = boardCells[2 * 8 + 2].classList.contains('aura-row') && boardCells[6 * 8 + 6].classList.contains('has-treasure') &&
+          /räumt die ganze Zeile/.test(boardCells[2 * 8 + 2].getAttribute('aria-label')) && /Fundstück Sternkreuz/.test(boardCells[6 * 8 + 6].getAttribute('aria-label'));
+        PandaJewels.select(2, 2);
+        const rangeShown = document.querySelectorAll('#board .cell.in-range').length >= 8 && /Linienjuwel/.test(document.querySelector('#message').textContent);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        const before = PandaJewels.getState();
+        const boosterUsed = await PandaJewels.useBooster('hammer', { row: 6, col: 6 });
+        const after = PandaJewels.getState();
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem('des-pandas-juwelen-settings-v1')); } catch (_error) { saved = null; }
+        const boosterReport = {
+          boardLoaded,
+          auraShown,
+          rangeShown,
+          hadHammer: before.boosters.hammer >= 1,
+          boosterUsed,
+          freeMove: after.moves === before.moves && after.status === 'playing' && after.boosterMode === null,
+          scored: after.score > before.score,
+          consumed: after.boosters.hammer === before.boosters.hammer - 1,
+          collected: after.boosters.cross === Math.min(3, before.boosters.cross + 1),
+          stable: JewelsLogic.findMatches(after.board).cells.length === 0 && JewelsLogic.findValidMoves(after.board).length > 0,
+          saved: !!saved && saved.boosters?.cross === after.boosters.cross && saved.highScore === after.highScore,
+          slotPressed: document.querySelectorAll('.bag-slot[aria-pressed="true"]').length === 0
+        };
+        const emptySlot = Object.entries(after.boosters).find(([, count]) => count === 0);
+        const emptyRefused = emptySlot ? !PandaJewels.toggleBooster(emptySlot[0]) && PandaJewels.getState().boosterMode === null : true;
+
         async function playRound(seed) {
           PandaJewels.newGame(seed);
           for (let turn = 0; turn < 30 && PandaJewels.getState().status === 'playing'; turn++) {
@@ -636,6 +670,8 @@ try {
           remoteUsed: activated && remoteWorked && final.moves === remoteMovesBefore - 1 && final.charge < 5 && !final.powerMode,
           finalStable: JewelsLogic.findMatches(final.board).cells.length === 0 && JewelsLogic.findValidMoves(final.board).length > 0,
           audioMute,
+          boosterReport,
+          emptyRefused,
           lossBranch,
           winBranch,
           controlsTallEnough,
@@ -689,6 +725,7 @@ try {
       assert(jewels.invalidSafe && jewels.swipeWorked, `des-pandas-juwelen: invalid/touch swap contract failed ${JSON.stringify(jewels)}`);
       assert(jewels.charged && jewels.remoteFound && jewels.invalidRemotePreserved && jewels.remoteUsed, `des-pandas-juwelen: Panda-Pfote remote swap failed ${JSON.stringify(jewels)}`);
       assert(jewels.audioMute, 'des-pandas-juwelen: mute did not silence the shared audio bus immediately');
+      assert(Object.values(jewels.boosterReport).every(Boolean) && jewels.emptyRefused, `des-pandas-juwelen: special preview/booster contract failed ${JSON.stringify({ booster: jewels.boosterReport, emptyRefused: jewels.emptyRefused })}`);
       assert(jewels.lossBranch.status === 'lost' && jewels.lossBranch.moves === 0 && jewels.lossBranch.score < jewels.lossBranch.target &&
         jewels.lossBranch.resultVisible && jewels.lossBranch.comboHidden && jewels.lossBranch.transientCells === 0 && jewels.lossBranch.terminalMessage &&
         jewels.winBranch.status === 'won' && jewels.winBranch.score >= jewels.winBranch.target && jewels.winBranch.boardEmpty &&
@@ -1374,7 +1411,7 @@ try {
     };
   })()`);
   assert(launcher.count === 20 && launcher.unique === 20 && launcher.allTargetsLoad && launcher.headerCount === '20', `launcher: expected 20 unique loadable games ${JSON.stringify(launcher)}`);
-  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.4') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.4 integration is incomplete ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.5') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.5 integration is incomplete ${JSON.stringify(launcher)}`);
 
   // v1.9: Kategorie-Chips, Suche und Ton-Schalter des Launchers.
   const launcherFilters = await evaluate(`(async () => {
