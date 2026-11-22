@@ -57,6 +57,8 @@ function resize() {
   if (game.state !== 'title' && game.area && game.player) game.snapCamera();
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', resize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
 resize();
 
 // audio needs a user gesture

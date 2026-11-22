@@ -815,15 +815,18 @@ try {
 
   const responsiveViewports = [
     { width: 320, height: 568, orientation: 'portraitPrimary', mobile: true, dpr: 2 },
+    { width: 360, height: 720, orientation: 'portraitPrimary', mobile: true, dpr: 2 },
     { width: 375, height: 812, orientation: 'portraitPrimary', mobile: true, dpr: 3 },
     { width: 414, height: 896, orientation: 'portraitPrimary', mobile: true, dpr: 1 },
     { width: 812, height: 375, orientation: 'landscapePrimary', mobile: true },
     { width: 768, height: 1024, orientation: 'portraitPrimary', mobile: false },
     { width: 1024, height: 768, orientation: 'landscapePrimary', mobile: false },
+    { width: 1280, height: 800, orientation: 'landscapePrimary', mobile: false },
     { width: 1366, height: 768, orientation: 'landscapePrimary', mobile: false },
     { width: 1920, height: 1080, orientation: 'landscapePrimary', mobile: false },
     { width: 2560, height: 1080, orientation: 'landscapePrimary', mobile: false },
-    { width: 3440, height: 1440, orientation: 'landscapePrimary', mobile: false }
+    { width: 3440, height: 1440, orientation: 'landscapePrimary', mobile: false },
+    { width: 3840, height: 1080, orientation: 'landscapePrimary', mobile: false }
   ];
   for (const game of games) {
     const eventStart = cdp.events.length;
@@ -852,12 +855,12 @@ try {
     assert(errors.length === 0, `${game.name}: Laufzeit-/Console-Fehler: ${JSON.stringify(errors).slice(0, 600)}`);
   }
 
-  console.log(`classic-games-smoke ok (${games.length} Spiele, 10 Phone/Tablet/Desktop/Widescreen/Ultrawide-Viewports, Boot, 0 Fehler, kein Überlauf, Tastatur-Nicht-Hijack, Regressionen)`);
+  console.log(`classic-games-smoke ok (${games.length} Spiele, 13 Phone 9:16/9:18, Tablet, 16:10, 16:9, 21:9 & 32:9 Viewports, Boot, 0 Fehler, kein Überlauf, Tastatur-Nicht-Hijack, Regressionen)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();
   server.close();
   if (!browser.killed) browser.kill();
   await delay(200);
-  rmSync(profile, { recursive: true, force: true });
+  try { rmSync(profile, { recursive: true, force: true }); } catch (_error) { /* Windows Chrome profile lock */ }
 }

@@ -60,7 +60,7 @@ button { font: inherit; }
 .hud > div.score-pop strong { animation: score-pop .44s cubic-bezier(.2, .8, .25, 1.2); }
 #misses { color: var(--danger); font-size: clamp(.72rem, 2.4vw, 1.02rem); letter-spacing: .04em; }
 .power-track { height: .32rem; margin: .18rem auto 0; overflow: hidden; border-radius: 1rem; background: var(--line); }
-.power-track span { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #36aa74, #f5ba3d); transition: width .28s ease; }
+.power-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #36aa74, #f5ba3d); transition: width .28s ease; }
 .power-stat.ready strong { color: #a75800; text-shadow: 0 0 12px rgba(245,186,61,.35); }
 .power-stat.ready .power-track span { box-shadow: 0 0 12px #f5ba3d; animation: power-ready 1.15s ease-in-out infinite; }
 .message { min-height: 1.5em; margin: .55rem 0; color: var(--muted); text-align: center; font-weight: 650; }
@@ -76,8 +76,10 @@ button { font: inherit; }
 .canvas-wrap {
   position: relative;
   isolation: isolate;
-  width: 100%;
+  width: min(100%, calc(min(72dvh, 700px) * 600 / 760));
+  max-width: 100%;
   min-width: 0;
+  margin-inline: auto;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
   border-radius: .9rem;
@@ -121,6 +123,7 @@ button { font: inherit; }
   max-width: 100%;
   min-width: 0;
   height: auto;
+  max-height: min(72dvh, 700px);
   aspect-ratio: 600 / 760;
   border: 0;
   border-radius: .9rem;

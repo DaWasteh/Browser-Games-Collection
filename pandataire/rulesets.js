@@ -51,10 +51,11 @@
     throw new Error('Kein deckverträglicher Rangpfad gefunden');
   }
 
-  // --- TriPeaks: vorhandene Konstanten wörtlich übernommen -----------------
+  // --- TriPeaks: kanonische Stride-3-Ausrichtung ---------------------------
   var tripeaksPositions = [
-    [1, 0], [5, 0], [9, 0], [0, 1], [2, 1], [4, 1], [6, 1], [8, 1], [10, 1],
-    [0, 2], [1, 2], [2, 2], [4, 2], [5, 2], [6, 2], [8, 2], [9, 2], [10, 2],
+    [1.5, 0], [4.5, 0], [7.5, 0],
+    [1, 1], [2, 1], [4, 1], [5, 1], [7, 1], [8, 1],
+    [0.5, 2], [1.5, 2], [2.5, 2], [3.5, 2], [4.5, 2], [5.5, 2], [6.5, 2], [7.5, 2], [8.5, 2],
     [0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [9, 3]
   ];
   var tripeaksBlockers = [
@@ -66,7 +67,7 @@
 
   function tripeaksLayout(id) {
     var p = tripeaksPositions[id];
-    return { left: (p[0] + 0.5) * 8.9, top: p[1] * 25 + 1 };
+    return { left: (p[0] + 0.5) * 10, top: p[1] * 22 + 2 };
   }
 
   function tripeaksDeal(random) {
@@ -190,7 +191,7 @@
     var row = 0, pos = 0, acc = 0;
     while (acc + row + 1 <= id) { acc += row + 1; row++; }
     pos = id - acc;
-    return { left: ((6 - row) / 2 + pos + 0.5) * (100 / 7), top: row * 12 + 2 };
+    return { left: ((6 - row) / 2 + pos + 0.5) * (100 / 7), top: row * 11 + 2 };
   }
 
   function pyramidDeal(random) {

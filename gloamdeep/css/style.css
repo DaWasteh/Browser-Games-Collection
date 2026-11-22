@@ -39,6 +39,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 #stage {
@@ -541,6 +542,17 @@ canvas.portrait.small { width: 3.5em; height: 4em; flex: none; }
 
 @media (max-height: 520px) {
   .quest-offers { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .panel-body.cols { flex-wrap: wrap; flex-direction: column; }
+  .menu-col { max-width: none; width: 100%; }
+}
+@media (max-height: 420px) {
+  .logo { font-size: 3.1em; }
+  .subtitle { font-size: 1.05em; margin-top: 0.15em; }
+  .menu { margin-top: 0.7em; gap: 0.35em; width: 20em; }
+  .btn.big { font-size: 1em; padding: 0.42em 1em; }
+  .title-foot { margin-top: 0.65em; font-size: 0.68em; }
 }
 
 /* ------------------------------------------------------------------ settings select */

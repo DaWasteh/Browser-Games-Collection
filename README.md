@@ -11,26 +11,26 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 
 | Spiel | Ordner | Beschreibung |
 |---|---|---|
-| 🏮 **Gloamdeep – The Lantern Below** | [`gloamdeep/`](gloamdeep/) | Pixel-Action-RPG: Laternendorf über einem endlosen prozeduralen Dungeon mit Quests, Beute, Wächtern und dynamischem Licht (Maus & Tastatur oder Touch) |
-| 🧱 **Tetris** | [`tetris/`](tetris/) | Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen |
-| 🐍 **Snake Ultimate** | [`snake-ultimate/`](snake-ultimate/) | Erweitertes Snake mit lokalem Multiplayer, 8 Themes und Addons |
-| 🏓 **Pong** | [`pong/`](pong/) | Das klassische Duell – gegen die KI oder zu zweit |
-| ☄️ **Asteroids** | [`asteroids/`](asteroids/) | Vektor-Arcade mit vier Waffen, UFOs, Upgrades, Treibstoff und Touch-Steuerung |
-| 🫧 **Panda: Jäger der Blasen** | [`panda-bubbles/`](panda-bubbles/) | Bubble Shooter mit Bandenbonus, fallenden Gruppen und Bambusblase |
-| 💎 **Des Pandas Juwelen** | [`des-pandas-juwelen/`](des-pandas-juwelen/) | Match 3 mit Kaskaden, selbsterklärenden Spezialjuwelen, sammelbaren Boostern und taktischer Panda-Pfote |
-| ⏳ **Sand Game Pro 2.3** | [`sandgame/`](sandgame/) | Falling-Sand-Simulation mit Active-Cell-Wind, schlankem Chemie-Kern und sicherem WebGL2/CPU-Fallback |
-| 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat, interaktiv auf Canvas |
-| 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Lemmings-inspiriertes Puzzle mit Pandas |
-| 🃏 **Pandataire** | [`pandataire/`](pandataire/) | Solitaire-Sammelband: TriPeaks, Golf und Pyramid mit lösbaren Deals, Undo und Drag-and-drop |
-| 🕷️ **Panda Spider** | [`panda-spider/`](panda-spider/) | Spider-Solitaire mit einer, zwei oder vier Farben und Drag-and-drop |
-| ♠️ **Panndike** | [`panndike/`](panndike/) | Zeitungsartiges Klondike mit Tagesdeal, Deal-Codes, Drag/Touch mit Kartenvorschau, Hinweisen und Foundations |
-| ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit Deal-Nummern, Supermoves und Drag-and-drop |
-| 💣 **Minenräumkommando Foxtrott** | [`minenraeumkommando-foxtrott/`](minenraeumkommando-foxtrott/) | Minesweeper mit sicherem Erstklick und Chording |
-| 🔤 **Texttl** | [`texttl/`](texttl/) | Deutscher Wordle-Klon mit 1022 Lösungen, Tipp-Funktion, Tages-/Zufallsmodus und Knifflig-Modus |
-| 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku mit Notizen, Hinweisen und drei Schwierigkeitsgraden |
-| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Kompakte Sperrfeld-Kreuzworträtsel mit 969 deutschen/bairischen Einträgen und Bestzeiten |
-| 🀄 **Pahjong** | [`pahjong/`](pahjong/) | Mahjong-Solitaire im echten 144-Stein-Turtle-Layout mit Anleitung, Zoom und lösbaren Deals |
-| 🐛 **Maulkorbraupen – Das Spiel** | [`maulkorbraupen-das-spiel/`](maulkorbraupen-das-spiel/) | Vertontes Textadventure mit sieben Kapiteln und Werk-Rätseln |
+| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Klassisches Kreuzworträtsel auf Deutsch und Bairisch mit über 1.500 Begriffen, Lösungswort und vier Stufen |
+| ♠️ **Panndike Solitär** | [`panndike/`](panndike/) | Klondike-Solitär mit Zieh-1/3, Tagesdeal, Hinweisen, sicheren Fundamentzügen und Bestwerten |
+| 🃏 **Pandataire** | [`pandataire/`](pandataire/) | Drei Solitär-Varianten in einem Spiel: TriPeaks, Golf und Pyramid mit lösbaren Deals |
+| 🕷️ **Panda Spider** | [`panda-spider/`](panda-spider/) | Spider-Solitär mit einer, zwei oder vier Farben und acht Zielsequenzen |
+| ♥️ **PandaCell** | [`pandacell/`](pandacell/) | FreeCell mit vier freien Ablagefeldern, Deal-Nummern und Mehrfachzügen |
+| 🀄 **Pahjong** | [`pahjong/`](pahjong/) | Mahjong-Solitär mit 144 Steinen im Schildkröten-Aufbau, Zoom und Hinweisen |
+| 🏮 **Gloamdeep – The Lantern Below** | [`gloamdeep/`](gloamdeep/) | Pixel-Action-RPG: Laternendorf über einem endlosen Dungeon mit Quests, Beute, Wächtern und dynamischem Licht |
+| 🧱 **Tetris** | [`tetris/`](tetris/) | Fallende Blöcke drehen, stapeln und Reihen abbauen – mit Wanddrehung, 7-Bag und Highscore |
+| 🐍 **Snake Ultimate** | [`snake-ultimate/`](snake-ultimate/) | Snake für ein oder zwei Spieler mit acht Designs und zuschaltbaren Spielregeln |
+| 🏓 **Pong** | [`pong/`](pong/) | Schlägerduell bis fünf Punkte – gegen die KI in drei Stufen oder zu zweit am Gerät |
+| ☄️ **Asteroids** | [`asteroids/`](asteroids/) | Weltraum-Arcade im Vektorstil mit vier Waffen, UFOs, Upgrades und begrenztem Treibstoff |
+| 🫧 **Panda: Jäger der Blasen** | [`panda-bubbles/`](panda-bubbles/) | Bubble Shooter mit Bandenschüssen, fallenden Gruppen und Bambusblase |
+| 💎 **Des Pandas Juwelen** | [`des-pandas-juwelen/`](des-pandas-juwelen/) | Match-3-Rätsel mit Kaskaden, Spezialjuwelen, Boostern und Fern-Tausch |
+| ⏳ **Sand Game** | [`sandgame/`](sandgame/) | Partikel-Sandbox mit Physik, Chemie, Feuer, Wasser, Pflanzen und Wetter |
+| 🦠 **Game of Life** | [`game-of-life/`](game-of-life/) | Conways zellulärer Automat mit Vorlagen, Zykluserkennung und Zoom |
+| 🐼 **Panda Lemmings** | [`panda-lemmings/`](panda-lemmings/) | Führe deine Pandas mit Kletterern, Brückenbauern, Grabern und Blockern durch zehn Level |
+| 💣 **Minenräumkommando Foxtrott** | [`minenraeumkommando-foxtrott/`](minenraeumkommando-foxtrott/) | Minesweeper mit sicherem Erstklick, Schnellaufdecken, Flaggenmodus und vier Stufen plus eigenem Feld |
+| 🔤 **Texttl** | [`texttl/`](texttl/) | Deutsches Fünf-Buchstaben-Worträtsel mit Tageswort, Zufallsmodus, Tipp und Knifflig-Regel |
+| 🔢 **Pandadoku** | [`pandadoku/`](pandadoku/) | Sudoku in drei Stufen mit Notizen, Hinweisen und eindeutig lösbaren Gittern |
+| 🐛 **Maulkorbraupen – Das Spiel** | [`maulkorbraupen-das-spiel/`](maulkorbraupen-das-spiel/) | Vertontes Textadventure in sieben Kapiteln mit Werksrätseln |
 
 Jeder Spiel-Ordner enthält ein eigenes README mit Details, Steuerung und Features.
 
@@ -79,6 +79,66 @@ Gloamdeep bringt zusätzlich eigene Browser-Tests mit: `node gloamdeep/tests/smo
 (21 Schritte mit echten Tastatur-/Mausereignissen durch Dorf, Händler, Truhe, Kampf, zehn
 Etagen und Wächter) und `node gloamdeep/tests/soak.mjs` (Bot kämpft beschleunigt durch
 20 Etagen inklusive aller vier Wächter).
+
+## ✨ Neu in v2.6
+
+### Pandakreuzwort: Lösungswort, über 1.500 Begriffe & flüssige Eingabe
+
+- **Klassisches Lösungswort:** Nummerierte Gold-Felder im Gitter ergeben wie bei echten
+  Kreuzworträtseln ein gesuchtes Lösungswort (über 70 deutsche und 25 bairische Sonderwörter).
+  Die klickbare Lösungswort-Leiste unter dem Gitter füllt sich live mit und springt direkt zum
+  zugehörigen Feld.
+- **Wortbank auf 1.510 Einträge erweitert** (1.309 Deutsch, 201 Bairisch). Ältere Speicherstände
+  (v1.5, v1.6, v1.9) bleiben über eingefrorene Wortbänke weiter spielbar.
+- **Tastatur, Tablet-Tastatur & Bildschirmtastatur:** `Backspace` und `Entf` arbeiten sauber im
+  aktuellen Wort, ohne ungewollt zum nächsten Wort zu springen; auf Touch-Geräten erscheint eine
+  kompakte 3-Reihen-QWERTZ-Tastatur unter dem Gitter (am Desktop per Knopfdruck ein-/ausblendbar),
+  und `visualViewport` hält Gitter und Hinweis auch bei geöffneter Systemtastatur sichtbar.
+- **Drei-Spalten-Layout** für Widescreen und Ultrawide (16:9, 21:9, 32:9) sowie angepasste
+  Ansichten für 16:10-Notebooks, Tablets und 9:16/9:18-Smartphones.
+
+### Solitär, Klondike & Mahjong überarbeitet
+
+- **Panndike Solitär (Klondike):** Tastaturkürzel (`U/H/A/R/N/D/Esc`) funktionieren nun auch
+  bei fokussierten Karten, Zieh-3-Ablage fächert lesbar nach rechts, Hinweise vermeiden
+  Endlosschleifen, Doppeltippen und Auto-Fertigstellen bei komplett offenen Karten laufen rund,
+  und Bestzeit sowie Bestwert sind direkt sichtbar.
+- **Pandataire:** Korrekte TriPeaks-Ausrichtung (Gipfelkarten liegen deckungsgleich über ihren
+  Blockern), Partner-Hervorhebung in Pyramid, responsive Kartengrößen ohne Überlappung auf
+  Smartphones sowie Punkte und lokale Statistik.
+- **Panda Spider:** Alle 10 Spalten passen responsiv ohne kaputten Touch-Horizontalscroll,
+  Ziehstapel liegt griffbereit über dem Tableau, alle legalen Zielspalten werden markiert,
+  Pausen-Timer und vollständige lokale Persistenz wurden ergänzt.
+- **PandaCell:** Zuverlässiges Doppeltippen für Tableau und freie Zellen, korrigierte
+  Freizellen-Abwahl, saubere Mehrfach-Auto-Züge ohne Sound-Stapel, einheitliche deutsche
+  Kartenbezeichnungen (`B/D/K`) und lokale Bestwerte.
+- **Pahjong:** Symmetrisch zentrierter Turtle-Aufbau, echter Container-Query-Zoom für Zahlen und
+  Symbole sowie lokale Bestzeiten und Siege.
+- **Gemeinsames Kartenmodul:** Präzisere Touch-Zielerkennung beim Anheben der Karte und kürzere
+  Klick-Sperre nach Drag-and-drop.
+
+### Alle 20 Spiele geprüft, ent-sloppt & mit lokalen Bestwerten
+
+- **Einheitlicher lokaler Punktestand (`shared/game-scores.js`):** Alle 20 Spiele speichern
+  jetzt Bestwerte, Bestzeiten, Siege oder Fortschritte lokal im Browser und zeigen sie sowohl im
+  Spiel als auch direkt auf den Karten der Spieleübersicht an.
+- **Adaptive Touch-Erkennung (`shared/game-shell.js`):** Erkennt Touch- und Mauswechsel
+  dynamisch, zeigt Touch-Hilfen nur bei Bedarf (z. B. Bildschirmtastatur im Kreuzworträtsel,
+  Touch-Steuerung in Tetris/Snake/Asteroids, Flaggenmodus in Minesweeper, Radierer in Sand Game).
+- **Wichtige Bugfixes in den übrigen Spielen:**
+  - *Pandadoku:* Sichtbare 3×3-Rahmen wiederhergestellt, Undo-Hinweis-Exploit und Strg-Kürzel-Konflikt behoben.
+  - *Panda: Jäger der Blasen:* Bambusblase-Fortschrittsbalken sichtbar, Ziehen-und-Loslassen-Zielen per Touch, Ton-Schalter vereinheitlicht, Canvas-Höhe begrenzt.
+  - *Des Pandas Juwelen:* Ton-Schalter vereinheitlicht, 5er-Prisma-Priorität und Farbfunke-Doppeltrigger behoben, Grammatik korrigiert.
+  - *Minenräumkommando Foxtrott:* Android-Touch-Minenzündungs-Race behoben, Flaggenmodus und In-Game-Menü ergänzt, 0-Sekunden-Bestzeit akzeptiert.
+  - *Texttl:* Tipp-Symbol im Teilen-Text, Tages-Neustart überschreibt Statistik nicht mehr, flüssige Tastatur ohne Zeilenumbruch auf schmalen Displays.
+  - *Maulkorbraupen:* Fortschrittsbalken, Vorlese-Stopp, Bild-Zoom und Schicht-Auswertung korrigiert.
+  - *Tetris, Snake, Pong, Asteroids, Panda Lemmings, Sand Game, Game of Life & Gloamdeep:*
+    Wanddrehung und 7-Bag in Tetris; korrigierte Ball-/KI-Physik, W/S im Einzelspieler und
+    Smartphone-Menü in Pong; zuverlässige Munitions-Pickups und Wrap-Raketen in Asteroids;
+    Radierer und Strg+C-Schutz in Sand Game; Zoom-Panning und Touch-Zeichnen in Game of Life;
+    saubere Boss-Drops und volle-Tasche-Behandlung in Gloamdeep.
+- **Texte & Tests:** Alle Beschreibungen und Anleitungen bereinigt; beide Browser-Suiten testen
+  jetzt **13 Viewports** (9:16, 9:18, Querformat, Tablet, 16:10, 16:9, 21:9 und 32:9).
 
 ## ✨ Neu in v2.5
 

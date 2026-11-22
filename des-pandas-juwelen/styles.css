@@ -65,7 +65,7 @@ button { font: inherit; }
 .goal-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #6b3ca0, #2ba77b, #e3a62f); transition: width .5s cubic-bezier(.2, .8, .3, 1); }
 .message { min-height: 1.5em; margin: .6rem 0; color: var(--muted); text-align: center; font-weight: 650; }
 
-.game-layout { display: grid; grid-template-columns: minmax(0, 590px) minmax(225px, 280px); justify-content: center; align-items: start; gap: 1rem; }
+.game-layout { display: grid; grid-template-columns: minmax(0, min(560px, 64dvh)) minmax(225px, 280px); justify-content: center; align-items: start; gap: 1rem; }
 .board-card, .control-card { border: 1px solid var(--line); border-radius: 1.2rem; background: color-mix(in srgb, var(--panel) 96%, transparent); box-shadow: var(--shadow); }
 .board-card { position: relative; isolation: isolate; min-width: 0; width: 100%; padding: clamp(.45rem, 1.6vw, .9rem); overflow: hidden; }
 .board {
@@ -97,7 +97,8 @@ button { font: inherit; }
 .board.cascade-impact { animation: board-impact .34s ease-out; }
 .board.heavy-impact { animation: board-shake .44s cubic-bezier(.36, .07, .19, .97); }
 .board.level-cleared {
-  min-height: min(70vw, 540px);
+  aspect-ratio: 1;
+  min-height: 0;
   background:
     radial-gradient(circle at 50% 43%, color-mix(in srgb, #ffe39a 42%, transparent), transparent 32%),
     radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--good) 20%, transparent), transparent 68%),
@@ -567,13 +568,17 @@ html[data-game-style="contrast"] .gem { filter: drop-shadow(0 0 2px #fff); }
 .board.shuffle-out .gem { animation: jewel-shuffle-out .38s ease-in var(--shuffle-delay) both; }
 .board.shuffle-in .gem { animation: jewel-shuffle-in .42s cubic-bezier(.2, .8, .25, 1.18) var(--shuffle-delay) both; }
 
+@media (min-width: 1800px) {
+  .site-header, main, footer { width: min(1160px, calc(100% - 2rem)); }
+  .game-layout { grid-template-columns: minmax(0, min(620px, 68dvh)) minmax(250px, 310px); gap: 1.35rem; }
+}
 @media (max-width: 780px) {
   .game-layout { width: 100%; grid-template-columns: minmax(0, 1fr); }
   .control-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .8rem; width: 100%; }
   .treasure-bag { margin-top: 0; }
   .controls { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); margin-top: 0; }
   .controls #new-btn { grid-column: auto; }
-  .special-legend { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-top: 0; padding-top: .7rem; }
+  .special-legend { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: .55rem; margin-top: 0; padding-top: .7rem; }
   .special-legend h2, .special-legend .legend-note { grid-column: 1 / -1; }
   .legend-item { margin-top: 0; }
 }

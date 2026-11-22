@@ -5,6 +5,26 @@ Abhängigkeiten. Die kompakten Raster verwenden sichtbare dunkle Sperrfelder,
 weiße Buchstabenfelder sowie getrennte Hinweise für **waagrecht** und
 **senkrecht**. Wählbar sind Deutsch und Bairisch sowie vier Schwierigkeitsgrade.
 
+## Neu in v2.6
+
+- **Klassisches Lösungswort (Sonderwort):** Nummerierte Gold-Felder im Gitter bilden zusammen
+  das gesuchte Lösungswort (über 70 deutsche und 25 bairische Lösungswörter). Eine klickbare
+  Lösungswort-Leiste unter dem Gitter füllt sich live mit und springt direkt zur passenden Zelle.
+- **Über 1.500 Begriffe:** Wortbank auf **1.510 Einträge** erweitert (1.309 Deutsch, 201 Bairisch;
+  Datensatzversion `2026-11-v2.6`). Die früheren Wortbänke (v1.5, v1.6 und v1.9) bleiben für
+  laufende Speicherstände eingefroren.
+- **Ruhige Tastatur-, Tablet- und Bildschirmtastatur-Eingabe:**
+  - `Backspace` löscht zuverlässig im aktuellen Wort rückwärts, `Entf` leert das aktuelle Feld,
+    ohne dass der Cursor nach dem letzten Buchstaben ungewollt ins nächste Wort springt.
+  - Auf Touch-Geräten erscheint automatisch eine kompakte 3-Reihen-QWERTZ-Bildschirmtastatur
+    ohne das Gitter zu verdecken; auf dem Desktop bleibt sie per Knopfdruck ein- und ausblendbar.
+  - Über `visualViewport` bleibt der aktive Hinweis samt gewähltem Feld auch bei geöffneter
+    Systemtastatur sichtbar.
+- **Punkte und Bestwerte:** Neben Bestzeiten je Sprache und Stufe werden Punkte, Bestwerte und
+  gelöste Rätsel lokal gespeichert und in der Spieleübersicht angezeigt.
+- **Drei-Spalten-Layout für Widescreen & Ultrawide** (16:9, 21:9, 32:9) sowie optimierte
+  Ansichten für 16:10-Notebooks, Tablets und 9:16/9:18-Smartphones.
+
 ## Neu in v1.9
 
 - Wortbank auf **969 redaktionelle Einträge** erweitert

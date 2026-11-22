@@ -2,13 +2,55 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Conway's Game of Life – Adaptive Canvas Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Game of Life</title>
 <style>
 :root{--bg:#0f172a;--panel:#111827;--panel2:#1f2937;--text:#e5e7eb;--muted:#9ca3af;--accent:#38bdf8;--alive:#f8fafc;--dead:#020617}
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
-#app{height:100vh;display:grid;grid-template-rows:auto 1fr}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border-bottom:1px solid #334155;padding:10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:2}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.title{display:flex;flex-direction:column;gap:2px}.title h1{font-size:18px;line-height:1.1;margin:0}.title span{font-size:12px;color:var(--muted)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}button,select,input{font:inherit}button,select{background:#0b1220;color:var(--text);border:1px solid #475569;border-radius:8px;padding:6px 9px;cursor:pointer}button:hover,select:hover{border-color:var(--accent)}button.primary{background:#0284c7;border-color:#38bdf8;color:white}button.danger:hover{border-color:#ef4444;color:#fecaca}label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}.stats{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.stats strong{color:var(--text)}#canvasWrap{position:relative;overflow:hidden;background:var(--dead);display:flex;align-items:center;justify-content:center}canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair;flex:0 0 auto}.hint{position:absolute;right:10px;bottom:8px;background:rgba(15,23,42,.75);border:1px solid rgba(148,163,184,.35);border-radius:8px;padding:5px 7px;font-size:11px;color:#cbd5e1;pointer-events:none}.fullscreen .panel{padding:7px 10px}.fullscreen .title span{display:none}@media(max-width:1050px){.top{align-items:flex-start}.controls{gap:6px}.title h1{font-size:16px}}
-.game-collection-link{position:fixed;left:12px;bottom:12px;z-index:10000;padding:8px 12px;border:1px solid #38bdf8;border-radius:999px;background:rgba(11,18,32,.92);color:#e5e7eb;text-decoration:none;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.4)}.game-collection-link:hover{background:#0284c7}.game-collection-link:focus-visible{outline:3px solid #f8fafc;outline-offset:3px}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+#app{height:100dvh;display:grid;grid-template-rows:auto 1fr}
+.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border-bottom:1px solid #334155;padding:9px 12px;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:2}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.title-row{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
+.title{display:flex;flex-direction:column;gap:2px}
+.title h1{font-size:17px;line-height:1.15;margin:0}
+.title span{font-size:11.5px;color:var(--muted)}
+.controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+button,select,input{font:inherit}
+button,select{background:#0b1220;color:var(--text);border:1px solid #475569;border-radius:8px;padding:6px 9px;cursor:pointer;font-size:13px}
+button:hover,select:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:#0284c7;border-color:#38bdf8;color:white;font-weight:600}
+button.danger:hover{border-color:#ef4444;color:#fecaca}
+#toggleControls{display:none}
+label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.stats{margin-top:7px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.stats strong{color:var(--text)}
+#canvasWrap{position:relative;overflow:hidden;background:var(--dead);display:flex;align-items:center;justify-content:center;min-height:0}
+#canvasWrap.zoomed{overflow:auto;align-items:safe center;justify-content:safe center;-webkit-overflow-scrolling:touch}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:crosshair;flex:0 0 auto;touch-action:none}
+.hint{position:absolute;right:10px;bottom:8px;background:rgba(15,23,42,.8);border:1px solid rgba(148,163,184,.35);border-radius:8px;padding:5px 8px;font-size:11px;color:#cbd5e1;pointer-events:none}
+@media (pointer:coarse){ .hint{display:none} }
+body.touch-active .hint{display:none}
+.fullscreen .panel{padding:7px 10px}
+.fullscreen .title span{display:none}
+@media (max-width:1050px){
+  .top{align-items:flex-start}
+  .controls{gap:6px}
+  .title h1{font-size:16px}
+}
+@media (max-width:760px), (max-height:500px){
+  .panel{padding:7px 10px}
+  .title span{display:none}
+  .title-row{width:100%}
+  #toggleControls{display:inline-flex;align-items:center;gap:4px;min-height:36px}
+  .controls{width:100%;max-height:42dvh;overflow-y:auto;padding-top:4px}
+  .panel.collapsed .controls{display:none}
+  .stats{margin-top:5px;gap:8px;font-size:11px}
+}
+.game-collection-link{position:fixed;left:12px;bottom:12px;z-index:10000;padding:8px 12px;border:1px solid #38bdf8;border-radius:999px;background:rgba(11,18,32,.92);color:#e5e7eb;text-decoration:none;font-weight:700;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.game-collection-link:hover{background:#0284c7}
+.game-collection-link:focus-visible{outline:3px solid #f8fafc;outline-offset:3px}
 </style>
 </head>
 <body>
@@ -16,32 +58,37 @@
 <div id="app">
   <section class="panel" id="panel">
     <div class="top">
-      <div class="title">
-        <h1>Conway’s Game of Life · Adaptive Canvas Pro</h1>
-        <span>Cell-Ratio: 1=1px/Zelle · 2=2×2px/Zelle · 3=4×4px/Zelle · Zoom ist nur Anzeige</span>
+      <div class="title-row">
+        <div class="title">
+          <h1>Game of Life</h1>
+          <span>Zellgröße wählbar · Zoom vergrößert nur die Ansicht</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="startStop" class="primary" type="button">Start</button>
+          <button id="toggleControls" type="button" aria-expanded="true">⚙ Optionen</button>
+        </div>
       </div>
-      <div class="controls">
-        <button id="startStop" class="primary">Start</button>
-        <button id="step">Step</button>
-        <button id="clear" class="danger">Clear</button>
-        <button id="fullscreen">Fullscreen</button>
+      <div class="controls" id="controlsBar">
+        <button id="step" type="button">Schritt</button>
+        <button id="clear" class="danger" type="button">Leeren</button>
+        <button id="fullscreen" type="button">Vollbild</button>
         <label>FPS <strong id="fpsLabel">30</strong><input id="fps" type="range" min="1" max="120" value="30"></label>
         <label>Dichte <strong id="densityLabel">18</strong>%<input id="density" type="range" min="1" max="80" value="18"></label>
-        <button id="random">Random</button>
-        <select id="preset">
-            <option value="glider">Glider</option>
-            <option value="lwss">LWSS</option>
+        <button id="random" type="button">Zufall</button>
+        <select id="preset" aria-label="Muster auswählen">
+            <option value="glider">Gleiter (Glider)</option>
+            <option value="lwss">Raumschiff (LWSS)</option>
             <option value="blinker">Blinker</option>
-            <option value="toad">Toad</option>
-            <option value="beacon">Beacon</option>
+            <option value="toad">Kröte (Toad)</option>
+            <option value="beacon">Leuchtfeuer</option>
             <option value="pulsar">Pulsar</option>
             <option value="rpentomino">R-Pentomino</option>
             <option value="diehard">Diehard</option>
-            <option value="acorn">Acorn</option>
-            <option value="gosper">Gosper Gun</option>
+            <option value="acorn">Eichel (Acorn)</option>
+            <option value="gosper">Gosper-Kanone</option>
         </select>
-        <button id="placePreset">Preset</button>
-        <label>Ratio <select id="ratio">
+        <button id="placePreset" type="button">Muster</button>
+        <label>Auflösung <select id="ratio">
             <option value="1">1 = 1 px/Zelle</option>
             <option value="2">2 = 2×2 px/Zelle</option>
             <option value="3" selected>3 = 4×4 px/Zelle</option>
@@ -52,35 +99,40 @@
         <label>Zoom <strong id="zoomLabel">1</strong>x<input id="zoom" type="range" min="1" max="16" value="1"></label>
         <label><input id="torus" type="checkbox" checked> Torus</label>
         <label><input id="cycleCheck" type="checkbox" checked> Zyklus-Check</label>
-        <button id="save">Save</button>
-        <button id="load">Load</button>
+        <button id="save" type="button">Speichern</button>
+        <button id="load" type="button">Laden</button>
       </div>
     </div>
     <div class="stats">
-      <span>Grid: <strong id="gridSize">-</strong></span>
+      <span>Gitter: <strong id="gridSize">-</strong></span>
       <span>Zellen: <strong id="cellCount">-</strong></span>
-      <span>Cell-Pixel: <strong id="cellPxInfo">4×4</strong></span>
+      <span>Zellgröße: <strong id="cellPxInfo">4×4</strong></span>
       <span>Generation: <strong id="generation">0</strong></span>
       <span>Lebend: <strong id="aliveCount">0</strong></span>
+      <span>Rekord-Gen.: <strong id="bestGen">0</strong></span>
+      <span>Max. Zellen: <strong id="peakAlive">0</strong></span>
       <span>Status: <strong id="status">bereit</strong></span>
     </div>
   </section>
   <div id="canvasWrap">
       <canvas id="life" role="img" aria-label="Game-of-Life-Spielfeld"></canvas>
-      <div class="hint">Leertaste Start/Pause · F Fullscreen · R Random · +/- Zoom · Klick/Ziehen zeichnet · S Save · L Load</div>
+      <div class="hint">Leertaste Start/Pause · F Vollbild · R Zufall · +/- Zoom · Klick/Ziehen zeichnet · S Speichern · L Laden</div>
   </div>
 </div>
 
+<script src="../shared/game-scores.js"></script>
 <script>
 (()=>{
   "use strict";
   const ALIVE = 1, DEAD = 0, HISTORY_LIMIT = 2000;
+  const STATS_KEY = "gameOfLifeStats";
   let cols = 0, rows = 0, grid = new Uint8Array(0), next = new Uint8Array(0),
       generation = 0, running = false, raf = null, last = 0, drawMode = null,
-      imageData = null, pixels = null, patternHistory = new Map();
+      imageData = null, pixels = null, patternHistory = new Map(),
+      lastAliveCount = 0;
 
   const $ = id => document.getElementById(id);
-  const app = $("app"), canvas = $("life"), ctx = canvas.getContext("2d", { alpha: false }),
+  const app = $("app"), panel = $("panel"), canvas = $("life"), ctx = canvas.getContext("2d", { alpha: false }),
       wrap = $("canvasWrap"), startStop = $("startStop"), stepBtn = $("step"),
       clearBtn = $("clear"), fullscreenBtn = $("fullscreen"), randomBtn = $("random"),
       presetSel = $("preset"), placePresetBtn = $("placePreset"), fps = $("fps"),
@@ -89,7 +141,75 @@
       zoomLabel = $("zoomLabel"), torus = $("torus"), cycleCheck = $("cycleCheck"),
       gridSize = $("gridSize"), cellCount = $("cellCount"), cellPxInfo = $("cellPxInfo"),
       genEl = $("generation"), aliveEl = $("aliveCount"), statusEl = $("status"),
-      saveBtn = $("save"), loadBtn = $("load");
+      bestGenEl = $("bestGen"), peakAliveEl = $("peakAlive"),
+      saveBtn = $("save"), loadBtn = $("load"), toggleControlsBtn = $("toggleControls");
+
+  // Auf extrem breiten 32:9-Monitoren sinnvolles Default-Ratio wählen für flüssige 60 FPS
+  if (window.innerWidth > 2000) ratio.value = "4";
+
+  // Auf sehr kompakten Bildschirmen Optionen per Toggle einklappbar
+  if (window.innerWidth <= 760 || window.innerHeight <= 500) {
+    panel.classList.add("collapsed");
+    toggleControlsBtn.setAttribute("aria-expanded", "false");
+  }
+  toggleControlsBtn.onclick = () => {
+    const collapsed = panel.classList.toggle("collapsed");
+    toggleControlsBtn.setAttribute("aria-expanded", String(!collapsed));
+    setTimeout(resize, 0);
+  };
+
+  window.addEventListener("pointerdown", e => {
+    if (e.pointerType === "touch") document.body.classList.add("touch-active");
+    else if (e.pointerType === "mouse") document.body.classList.remove("touch-active");
+  }, { passive: true });
+
+  // === Lokale Statistiken & GameScores ===
+  let stats = { maxGeneration: 0, peakAlive: 0, longestCycle: 0, sessions: 0 };
+  try {
+    const raw = localStorage.getItem(STATS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === "object") {
+        stats.maxGeneration = Math.max(0, Number(p.maxGeneration) || 0);
+        stats.peakAlive = Math.max(0, Number(p.peakAlive) || 0);
+        stats.longestCycle = Math.max(0, Number(p.longestCycle) || 0);
+        stats.sessions = Math.max(0, Number(p.sessions) || 0);
+      }
+    }
+  } catch (_e) {}
+
+  let lastStatsSave = 0;
+  function updateStatsUI() {
+    bestGenEl.textContent = stats.maxGeneration.toLocaleString("de-DE");
+    peakAliveEl.textContent = stats.peakAlive.toLocaleString("de-DE");
+  }
+  function persistStats(countSession = false, force = false) {
+    const now = performance.now();
+    if (!force && !countSession && now - lastStatsSave < 1500) return;
+    lastStatsSave = now;
+    if (countSession) stats.sessions++;
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (_e) {}
+    if (window.GameScores) {
+      const payload = {
+        score: stats.maxGeneration,
+        meta: { peakAlive: stats.peakAlive, longestCycle: stats.longestCycle },
+        label: `Gen. ${stats.maxGeneration.toLocaleString("de-DE")} · Max. ${stats.peakAlive.toLocaleString("de-DE")} Zellen`
+      };
+      if (countSession && typeof window.GameScores.record === "function") window.GameScores.record("game-of-life", payload);
+      else if (typeof window.GameScores.sync === "function") window.GameScores.sync("game-of-life", payload);
+    }
+    updateStatsUI();
+  }
+  function trackProgress(alive) {
+    let improved = false;
+    if (generation > stats.maxGeneration) { stats.maxGeneration = generation; improved = true; }
+    if (alive > stats.peakAlive) { stats.peakAlive = alive; improved = true; }
+    if (improved) {
+      updateStatsUI();
+      persistStats(false, false);
+    }
+  }
+  updateStatsUI();
 
   const presets = {
     glider: [[0,1],[1,2],[2,0],[2,1],[2,2]],
@@ -107,12 +227,14 @@
   function cellSize() { return 2**(Number(ratio.value)-1); }
   function visualCellSize() { return cellSize()*(zoomMode.checked?Number(zoom.value):1); }
   function idx(x,y) { return y*cols+x; }
-  
+
   function syncCanvasCss() {
     const s = visualCellSize();
+    const isZoomed = zoomMode.checked && Number(zoom.value) > 1;
+    wrap.classList.toggle("zoomed", isZoomed);
     canvas.style.width = (cols*s)+"px";
     canvas.style.height = (rows*s)+"px";
-    cellPxInfo.textContent = cellSize()+"×"+cellSize()+" px/Zelle";
+    cellPxInfo.textContent = cellSize()+"×"+cellSize()+" px";
     zoomLabel.textContent = zoom.value;
   }
 
@@ -127,7 +249,7 @@
 
     if(newCols === cols && newRows === rows) {
       syncCanvasCss();
-      if(wasRunning) start();
+      if(wasRunning) start(false);
       return;
     }
 
@@ -155,7 +277,7 @@
     syncCanvasCss();
     render();
 
-    if(wasRunning) start();
+    if(wasRunning) start(false);
   }
 
   function count(x,y) {
@@ -179,7 +301,7 @@
     return n;
   }
 
-  function step() {
+  function step(shouldRender = true) {
     let alive = 0;
     for(let y=0;y<rows;y++)
       for(let x=0;x<cols;x++) {
@@ -191,12 +313,15 @@
 
     [grid, next] = [next, grid];
     generation++;
-    render(alive);
+    lastAliveCount = alive;
+    trackProgress(alive);
+
+    if(shouldRender) render(alive);
 
     if(cycleCheck.checked) {
-        checkCycle();
+      checkCycle();
     } else {
-        statusEl.textContent = "läuft";
+      statusEl.textContent = "läuft";
     }
   }
 
@@ -213,6 +338,11 @@
     ctx.putImageData(imageData, 0, 0);
     genEl.textContent = generation.toLocaleString("de-DE");
     aliveEl.textContent = alive.toLocaleString("de-DE");
+    lastAliveCount = alive;
+    if(alive > stats.peakAlive) {
+      stats.peakAlive = alive;
+      updateStatsUI();
+    }
   }
 
   function gridHash() {
@@ -232,6 +362,10 @@
     if(patternHistory.has(k)) {
       const firstSeen = patternHistory.get(k);
       const period = generation - firstSeen;
+      if(period > stats.longestCycle) {
+        stats.longestCycle = period;
+        persistStats(false, false);
+      }
       statusEl.textContent = `Zyklus! Distanz: ${firstSeen} Gen | Länge: ${period} Gen`;
     } else {
       patternHistory.set(k, generation);
@@ -243,12 +377,17 @@
     }
   }
 
-  function start() {
+  function start(countSession = true) {
     if(running) return;
     running = true;
     startStop.textContent = "Pause";
     last = performance.now();
+    // Generation 0 in patternHistory aufnehmen, damit Still-Lifes Distanz: 0 melden
+    if(cycleCheck.checked && patternHistory.size === 0) {
+      patternHistory.set(gridHash(), generation);
+    }
     statusEl.textContent = "läuft";
+    if(countSession) persistStats(true, true);
     raf = requestAnimationFrame(loop);
   }
 
@@ -257,21 +396,24 @@
     startStop.textContent = "Start";
     if(raf !== null) cancelAnimationFrame(raf);
     raf = null;
-    if(update) statusEl.textContent = "pausiert";
+    if(update) {
+      statusEl.textContent = "pausiert";
+      persistStats(false, true);
+    }
   }
 
   function loop(t) {
     if(!running) return;
     const frame = 1000/Number(fps.value);
-    // Mehr als ein Generationsschritt pro Display-Frame erlauben (z. B. 120 FPS
-    // auf einem 60-Hz-Display), aber Catch-up nach Hintergrundpausen begrenzen.
     if(t - last > frame * 8) last = t - frame * 8;
     let steps = 0;
     while(running && t - last >= frame && steps < 8) {
-      step();
+      step(false);
       last += frame;
       steps++;
     }
+    // Einmal pro Animationsframe rendern statt in jedem Sub-Step (flüssig bei 120 FPS)
+    if(steps > 0) render(lastAliveCount);
     raf = requestAnimationFrame(loop);
   }
 
@@ -295,7 +437,7 @@
     }
     generation = 0;
     patternHistory.clear();
-    statusEl.textContent = "random";
+    statusEl.textContent = "Zufall";
     render(alive);
   }
 
@@ -316,7 +458,7 @@
 
     generation = 0;
     patternHistory.clear();
-    statusEl.textContent = "preset";
+    statusEl.textContent = "Muster";
     render();
   }
 
@@ -340,6 +482,7 @@
       statusEl.textContent = "Speichern fehlgeschlagen";
       return;
     }
+    persistStats(false, true);
     statusEl.textContent = "Gespeichert!";
     setTimeout(() => {
       if(statusEl.textContent === "Gespeichert!") {
@@ -364,8 +507,6 @@
       if(!validDimensions || !Array.isArray(data.grid) || data.grid.length !== data.cols * data.rows) {
         throw new Error("Ungültige Grid-Daten");
       }
-      // Exakte gespeicherte Dimensionen wiederherstellen. Dadurch bleibt ein Save
-      // auch nach einer zwischenzeitlichen Ratio-Änderung ladbar.
       ratio.value = data.ratio || "3";
       cols = data.cols;
       rows = data.rows;
@@ -408,7 +549,7 @@
     const p = pointerToCell(e);
     if(p.x < 0 || p.x >= cols || p.y < 0 || p.y >= rows) return;
     grid[idx(p.x, p.y)] = drawMode;
-    generation = 0;
+    // Generation beim Zeichnen beibehalten; nur Zyklus-Historie leeren
     patternHistory.clear();
     render();
     statusEl.textContent = "bearbeitet";
@@ -419,32 +560,37 @@
       if(!document.fullscreenElement) {
         await app.requestFullscreen();
         app.classList.add("fullscreen");
-        fullscreenBtn.textContent = "Exit Fullscreen";
+        fullscreenBtn.textContent = "Vollbild beenden";
       } else {
         await document.exitFullscreen();
         app.classList.remove("fullscreen");
-        fullscreenBtn.textContent = "Fullscreen";
+        fullscreenBtn.textContent = "Vollbild";
       }
       setTimeout(resize, 0);
     } catch {
-      statusEl.textContent = "Fullscreen nicht verfügbar";
+      statusEl.textContent = "Vollbild nicht verfügbar";
     }
   }
 
   startStop.onclick = () => running ? stop() : start();
-  stepBtn.onclick = () => { stop(false); step(); };
+  stepBtn.onclick = () => {
+    stop(false);
+    if(cycleCheck.checked && patternHistory.size === 0) patternHistory.set(gridHash(), generation);
+    step(true);
+  };
   clearBtn.onclick = clear;
   randomBtn.onclick = randomize;
   placePresetBtn.onclick = () => placePreset(presetSel.value);
   fullscreenBtn.onclick = toggleFullscreen;
   fps.oninput = () => fpsLabel.textContent = fps.value;
   density.oninput = () => densityLabel.textContent = density.value;
-  ratio.onchange = () => { statusEl.textContent = "Ratio geändert"; resize(); };
+  ratio.onchange = () => { statusEl.textContent = "Auflösung geändert"; resize(); };
   zoomMode.onchange = () => {
     syncCanvasCss();
     statusEl.textContent = zoomMode.checked ? "Zoom aktiv" : "Zoom aus";
   };
   zoom.oninput = () => {
+    zoomMode.checked = Number(zoom.value) > 1;
     syncCanvasCss();
     statusEl.textContent = "Zoom "+zoom.value+"x";
   };
@@ -471,31 +617,35 @@
     if(canvas.hasPointerCapture(e.pointerId))
       canvas.releasePointerCapture(e.pointerId);
   });
-  canvas.addEventListener("pointerleave", () => drawMode = null);
+  canvas.addEventListener("pointercancel", () => { drawMode = null; });
+  canvas.addEventListener("pointerleave", () => { drawMode = null; });
 
   window.addEventListener("resize", resize);
+  window.addEventListener("pagehide", () => persistStats(false, true));
   document.addEventListener("fullscreenchange", () => {
     app.classList.toggle("fullscreen", !!document.fullscreenElement);
-    fullscreenBtn.textContent = document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen";
+    fullscreenBtn.textContent = document.fullscreenElement ? "Vollbild beenden" : "Vollbild";
     setTimeout(resize, 0);
   });
   window.addEventListener("keydown", e => {
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = document.activeElement;
+    if(t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if(e.code === "Space") {
-      const t = document.activeElement;
-      if(t && /^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+      if(t && /^(BUTTON|A)$/.test(t.tagName)) return;
       e.preventDefault();
       running ? stop() : start();
     }
     else if(e.key.toLowerCase() === "r") randomize();
     else if(e.key.toLowerCase() === "f") toggleFullscreen();
     else if(e.key === "+" || e.key === "=") {
-      zoomMode.checked = true;
       zoom.value = Math.min(16, Number(zoom.value)+1);
+      zoomMode.checked = Number(zoom.value) > 1;
       syncCanvasCss();
     }
     else if(e.key === "-") {
-      zoomMode.checked = true;
       zoom.value = Math.max(1, Number(zoom.value)-1);
+      zoomMode.checked = Number(zoom.value) > 1;
       syncCanvasCss();
     }
     else if(e.key.toLowerCase() === "s") save();

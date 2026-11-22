@@ -71,8 +71,8 @@ html[data-game-style] {
   --key: var(--pg-panel-2);
   --key-text: var(--pg-text);
 }
-/* Große Desktop-, Widescreen- und Ultrawide-Monitore: Text und Bedienelemente
-   wachsen moderat mit, damit Spiele auf 1440p/Ultrawide nicht winzig wirken. */
+/* Große Desktop-, Widescreen-, Ultrawide- (21:9) und Super-Ultrawide-Monitore (32:9):
+   Text und Bedienelemente wachsen moderat mit, ohne die Seite zu überdehnen. */
 @media (min-width: 1800px) {
   html[data-game-style="panda"], html[data-game-style="night"] { font-size: 17px; }
   html[data-game-style="contrast"] { font-size: 19px; }
@@ -81,9 +81,22 @@ html[data-game-style] {
   html[data-game-style="panda"], html[data-game-style="night"] { font-size: 18px; }
   html[data-game-style="contrast"] { font-size: 20px; }
 }
+@media (min-width: 3400px) {
+  html[data-game-style="panda"], html[data-game-style="night"] { font-size: 18.5px; }
+  html[data-game-style="contrast"] { font-size: 20.5px; }
+}
 html[data-game-style] body {
   background: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--pg-accent) 13%, var(--pg-bg)), var(--pg-bg) 65%);
   color: var(--pg-text);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Adaptive Touch-Hilfen: erscheinen nur bei erkannter Touch-Bedienung. */
+html[data-input-mode="pointer"] .touch-only { display: none !important; }
+html[data-input-mode="touch"] .pointer-only { display: none !important; }
+html[data-input-mode="touch"] :is(button, select, .chip, .key) {
+  touch-action: manipulation;
 }
 html[data-game-style] body > main.grid > .card { background: var(--pg-panel); }
 html[data-game-style] body > main.grid > .card:hover,

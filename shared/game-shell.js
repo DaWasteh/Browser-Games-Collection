@@ -4,6 +4,58 @@
   const STORAGE_KEY = 'browser-games-style';
   const STYLES = new Set(['panda', 'night', 'contrast']);
   const root = document.documentElement;
+  const inputListeners = new Set();
+
+  function detectInitialTouch() {
+    const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    const noHover = !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
+    const points = Number(navigator.maxTouchPoints || 0);
+    return coarse || (noHover && points > 0);
+  }
+
+  let inputMode = detectInitialTouch() ? 'touch' : 'pointer';
+  root.dataset.inputMode = inputMode;
+  root.dataset.hasTouch = String(detectInitialTouch() || ('ontouchstart' in window) || Number(navigator.maxTouchPoints || 0) > 0);
+
+  function setInputMode(nextMode) {
+    const mode = nextMode === 'touch' ? 'touch' : 'pointer';
+    if (mode === inputMode) return;
+    inputMode = mode;
+    root.dataset.inputMode = mode;
+    inputListeners.forEach(fn => {
+      try { fn(mode); } catch (_error) { /* Zuhörer dürfen nicht stören. */ }
+    });
+    try {
+      window.dispatchEvent(new CustomEvent('game:inputmode', { detail: { mode } }));
+    } catch (_error) { /* optional */ }
+  }
+
+  document.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'touch') {
+      root.dataset.hasTouch = 'true';
+      setInputMode('touch');
+    } else if (event.pointerType === 'mouse') {
+      setInputMode('pointer');
+    }
+  }, { capture: true, passive: true });
+
+  document.addEventListener('touchstart', () => {
+    root.dataset.hasTouch = 'true';
+    setInputMode('touch');
+  }, { capture: true, passive: true });
+
+  window.GameShell = Object.freeze({
+    getInputMode: () => inputMode,
+    isTouchMode: () => inputMode === 'touch',
+    hasTouchCapability: () => root.dataset.hasTouch === 'true',
+    setInputMode,
+    onInputModeChange(listener) {
+      if (typeof listener === 'function') inputListeners.add(listener);
+      return () => inputListeners.delete(listener);
+    },
+    getStyle: () => root.dataset.gameStyle || 'panda',
+    setStyle: style => applyStyle(style, true)
+  });
 
   function readStyle() {
     try {

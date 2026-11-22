@@ -8,9 +8,10 @@
   <link rel="stylesheet" href="styles.css">
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
+  <script src="../shared/game-scores.js"></script>
 </head>
 <body>
-  <a class="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
+  <a class="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleübersicht</a>
 
   <header class="game-header">
     <div>
@@ -35,8 +36,9 @@
 
   <main class="game-shell">
     <section class="scene-visual" aria-label="Szenenbild">
-      <img id="scene-image" src="assets/01-intro.webp" width="1536" height="1024" alt="Maulkorbraupe vor dem Werk bei Sonnenuntergang" fetchpriority="high">
+      <img id="scene-image" src="assets/01-intro.webp" width="1536" height="1024" alt="Maulkorbraupe vor dem Werk bei Sonnenuntergang" fetchpriority="high" tabindex="0" role="button" aria-label="Szenenbild vergrößern oder verkleinern" title="Antippen zum Vergrößern">
       <div class="scene-chip" id="scene-chip">Kapitel 1</div>
+      <span class="zoom-hint" aria-hidden="true">🔍 Zoom</span>
     </section>
 
     <article class="story-panel" aria-labelledby="scene-title">

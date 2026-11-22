@@ -35,17 +35,17 @@ body{
 .stat b.green{color:var(--bamboo)} .stat b.amber{color:var(--lantern)} .stat b.red{color:var(--danger)}
 /* ---------- Stage ---------- */
 #stage{flex:1 1 auto; position:relative; min-height:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse at 50% 30%, #101a26 0%, #0a0f16 70%)}
-#gameCanvas{display:block; border:1px solid var(--line); border-radius:4px; cursor:crosshair; box-shadow:0 8px 40px rgba(0,0,0,.55)}
+#gameCanvas{display:block; border:1px solid var(--line); border-radius:4px; cursor:crosshair; touch-action:none; box-shadow:0 8px 40px rgba(0,0,0,.55)}
 /* ---------- Overlays ---------- */
 .overlay{
   position:absolute; inset:0; display:none; align-items:center; justify-content:center;
-  background:rgba(7,11,16,.72); backdrop-filter:blur(2px); z-index:20;
+  background:rgba(7,11,16,.72); backdrop-filter:blur(2px); z-index:20; padding:.5rem;
 }
 .overlay.show{display:flex}
-.card{
+.overlay .card{
   background:linear-gradient(180deg,#18222e,#111922); border:1px solid var(--line);
-  border-top:3px solid var(--bamboo); border-radius:10px; padding:26px 34px;
-  max-width:560px; width:min(92%,560px); text-align:center;
+  border-top:3px solid var(--bamboo); border-radius:10px; padding:22px 28px;
+  max-width:560px; width:min(92%,560px); max-height:calc(100% - 1rem); overflow-y:auto; text-align:center;
   box-shadow:0 20px 60px rgba(0,0,0,.6);
 }
 .card.fail{border-top-color:var(--danger)}
@@ -113,7 +113,7 @@ select:focus-visible{outline:2px solid var(--bamboo)}
 }
 @media (prefers-reduced-motion:reduce){ *{transition:none !important; animation:none !important} }
 .game-collection-link{position:fixed;left:12px;bottom:12px;z-index:10000;padding:8px 12px;border:1px solid var(--bamboo);border-radius:999px;background:rgba(14,20,28,.94);color:var(--paper);text-decoration:none;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.45)}.game-collection-link:hover{filter:brightness(1.25)}.game-collection-link:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
-@media (max-width:760px), (max-height:500px){
+@media (max-width:1300px), (max-height:600px){
   .game-collection-link{position:static;align-self:flex-start;flex:0 0 auto;margin:6px 8px;padding:6px 10px;z-index:auto}
 }
 </style>
@@ -189,6 +189,7 @@ select:focus-visible{outline:2px solid var(--bamboo)}
   </div>
 </div>
 
+<script src="../shared/game-scores.js"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -223,7 +224,7 @@ const SKILL_DE = {
 };
 const STATE_DE = {
   walking:'läuft', falling:'fällt', climbing:'klettert',
-  blocking:'stoppt', building:'baut', bashing:'tunnelt', mining:'miniert',
+  blocking:'stoppt', building:'baut', bashing:'tunnelt', mining:'schürft',
   digging:'gräbt', exiting:'gerettet!', splatting:'autsch', sizzling:'zu heiß!',
 };
 
@@ -414,6 +415,7 @@ class Panda {
         this.state='splatting'; this.t=0; w.emit('splat',this); return;
       }
       this.state='walking'; this.vy=0; this.fall=0; this.umbrella=false; this.grounded=true;
+      w.checkExit(this);
     }
   }
 
@@ -424,14 +426,19 @@ class Panda {
     if(w.terrain.solidPx(this.cx,this.y-1)){
       this.x-=this.dir*2; this.startFall(); return;
     }
-    // Wand zu Ende? -> oben aufsteigen
+    // Wand zu Ende? -> oben aufsteigen (nur wenn Zielraum frei von massivem Terrain ist)
     if(!w.terrain.solidPx(wallX,this.y+3)){
       const col=(Math.max(0,Math.min(W-1,wallX))/C)|0;
       let cy=Math.floor((this.y+3)/C);
       while(cy<GH && !w.terrain.solidCell(col,cy)) cy++;
       if(cy>=GH){ this.startFall(); return; }
-      this.y=cy*C-PH; this.x+=this.dir*4;
+      const ny=cy*C-PH, nx=this.x+this.dir*4;
+      if(w.terrain.solidPx(nx+PW/2,ny+2) || w.terrain.solidPx(nx+PW/2,ny+PH-2)){
+        this.x-=this.dir*2; this.startFall(); return;
+      }
+      this.y=ny; this.x=nx;
       this.state='walking'; this.grounded=true;
+      w.checkExit(this);
       return;
     }
     this.y-=CLIMB*dt;
@@ -463,6 +470,8 @@ class Panda {
     if(this.x<2||this.x+PW>W-2){
       this.x=Math.max(2,Math.min(W-2-PW,this.x)); this.turn(); this.state='walking'; return;
     }
+    w.checkExit(this);
+    if(this.state==='exiting') return;
     if(this.steps>=BUILD_MAX){ this.state='walking'; w.emit('shrug',this); }
   }
 
@@ -504,6 +513,7 @@ class Panda {
       }
     }
     if(this.x<2||this.x+PW>W-2){ this.x=Math.max(2,Math.min(W-2-PW,this.x)); this.turn(); this.state='walking'; }
+    w.checkExit(this);
   }
 
   tickDig(w,dt){
@@ -523,6 +533,7 @@ class Panda {
     this.y+=C;
     let g=0;
     while(this.support(w,this.y-1) && g++<10) this.y--;
+    w.checkExit(this);
   }
 
   tickMine(w,dt){
@@ -542,6 +553,8 @@ class Panda {
     let g=0;
     while(this.support(w,this.y-1) && g++<10) this.y--;
     if(this.x<2||this.x+PW>W-2){ this.x=Math.max(2,Math.min(W-2-PW,this.x)); this.turn(); this.state='walking'; return; }
+    w.checkExit(this);
+    if(this.state==='exiting') return;
     if(!hit && this.support(w)){ this.state='walking'; }
   }
 
@@ -650,7 +663,7 @@ class World {
       for(const p of this.pandas){
         if(p===b||p.state!=='walking') continue;
         const dx=p.cx-b.cx;
-        if(dx!==0 && Math.abs(dx)<10 && Math.abs(p.y-b.y)<12 && Math.sign(-dx)===p.dir){
+        if(Math.abs(dx)<10 && Math.abs(p.y-b.y)<12 && (dx===0 || Math.sign(-dx)===p.dir)){
           p.turn();
         }
       }
@@ -1008,6 +1021,7 @@ function banner(ctx,txt,y=10){
 
 // ---------- Spiel ----------
 const PROGRESS_KEY='panda-lemmings-progress-v1';
+const MUTE_KEY='panda-lemmings-mute';
 class Game {
   constructor(){
     this.cv=$('gameCanvas'); this.g=this.cv.getContext('2d');
@@ -1016,6 +1030,7 @@ class Game {
     this.bgCv=document.createElement('canvas'); this.bgCv.width=W; this.bgCv.height=H;
     paintBG(this.bgCv.getContext('2d'));
     this.sfx=new SFX();
+    try{ this.sfx.muted=localStorage.getItem(MUTE_KEY)==='1'; }catch(_e){}
     this.parts=[]; this.shake=0;
     this.level=0; this.completed=new Set();
     this.totalSaved=0; this.totalLost=0;
@@ -1023,10 +1038,12 @@ class Game {
     this.restoreProgress();
     this.selected='builder';
     this.keyboardPandaId=null;
+    this._pointerFocusing=false;
     this.paused=false; this.speed=1; this.nukeArm=0;
     this.mouse={x:-99,y:-99,in:false};
     this.acc=0; this.last=performance.now(); this.rs=1;
     this.buildUI(); this.bindUI(); this.resize();
+    $('btn-sound').textContent=this.sfx.muted?'🔇':'🔊';
     window.addEventListener('resize',()=>this.resize());
     this.loadLevel(0,true);
     requestAnimationFrame(t=>this.frame(t));
@@ -1095,6 +1112,7 @@ class Game {
     $('btn-sound').addEventListener('click',()=>{
       this.sfx.muted=!this.sfx.muted;
       $('btn-sound').textContent=this.sfx.muted?'🔇':'🔊';
+      try{ localStorage.setItem(MUTE_KEY,this.sfx.muted?'1':'0'); }catch(_e){}
       if(!this.sfx.muted) this.sfx.ac();
     });
     $('level-select').addEventListener('change',e=>this.loadLevel(parseInt(e.target.value,10)||0,true));
@@ -1105,9 +1123,15 @@ class Game {
     });
     this.cv.addEventListener('pointermove',e=>{ const p=this.toLogical(e); this.mouse.x=p.x; this.mouse.y=p.y; this.mouse.in=true; });
     this.cv.addEventListener('pointerleave',()=>{ this.mouse.in=false; });
-    this.cv.addEventListener('pointerdown',e=>{ e.preventDefault(); const p=this.toLogical(e); this.clickAt(p.x,p.y); });
+    this.cv.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      this._pointerFocusing=true;
+      const p=this.toLogical(e);
+      this.clickAt(p.x,p.y);
+      setTimeout(()=>{ this._pointerFocusing=false; },0);
+    });
     this.cv.addEventListener('contextmenu',e=>e.preventDefault());
-    this.cv.addEventListener('focus',()=>{ if(this.keyboardPandaId==null) this.cyclePanda(1); });
+    this.cv.addEventListener('focus',()=>{ if(!this._pointerFocusing && this.keyboardPandaId==null) this.cyclePanda(1); });
     this.cv.addEventListener('keydown',e=>{
       if(overlayOpen()) return;
       if(['ArrowLeft','ArrowUp'].includes(e.key)){ e.preventDefault(); e.stopPropagation(); this.cyclePanda(-1); }
@@ -1151,9 +1175,10 @@ class Game {
     this.refreshHUD(); this.refreshSkills();
     hide('result-overlay'); hide('final-overlay');
     if(intro){
+      const bestForLevel=this.levelSaved.get(i)||0;
       $('in-eyebrow').textContent=`Level ${i+1} von ${LEVELS.length}`;
       $('in-title').textContent=L.name;
-      $('in-goal').textContent=`Rette ${L.required} von ${L.total} Pandas`;
+      $('in-goal').textContent=`Rette ${L.required} von ${L.total} Pandas`+(bestForLevel>0?` · Bestwert: ${bestForLevel}`:'');
       $('in-tip').textContent=L.tip;
       const row=$('in-skills'); row.innerHTML='';
       for(const s of SKILLS){
@@ -1207,25 +1232,41 @@ class Game {
     const w=this.world;
     if(overlayOpen()) return;
     this.sfx.play(won?'win':'lose');
-    if(won) this.completed.add(this.level);
-    // Aggregate-Statistik: je Level nur den aktuellen Stand zählen, damit
-    // Replay/Versuch die Gesamtsumme nicht aufbläht.
     const prevSaved=this.levelSaved.get(this.level)||0;
     const prevLost=this.levelLost.get(this.level)||0;
-    this.totalSaved+=w.saved-prevSaved;
-    this.totalLost+=w.dead-prevLost;
-    this.levelSaved.set(this.level,w.saved);
-    this.levelLost.set(this.level,w.dead);
+    if(won){
+      this.completed.add(this.level);
+      const nextBest=Math.max(prevSaved,w.saved);
+      if(nextBest>prevSaved || !this.levelSaved.has(this.level)){
+        this.levelSaved.set(this.level,nextBest);
+        this.levelLost.set(this.level,w.dead);
+      }
+    } else if(!this.completed.has(this.level) && w.saved>prevSaved){
+      this.levelSaved.set(this.level,w.saved);
+      this.levelLost.set(this.level,w.dead);
+    }
+    this.totalSaved=0; for(const v of this.levelSaved.values()) this.totalSaved+=v;
+    this.totalLost=0; for(const v of this.levelLost.values()) this.totalLost+=v;
     this.saveProgress();
+    if(window.GameScores && typeof window.GameScores.record==='function'){
+      window.GameScores.record('panda-lemmings',{
+        score:this.totalSaved,
+        level:this.completed.size,
+        won,
+        meta:{ levelIndex:this.level+1, completed:this.completed.size, totalLevels:LEVELS.length },
+        label:`${this.completed.size}/${LEVELS.length} Level · ${this.totalSaved} gerettet`
+      });
+    }
     this.refreshLevelSelect();
     if(won && this.level===LEVELS.length-1){
       $('fin-detail').textContent=`Insgesamt gerettet: ${this.totalSaved} Pandas · verloren: ${this.totalLost}`;
       show('final-overlay'); return;
     }
+    const bestForLevel=this.levelSaved.get(this.level)||0;
     $('result-card').classList.toggle('fail',!won);
     $('rs-eyebrow').textContent=`Level ${this.level+1} · ${w.L.name}`;
     $('rs-title').textContent=won?'Level geschafft! 🎋':'Level gescheitert 🐾';
-    $('rs-detail').textContent=`${w.saved} von ${w.total} gerettet · Ziel: ${w.required}`;
+    $('rs-detail').textContent=`${w.saved} von ${w.total} gerettet · Ziel: ${w.required}`+(bestForLevel>0?` · Bestwert: ${bestForLevel}`:'');
     $('btn-next').style.display=won?'':'none';
     show('result-overlay');
   }
@@ -1287,7 +1328,8 @@ class Game {
       const ok=w.canAssign(p,this.selected);
       if((ok&&!bestOk)||(ok===bestOk&&d<bestD)){ best=p; bestD=d; bestOk=ok; }
     }
-    if(best){ this.keyboardPandaId=best.id; }
+    // Pointer-Klick entfernt den Tastatur-Auswahlring (bleibt nur bei Tastaturnavigation sichtbar).
+    this.keyboardPandaId=null;
     if(best&&bestOk){ w.assign(best,this.selected); this.refreshSkills(); this.refreshHUD(); }
     else if(best){ this.sfx.play('no'); }
   }

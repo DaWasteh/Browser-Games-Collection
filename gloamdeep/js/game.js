@@ -362,7 +362,13 @@ export class Game {
       const it = generateItem(runtimeRng, Math.max(p.level, p.maxDepth) + 1, { rarity: rw.item, magicFind: this.stats.magicFind });
       if (!this.addToInventory(it)) {
         const s = this.firstFree(p.storage);
-        if (s >= 0) { p.storage[s] = it; result.stored = true; }
+        if (s >= 0) {
+          p.storage[s] = it;
+          result.stored = true;
+        } else {
+          this.dropItem(this.player.x, this.player.y, it);
+          result.dropped = true;
+        }
       }
       result.item = it;
     }
@@ -730,6 +736,41 @@ export class Game {
     if (!this.profile) return;
     const ok = this.store.save(this.profile);
     if (!ok && !this.saveWarned) { this.saveWarned = true; this.toast('Warning: the game could not be saved (storage unavailable).', 'warn'); }
+    const p = this.profile;
+    const depth = p.maxDepth || 0;
+    const bosses = (p.stats && p.stats.bosses) || 0;
+    const kills = (p.stats && p.stats.kills) || 0;
+    const score = depth * 100 + bosses * 250 + kills;
+    const label = `Ebene ${depth} · ${bosses} Bosse · ${kills} Siege`;
+    if (typeof window !== 'undefined' && window.GameScores && typeof window.GameScores.record === 'function') {
+      window.GameScores.record('gloamdeep', {
+        score,
+        level: depth,
+        played: !this._scoreRecorded,
+        meta: { maxDepth: depth, bosses, kills, heroLevel: p.level },
+        label
+      });
+      this._scoreRecorded = true;
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = window.localStorage.getItem('browser-games-scores-v1');
+        const store = raw ? JSON.parse(raw) : {};
+        const prev = (store && typeof store === 'object' && store.gloamdeep) ? store.gloamdeep : {};
+        const bestScore = Math.max(Number(prev.bestScore) || 0, score);
+        const bestLevel = Math.max(Number(prev.bestLevel) || 0, depth);
+        store.gloamdeep = Object.assign({}, prev, {
+          gamesPlayed: (Number(prev.gamesPlayed) || 0) + (this._scoreRecorded ? 0 : 1),
+          bestScore,
+          bestLevel,
+          lastScore: score,
+          lastPlayed: new Date().toISOString().slice(0, 10),
+          label: depth >= bestLevel ? label : (prev.label || label),
+          meta: { maxDepth: bestLevel, bosses, kills, heroLevel: p.level }
+        });
+        window.localStorage.setItem('browser-games-scores-v1', JSON.stringify(store));
+        this._scoreRecorded = true;
+      } catch (_e) { /* storage optional */ }
+    }
     this.autosaveT = 20;
   }
 

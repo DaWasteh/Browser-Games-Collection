@@ -267,8 +267,32 @@
     return moves;
   }
 
+  function isTriviallyWon(state) {
+    if (!state || state.stock.length > 0 || state.waste.length > 0) return false;
+    return state.tableau.every(col => col.every(card => card.faceUp));
+  }
+
+  function isProductiveHintMove(state, moveInfo) {
+    if (moveInfo.kind === 'foundation') return true;
+    if (moveInfo.reveals) return true;
+    if (moveInfo.source.zone === 'waste') return true;
+    if (moveInfo.source.zone === 'tableau') {
+      const col = state.tableau[moveInfo.source.col];
+      const destCol = state.tableau[moveInfo.destination.col];
+      // König von einer sonst leeren Spalte in eine andere leere Spalte bringt nichts.
+      if (moveInfo.source.index === 0 && destCol.length === 0) return false;
+      // Teilfolge von einer offenen Karte auf eine gleichwertige andere Karte verschieben
+      // deckt nichts auf und erzeugt sonst endlose Hinweis-Schleifen.
+      if (moveInfo.source.index > 0 && col[moveInfo.source.index - 1].faceUp && destCol.length > 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   function findHint(state) {
-    const moves = legalMoves(state);
+    const allMoves = legalMoves(state);
+    const moves = allMoves.filter(m => isProductiveHintMove(state, m));
     const priorities = [
       moveInfo => moveInfo.reveals,
       moveInfo => moveInfo.kind === 'foundation' && moveInfo.safe,
@@ -289,11 +313,16 @@
     if (!state || state.status !== 'playing') return { moved: 0, won: false };
     let moved = 0;
     while (true) {
+      const allOpen = isTriviallyWon(state);
       let source = null;
       for (let col = 0; col < 7 && !source; col += 1) {
         const column = state.tableau[col];
         const card = column[column.length - 1];
-        if (card && isSafeFoundationCard(state, card)) source = { zone: 'tableau', col, index: column.length - 1 };
+        if (!card) continue;
+        const cand = { zone: 'tableau', col, index: column.length - 1 };
+        if (allOpen ? canMoveToFoundation(state, cand, card.suit) : isSafeFoundationCard(state, card)) {
+          source = cand;
+        }
       }
       if (!source && state.waste.length) {
         const card = state.waste[state.waste.length - 1];

@@ -2,10 +2,11 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Browser Games Collection</title>
-  <meta name="description" content="Eine Sammlung von 20 Browser-Spielen – kein Server, keine Abhängigkeiten, einfach spielen.">
+  <meta name="description" content="Eine Sammlung von 20 Browser-Spielen für PC, Tablet und Smartphone – direkt im Browser spielbar, mit lokal gespeicherten Bestwerten.">
   <script src="shared/game-shell.js"></script>
+  <script src="shared/game-scores.js"></script>
   <script src="shared/game-audio.js"></script>
   <script src="shared/game-fx.js"></script>
   <link rel="stylesheet" href="shared/game-shell.css">
@@ -24,34 +25,34 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      min-height: 100vh;
+      min-height: 100dvh;
       background: var(--bg);
       color: var(--text);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 1.25rem 1rem 2rem;
+      padding: 1.15rem 1rem 2rem;
     }
     body > header {
       width: 100%;
-      max-width: 1200px;
+      max-width: 1240px;
       text-align: center;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.35rem;
     }
     h1 {
-      margin: .6rem 0 .4rem;
-      font-size: clamp(1.8rem, 5vw, 2.8rem);
+      margin: .5rem 0 .35rem;
+      font-size: clamp(1.75rem, 4.8vw, 2.75rem);
       letter-spacing: 0.02em;
     }
     h1 .neon { color: var(--accent); text-shadow: 0 0 18px var(--pg-glow); }
-    header p { margin: 0; color: var(--muted); font-size: 1.05rem; }
+    header p { margin: 0; color: var(--muted); font-size: 1.02rem; }
     .stats-row {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: .5rem .9rem;
-      margin: .7rem 0 0;
+      gap: .45rem .85rem;
+      margin: .65rem 0 0;
       color: var(--muted);
       font-size: .9rem;
     }
@@ -60,7 +61,7 @@
     /* Filterleiste */
     .filters {
       width: 100%;
-      max-width: 1200px;
+      max-width: 1240px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -69,7 +70,7 @@
     }
     .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
     .chip {
-      min-height: 2.5rem;
+      min-height: 2.6rem;
       padding: .4rem .9rem;
       border: 2px solid var(--border);
       border-radius: 999px;
@@ -82,7 +83,9 @@
       touch-action: manipulation;
       transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
     }
-    .chip:hover { border-color: var(--accent); }
+    @media (hover: hover) {
+      .chip:hover { border-color: var(--accent); }
+    }
     .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
     .search {
       flex: 1 1 14rem;
@@ -112,23 +115,24 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
-      gap: 1.15rem;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 265px), 1fr));
+      gap: 1.1rem;
       width: 100%;
-      max-width: 1200px;
+      max-width: 1240px;
     }
     .card {
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: 0.55rem;
-      padding: 1.3rem 1.3rem 1.1rem;
+      gap: 0.5rem;
+      padding: 1.25rem 1.25rem 1.05rem;
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 16px;
       text-decoration: none;
       color: inherit;
       overflow: hidden;
+      touch-action: manipulation;
       transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow .18s ease;
     }
     .card::after {
@@ -143,27 +147,35 @@
       transition: opacity .25s ease;
       pointer-events: none;
     }
-    .card:hover, .card:focus-visible {
-      transform: translateY(-4px);
+    @media (hover: hover) {
+      .card:hover {
+        transform: translateY(-4px);
+        border-color: var(--accent);
+        background: var(--card-hover);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, .28), 0 0 0 1px var(--accent);
+      }
+      .card:hover::after { opacity: 1; }
+      .card:hover .icon { transform: scale(1.08) rotate(-4deg); }
+    }
+    .card:focus-visible {
+      transform: translateY(-2px);
       border-color: var(--accent);
       background: var(--card-hover);
-      box-shadow: 0 14px 34px rgba(0, 0, 0, .28), 0 0 0 1px var(--accent);
+      box-shadow: 0 0 0 2px var(--accent);
       outline: none;
     }
-    .card:hover::after, .card:focus-visible::after { opacity: 1; }
     .card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     .card .icon {
       display: grid;
       place-items: center;
-      width: 3.1rem;
-      height: 3.1rem;
+      width: 3rem;
+      height: 3rem;
       border-radius: 14px;
       background: color-mix(in srgb, var(--accent) 14%, var(--panel));
-      font-size: 1.9rem;
+      font-size: 1.85rem;
       line-height: 1;
       transition: transform .25s ease;
     }
-    .card:hover .icon { transform: scale(1.08) rotate(-4deg); }
     .badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
     .badge {
       padding: .18rem .55rem;
@@ -178,20 +190,38 @@
     }
     .badge.new { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
     .badge.recent { background: color-mix(in srgb, #ffd166 22%, var(--panel)); color: inherit; border-color: color-mix(in srgb, #ffd166 60%, transparent); }
-    .card h2 { margin: 0; font-size: 1.22rem; }
+    .card h2 { margin: 0; font-size: 1.18rem; }
     .card p { margin: 0; color: var(--muted); font-size: 0.92rem; flex-grow: 1; line-height: 1.45; }
-    .card .meta { display: flex; flex-wrap: wrap; gap: .3rem; }
-    .tag { font-size: .72rem; color: var(--muted); padding: .1rem .5rem; border: 1px solid var(--border); border-radius: 999px; }
+    .card-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+      margin-top: .35rem;
+      flex-wrap: wrap;
+    }
     .card .play {
-      margin-top: 0.35rem;
       color: var(--accent);
       font-weight: 700;
-      font-size: 0.95rem;
+      font-size: 0.94rem;
+    }
+    .card-score {
+      font-size: .76rem;
+      font-weight: 700;
+      color: var(--muted);
+      padding: .14rem .5rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+      border: 1px solid var(--border);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .card[hidden] { display: none; }
     .empty {
       width: 100%;
-      max-width: 1200px;
+      max-width: 1240px;
       margin: 1rem 0;
       padding: 1.2rem;
       border: 1px dashed var(--border);
@@ -200,11 +230,11 @@
       text-align: center;
     }
     footer {
-      margin-top: 3rem;
+      margin-top: 2.5rem;
       color: var(--muted);
       font-size: 0.85rem;
       text-align: center;
-      max-width: 60ch;
+      max-width: 62ch;
     }
     footer a { color: var(--accent); }
     @media (prefers-reduced-motion: reduce) {
@@ -213,32 +243,39 @@
       .card:hover .icon { transform: none; }
     }
     @media (max-width: 600px) {
-      body { padding: .9rem .75rem 1.5rem; }
-      .grid { gap: .85rem; }
-      .card { padding: 1.05rem 1rem .95rem; }
-      .chip { padding: .35rem .7rem; font-size: .84rem; }
+      body { padding: .85rem .7rem 1.5rem; }
+      .grid { gap: .8rem; }
+      .card { padding: 1rem .95rem .9rem; }
+      .chip { padding: .35rem .68rem; font-size: .84rem; }
       .stats-row { flex-direction: column; gap: .2rem; }
       .stats-row .sep { display: none; }
     }
-    @media (min-width: 1800px) {
-      .grid, .filters, body > header, .empty { max-width: 1480px; }
-      .grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.4rem; }
+    /* 16:10 Notebooks & große Displays */
+    @media (min-width: 1280px) and (max-width: 1799px) {
+      .grid, .filters, body > header, .empty { max-width: 1320px; }
     }
+    /* 21:9 Ultrawide */
+    @media (min-width: 1800px) {
+      .grid, .filters, body > header, .empty { max-width: 1580px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.35rem; }
+    }
+    /* 32:9 Super-Ultrawide */
     @media (min-width: 2400px) {
-      .grid, .filters, body > header, .empty { max-width: 1900px; }
+      .grid, .filters, body > header, .empty { max-width: 2040px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 1.45rem; }
     }
   </style>
 </head>
 <body>
   <header>
     <h1>🕹️ Browser <span class="neon">Games</span> Collection</h1>
-    <p>Kein Server, keine Abhängigkeiten – Spiel auswählen und losspielen.</p>
+    <p>20 Spiele direkt im Browser – für Desktop, Ultrawide, Tablet und Smartphone.</p>
     <p class="stats-row">
       <span><strong>20</strong> Spiele</span>
       <span class="sep" aria-hidden="true">·</span>
-      <span>Läuft auf PC, Ultrawide, Tablet und Smartphone</span>
+      <span>Maus, Tastatur &amp; Touch</span>
       <span class="sep" aria-hidden="true">·</span>
-      <span>Offline spielbar</span>
+      <span id="scores-summary">Bestwerte werden lokal gespeichert</span>
     </p>
   </header>
 
@@ -258,131 +295,131 @@
   </div>
 
   <main class="grid" id="games" aria-live="polite" aria-label="Spieleliste">
-    <a class="card" href="gloamdeep/index.html" data-category="action" data-tags="action rpg dungeon crawler hack and slash loot quests wächter pixel laterne licht touch tablet">
-      <div class="card-head"><span class="icon">🏮</span><span class="badges"><span class="badge">Action-RPG</span></span></div>
-      <h2>Gloamdeep – The Lantern Below</h2>
-      <p>Pixel-Action-RPG: ein Laternendorf über einem endlosen Dungeon mit Beute, Quests, Wächtern und dynamischem Licht. Mit Maus &amp; Tastatur oder per Touch.</p>
-      <span class="play">▶ Spielen</span>
+    <a class="card" href="pandakreuzwort/index.html" data-game-id="pandakreuzwort" data-category="worte" data-tags="kreuzworträtsel bairisch wörter rätsel lösungswort sonderwort">
+      <div class="card-head"><span class="icon">✏️</span><span class="badges"><span class="badge new">v2.6</span><span class="badge">Wörter</span></span></div>
+      <h2>Pandakreuzwort</h2>
+      <p>Klassisches Kreuzworträtsel auf Deutsch und Bairisch mit über 1.500 Begriffen, verborgenem Lösungswort und vier Stufen.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
     </a>
-    <a class="card" href="tetris/tetris.html" data-category="klassiker" data-tags="blöcke reihen arcade">
-      <div class="card-head"><span class="icon">🧱</span><span class="badges"><span class="badge">Klassiker</span></span></div>
-      <h2>Tetris</h2>
-      <p>Der Klassiker: Fallende Blöcke stapeln und Reihen abbauen.</p>
-      <span class="play">▶ Spielen</span>
+    <a class="card" href="panndike/index.html" data-game-id="panndike" data-category="karten" data-tags="klondike solitär tagesdeal karten">
+      <div class="card-head"><span class="icon">♠️</span><span class="badges"><span class="badge new">v2.6</span><span class="badge">Karten</span></span></div>
+      <h2>Panndike Solitär</h2>
+      <p>Klondike-Solitär mit Zieh-1- und Zieh-3-Regel, täglichem Gemeinschaftsdeal, Hinweisen und sicheren Fundamentzügen.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
     </a>
-    <a class="card" href="snake-ultimate/snake_ultimate.html" data-category="klassiker" data-tags="schlange multiplayer themes">
-      <div class="card-head"><span class="icon">🐍</span><span class="badges"><span class="badge">Klassiker</span></span></div>
-      <h2>Snake Ultimate</h2>
-      <p>Erweitertes Snake mit lokalem Multiplayer, 8 Themes und anpassbaren Addons.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="pong/pong.html" data-category="klassiker" data-tags="duell ki zwei spieler">
-      <div class="card-head"><span class="icon">🏓</span><span class="badges"><span class="badge">Klassiker</span></span></div>
-      <h2>Pong</h2>
-      <p>Das klassische Duell – allein gegen die KI oder zu zweit am selben Gerät.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="asteroids/asteroids.html" data-category="klassiker" data-tags="arcade weltraum ufo shooter waffen upgrades">
-      <div class="card-head"><span class="icon">☄️</span><span class="badges"><span class="badge">Klassiker</span></span></div>
-      <h2>Asteroids</h2>
-      <p>Vektor-Arcade mit vier Waffen, UFOs, seltenen Upgrades, begrenztem Treibstoff und Touch-Steuerung.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="panda-bubbles/index.html" data-category="puzzle" data-tags="bubble shooter blasen panda">
-      <div class="card-head"><span class="icon">🫧</span><span class="badges"><span class="badge">Puzzle</span></span></div>
-      <h2>Panda: Jäger der Blasen</h2>
-      <p>Moderner Bubble Shooter mit Bandenwürfen, fallenden Gruppen und der farbflexiblen Bambusblase.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="des-pandas-juwelen/index.html" data-category="puzzle" data-tags="match 3 juwelen kaskaden panda booster schatzbeutel">
-      <div class="card-head"><span class="icon">💎</span><span class="badges"><span class="badge new">Aufpoliert</span><span class="badge">Puzzle</span></span></div>
-      <h2>Des Pandas Juwelen</h2>
-      <p>Match 3 mit Kaskaden, leicht verständlichen Spezialjuwelen, sammelbaren Boostern im Schatzbeutel und der Panda-Pfote.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="sandgame/sand_game.html" data-category="klassiker" data-tags="simulation physik sandbox webgl">
-      <div class="card-head"><span class="icon">⏳</span><span class="badges"><span class="badge">Simulation</span></span></div>
-      <h2>Sand Game Pro 2.3</h2>
-      <p>Falling-Sand-Simulation mit Physik, Biologie und Active-Cell-Wind – jetzt mit deutlich schlankerem Chemie- und Wärmekern.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="game-of-life/game_of_life.html" data-category="klassiker" data-tags="conway automat zellen simulation">
-      <div class="card-head"><span class="icon">🦠</span><span class="badges"><span class="badge">Simulation</span></span></div>
-      <h2>Game of Life</h2>
-      <p>Conways zellulärer Automat – interaktiv und performant auf Canvas.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="panda-lemmings/panda_lemmings.html" data-category="klassiker" data-tags="lemmings puzzle panda fähigkeiten">
-      <div class="card-head"><span class="icon">🐼</span><span class="badges"><span class="badge">Klassiker</span></span></div>
-      <h2>Panda Lemmings</h2>
-      <p>Lemmings-inspiriertes Puzzle – jetzt auch mit vollständiger Panda-/Fähigkeitssteuerung per Tastatur.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="pandataire/index.html" data-category="karten" data-tags="solitaire tripeaks golf pyramid karten">
+    <a class="card" href="pandataire/index.html" data-game-id="pandataire" data-category="karten" data-tags="solitaire tripeaks golf pyramid karten">
       <div class="card-head"><span class="icon">🃏</span><span class="badges"><span class="badge">Karten</span></span></div>
       <h2>Pandataire</h2>
-      <p>Solitaire-Sammelband: TriPeaks, Golf und Pyramid mit lösbaren Deals, Undo, Drag-and-drop und Touch-Steuerung.</p>
-      <span class="play">▶ Spielen</span>
+      <p>Drei Solitär-Varianten in einem Spiel: TriPeaks, Golf und Pyramid mit lösbaren Partien und Rückgängig-Funktion.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
     </a>
-    <a class="card" href="panda-spider/index.html" data-category="karten" data-tags="spider solitaire karten">
+    <a class="card" href="panda-spider/index.html" data-game-id="panda-spider" data-category="karten" data-tags="spider solitaire karten">
       <div class="card-head"><span class="icon">🕷️</span><span class="badges"><span class="badge">Karten</span></span></div>
       <h2>Panda Spider</h2>
-      <p>Spider-Solitaire mit einer, zwei oder vier Farben, acht Zielsequenzen und Drag-and-drop.</p>
-      <span class="play">▶ Spielen</span>
+      <p>Spider-Solitär mit einer, zwei oder vier Farben und acht absteigenden Zielsequenzen.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
     </a>
-    <a class="card" href="panndike/index.html" data-category="karten" data-tags="klondike solitär tagesdeal karten">
-      <div class="card-head"><span class="icon">♠️</span><span class="badges"><span class="badge">Karten</span></span></div>
-      <h2>Panndike Solitär</h2>
-      <p>Zeitungsartiges Klondike mit Tagesdeal, Deal-Codes, Zieh-1/3, Hinweisen, Drag, Touch und Undo.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="pandacell/index.html" data-category="karten" data-tags="freecell solitaire karten">
+    <a class="card" href="pandacell/index.html" data-game-id="pandacell" data-category="karten" data-tags="freecell solitaire karten">
       <div class="card-head"><span class="icon">♥️</span><span class="badges"><span class="badge">Karten</span></span></div>
       <h2>PandaCell</h2>
-      <p>FreeCell mit reproduzierbaren Deals, Supermoves, vier freien Zellen und Drag-and-drop.</p>
-      <span class="play">▶ Spielen</span>
+      <p>FreeCell mit vier freien Ablagefeldern, nummerierten Deals und Mehrfachzügen.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
     </a>
-    <a class="card" href="minenraeumkommando-foxtrott/index.html" data-category="puzzle" data-tags="minesweeper minen logik">
-      <div class="card-head"><span class="icon">💣</span><span class="badges"><span class="badge">Puzzle</span></span></div>
-      <h2>Minenräumkommando Foxtrott</h2>
-      <p>Minesweeper mit sicherem Erstklick, Chording und vier Schwierigkeitsstufen.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="texttl/index.html" data-category="worte" data-tags="wordle wort rätsel täglich buchstaben">
-      <div class="card-head"><span class="icon">🔤</span><span class="badges"><span class="badge">Wörter</span></span></div>
-      <h2>Texttl</h2>
-      <p>Deutsches Fünf-Buchstaben-Rätsel mit über 1000 Lösungen, Tages-/Zufallsmodus, Tipp-Funktion und Knifflig-Modus.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="pandadoku/index.html" data-category="puzzle" data-tags="sudoku zahlen logik notizen">
-      <div class="card-head"><span class="icon">🔢</span><span class="badges"><span class="badge">Puzzle</span></span></div>
-      <h2>Pandadoku</h2>
-      <p>Sudoku mit drei Stufen, Notizen, Hinweisen und eindeutig lösbaren Rätseln.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="pandakreuzwort/index.html" data-category="worte" data-tags="kreuzworträtsel bairisch wörter rätsel">
-      <div class="card-head"><span class="icon">✏️</span><span class="badges"><span class="badge">Wörter</span></span></div>
-      <h2>Pandakreuzwort</h2>
-      <p>Kompakte Sperrfeld-Rätsel auf Deutsch oder Bairisch – 969 Einträge, vier Stufen und Bestzeiten.</p>
-      <span class="play">▶ Spielen</span>
-    </a>
-    <a class="card" href="pahjong/index.html" data-category="karten" data-tags="mahjong solitaire steine turtle">
+    <a class="card" href="pahjong/index.html" data-game-id="pahjong" data-category="karten" data-tags="mahjong solitaire steine turtle">
       <div class="card-head"><span class="icon">🀄</span><span class="badges"><span class="badge">Steine</span></span></div>
       <h2>Pahjong</h2>
-      <p>Mahjong-Solitaire im echten 144-Stein-Turtle-Layout mit Anleitung, Zoom und lösbaren Deals.</p>
-      <span class="play">▶ Spielen</span>
+      <p>Mahjong-Solitär mit 144 Steinen im Schildkröten-Aufbau, skalierbarem Zoom und Hinweisen.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
     </a>
-    <a class="card" href="maulkorbraupen-das-spiel/index.html" data-category="worte" data-tags="textadventure story vertont kapitel">
+    <a class="card" href="gloamdeep/index.html" data-game-id="gloamdeep" data-category="action" data-tags="action rpg dungeon crawler hack and slash loot quests wächter pixel laterne licht touch tablet">
+      <div class="card-head"><span class="icon">🏮</span><span class="badges"><span class="badge">Action-RPG</span></span></div>
+      <h2>Gloamdeep – The Lantern Below</h2>
+      <p>Pixel-Action-RPG: ein Laternendorf über einem endlosen Dungeon mit Quests, Beute, Wächtern und dynamischem Licht.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="tetris/tetris.html" data-game-id="tetris" data-category="klassiker" data-tags="blöcke reihen arcade">
+      <div class="card-head"><span class="icon">🧱</span><span class="badges"><span class="badge">Klassiker</span></span></div>
+      <h2>Tetris</h2>
+      <p>Fallende Blöcke drehen, stapeln und ganze Reihen abbauen – mit drei Stufen, Wanddrehung und Highscore.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="snake-ultimate/snake_ultimate.html" data-game-id="snake-ultimate" data-category="klassiker" data-tags="schlange multiplayer themes">
+      <div class="card-head"><span class="icon">🐍</span><span class="badges"><span class="badge">Klassiker</span></span></div>
+      <h2>Snake Ultimate</h2>
+      <p>Snake für ein oder zwei Spieler am selben Gerät – mit acht Designs und zuschaltbaren Spielregeln.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="pong/pong.html" data-game-id="pong" data-category="klassiker" data-tags="duell ki zwei spieler">
+      <div class="card-head"><span class="icon">🏓</span><span class="badges"><span class="badge">Klassiker</span></span></div>
+      <h2>Pong</h2>
+      <p>Das klassische Schlägerduell bis fünf Punkte – gegen die KI in drei Stufen oder zu zweit am Gerät.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="asteroids/asteroids.html" data-game-id="asteroids" data-category="klassiker" data-tags="arcade weltraum ufo shooter waffen upgrades">
+      <div class="card-head"><span class="icon">☄️</span><span class="badges"><span class="badge">Klassiker</span></span></div>
+      <h2>Asteroids</h2>
+      <p>Weltraum-Arcade im Vektorstil mit vier Waffen, feindlichen UFOs, Upgrades und knappem Treibstoff.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="panda-bubbles/index.html" data-game-id="panda-bubbles" data-category="puzzle" data-tags="bubble shooter blasen panda">
+      <div class="card-head"><span class="icon">🫧</span><span class="badges"><span class="badge">Puzzle</span></span></div>
+      <h2>Panda: Jäger der Blasen</h2>
+      <p>Bubble Shooter mit Bandenschüssen, fallenden Gruppen und aufladbarer Bambusblase.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="des-pandas-juwelen/index.html" data-game-id="des-pandas-juwelen" data-category="puzzle" data-tags="match 3 juwelen kaskaden panda booster schatzbeutel">
+      <div class="card-head"><span class="icon">💎</span><span class="badges"><span class="badge">Puzzle</span></span></div>
+      <h2>Des Pandas Juwelen</h2>
+      <p>Match-3-Rätsel mit Kaskaden, Spezialjuwelen, sammelbaren Boostern im Schatzbeutel und Fern-Tausch.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="sandgame/sand_game.html" data-game-id="sandgame" data-category="klassiker" data-tags="simulation physik sandbox webgl">
+      <div class="card-head"><span class="icon">⏳</span><span class="badges"><span class="badge">Simulation</span></span></div>
+      <h2>Sand Game</h2>
+      <p>Partikel-Sandbox mit Physik, Chemie, Feuer, Wasser, Pflanzen und Wetter.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="game-of-life/game_of_life.html" data-game-id="game-of-life" data-category="klassiker" data-tags="conway automat zellen simulation">
+      <div class="card-head"><span class="icon">🦠</span><span class="badges"><span class="badge">Simulation</span></span></div>
+      <h2>Game of Life</h2>
+      <p>Conways zellulärer Automat mit Vorlagen, Zykluserkennung, Zoom und Speicherfunktion.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="panda-lemmings/panda_lemmings.html" data-game-id="panda-lemmings" data-category="klassiker" data-tags="lemmings puzzle panda fähigkeiten">
+      <div class="card-head"><span class="icon">🐼</span><span class="badges"><span class="badge">Klassiker</span></span></div>
+      <h2>Panda Lemmings</h2>
+      <p>Führe deine Pandas mit Kletterern, Brückenbauern, Grabern und Blockern sicher durch zehn Level zum Tempel.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="minenraeumkommando-foxtrott/index.html" data-game-id="minenraeumkommando-foxtrott" data-category="puzzle" data-tags="minesweeper minen logik">
+      <div class="card-head"><span class="icon">💣</span><span class="badges"><span class="badge">Puzzle</span></span></div>
+      <h2>Minenräumkommando Foxtrott</h2>
+      <p>Minesweeper mit sicherem Erstklick, Schnellaufdecken, Flaggenmodus und vier Stufen plus eigenem Feld.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="texttl/index.html" data-game-id="texttl" data-category="worte" data-tags="wordle wort rätsel täglich buchstaben">
+      <div class="card-head"><span class="icon">🔤</span><span class="badges"><span class="badge">Wörter</span></span></div>
+      <h2>Texttl</h2>
+      <p>Deutsches Fünf-Buchstaben-Worträtsel mit Tageswort, Zufallsmodus, Tipp-Funktion und Knifflig-Regel.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="pandadoku/index.html" data-game-id="pandadoku" data-category="puzzle" data-tags="sudoku zahlen logik notizen">
+      <div class="card-head"><span class="icon">🔢</span><span class="badges"><span class="badge">Puzzle</span></span></div>
+      <h2>Pandadoku</h2>
+      <p>Sudoku in drei Schwierigkeitsstufen mit Notizen, Hinweisen und eindeutig lösbaren Gittern.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
+    </a>
+    <a class="card" href="maulkorbraupen-das-spiel/index.html" data-game-id="maulkorbraupen-das-spiel" data-category="worte" data-tags="textadventure story vertont kapitel">
       <div class="card-head"><span class="icon">🐛</span><span class="badges"><span class="badge">Story</span></span></div>
       <h2>Maulkorbraupen – Das Spiel</h2>
-      <p>Vertontes Textadventure mit sieben Kapiteln, Werk-Rätseln und dem Feierabend als Ziel.</p>
-      <span class="play">▶ Spielen</span>
+      <p>Vertontes Textadventure in sieben Kapiteln mit Werksrätseln auf dem Weg zum Feierabend.</p>
+      <div class="card-foot"><span class="play">▶ Spielen</span><span class="card-score" hidden></span></div>
     </a>
   </main>
   <p class="empty" id="empty" hidden>Kein Spiel passt zu dieser Suche.</p>
 
   <footer>
-    <p><strong>Version 2.5</strong> · Alle Spiele sind eigenständige HTML-Dateien mit gemeinsamem Ton-, Effekt-, Karten- und Ansichtsystem.
+    <p><strong>Version 2.6</strong> · Alle Spielstände und Bestwerte bleiben lokal in deinem Browser.
        Quellcode auf <a href="https://github.com/DaWasteh/Browser-Games-Collection">GitHub</a>.</p>
   </footer>
 
@@ -394,11 +431,75 @@
       const chips = [...document.querySelectorAll('.chip[data-filter]')];
       const search = document.getElementById('search');
       const empty = document.getElementById('empty');
+      const scoresSummary = document.getElementById('scores-summary');
       let filter = 'alle';
 
-      function readRecent() {
-        try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (_error) { return []; }
+      function readJson(key) {
+        try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_error) { return null; }
       }
+      function readRecent() {
+        const list = readJson(RECENT_KEY);
+        return Array.isArray(list) ? list : [];
+      }
+
+      function legacyScoreLabel(gameId) {
+        try {
+          if (gameId === 'tetris') {
+            const hs = Number(localStorage.getItem('tetris_highscore') || 0);
+            if (hs > 0) return `Bestwert ${hs.toLocaleString('de-DE')}`;
+          } else if (gameId === 'snake-ultimate') {
+            const hs = Number(localStorage.getItem('snakeUltimate_hs') || 0);
+            if (hs > 0) return `Bestwert ${hs.toLocaleString('de-DE')}`;
+          } else if (gameId === 'asteroids') {
+            const hs = Number(localStorage.getItem('asteroids-highscore') || 0);
+            if (hs > 0) return `Bestwert ${hs.toLocaleString('de-DE')}`;
+          } else if (gameId === 'des-pandas-juwelen') {
+            const s = readJson('des-pandas-juwelen-settings-v1');
+            if (s && s.highScore > 0) return `Bestwert ${Number(s.highScore).toLocaleString('de-DE')}`;
+          } else if (gameId === 'panda-bubbles') {
+            const s = readJson('panda-bubbles-settings-v1');
+            if (s && s.highScore > 0) return `Bestwert ${Number(s.highScore).toLocaleString('de-DE')}`;
+          } else if (gameId === 'panndike') {
+            const s = readJson('panndike-stats-v1');
+            if (s && (s.bestScore > 0 || s.wins > 0)) return `Bestwert ${Number(s.bestScore || 0).toLocaleString('de-DE')} · ${s.wins || 0} Siege`;
+          } else if (gameId === 'texttl') {
+            const s = readJson('texttl_stats');
+            if (s && s.won > 0) return `${s.won} gelöst · Serie ${s.maxStreak || 0}`;
+          } else if (gameId === 'gloamdeep') {
+            const s = readJson('gloamdeep.save');
+            if (s && s.maxDepth > 0) return `Tiefe ${s.maxDepth} · Lvl ${s.level || 1}`;
+          } else if (gameId === 'panda-lemmings') {
+            const s = readJson('panda-lemmings-progress-v1');
+            if (s && Array.isArray(s.completed) && s.completed.length > 0) return `${s.completed.length}/10 Level`;
+          }
+        } catch (_error) { /* optional */ }
+        return '';
+      }
+
+      function renderScores() {
+        const store = window.GameScores ? window.GameScores.getAll() : {};
+        let recordedCount = 0;
+        cards.forEach(card => {
+          const id = card.dataset.gameId;
+          const badge = card.querySelector('.card-score');
+          if (!badge || !id) return;
+          const entry = store[id];
+          const label = (entry && window.GameScores.summarize(entry)) || legacyScoreLabel(id);
+          if (label) {
+            badge.textContent = '🏆 ' + label;
+            badge.hidden = false;
+            recordedCount++;
+          } else {
+            badge.hidden = true;
+          }
+        });
+        if (scoresSummary) {
+          scoresSummary.textContent = recordedCount > 0
+            ? `${recordedCount} von ${cards.length} Spielen mit gespeichertem Bestwert`
+            : 'Bestwerte werden lokal gespeichert';
+        }
+      }
+
       function markRecent() {
         const recent = readRecent();
         cards.forEach(card => {
@@ -416,6 +517,7 @@
           }
         });
       }
+
       cards.forEach(card => {
         card.addEventListener('click', () => {
           try {
@@ -449,7 +551,9 @@
       }));
       search.addEventListener('input', apply);
       markRecent();
-      window.addEventListener('pageshow', markRecent);
+      renderScores();
+      window.addEventListener('pageshow', () => { markRecent(); renderScores(); });
+      window.addEventListener('storage', renderScores);
     })();
   </script>
 </body>

@@ -36,8 +36,11 @@ const barEntries = DATA.entries.filter(e => e.language === 'bar');
 assert.ok(deEntries.length >= 570, 'deutlich erweiterte deutsche Wortbank (' + deEntries.length + ')');
 assert.ok(barEntries.length >= 80, 'mindestens 80 Bairisch-Einträge (' + barEntries.length + ')');
 assert.ok(DATA.entries.length >= 650, 'mindestens 650 Einträge insgesamt (' + DATA.entries.length + ')');
-assert.equal(DATA.datasetVersion, '2026-09-v1.9', 'Wortbank-Version v1.9');
-assert.ok(DATA.entries.length >= 950, 'v1.9-Wortbank mit mindestens 950 Einträgen (' + DATA.entries.length + ')');
+assert.equal(DATA.datasetVersion, '2026-11-v2.6', 'Wortbank-Version v2.6');
+assert.ok(DATA.entries.length >= 1400, 'v2.6-Wortbank mit mindestens 1400 Einträgen (' + DATA.entries.length + ')');
+assert.ok(DATA.solutionWords && DATA.solutionWords.de.length >= 50 && DATA.solutionWords.bar.length >= 20, 'Lösungswort-Pools für Deutsch und Bairisch vorhanden');
+const legacyV19 = DATA.legacyDatasets && DATA.legacyDatasets['2026-09-v1.9'];
+assert.ok(Array.isArray(legacyV19) && Object.isFrozen(legacyV19) && legacyV19.length === 969, 'v1.9-Wortbank (969) für bestehende Speicherstände eingefroren');
 const legacyV16 = DATA.legacyDatasets && DATA.legacyDatasets['2026-08-v1.6'];
 assert.ok(Array.isArray(legacyV16) && Object.isFrozen(legacyV16) && legacyV16.length === 659, 'v1.6-Wortbank (659) für bestehende Speicherstände eingefroren');
 assert.equal(DATA.schemaVersion, 2, 'redaktionelles Datenschema v2');
@@ -103,9 +106,10 @@ for (const language of ['de', 'bar']) {
     for (const difficulty of L.PROFILE_NAMES) {
         const profile = L.PROFILES[difficulty];
         for (const seed of SAMPLE_SEEDS) {
-            const puzzle = L.generatePuzzle({ seed, language, difficulty, entries: DATA.entries, datasetVersion: DATA.datasetVersion });
+            const puzzle = L.generatePuzzle({ seed, language, difficulty, entries: DATA.entries, datasetVersion: DATA.datasetVersion, solutionWords: DATA.solutionWords[language] });
             const v = L.validatePuzzle(puzzle, DATA.entries);
             assert.ok(v.ok, 'validatePuzzle ' + language + '/' + difficulty + '/' + seed + ': ' + JSON.stringify(v.errors));
+            assert.ok(puzzle.solutionWord && puzzle.solutionWord.cells.length >= 5, language + '/' + difficulty + '/' + seed + ' hat gültiges Lösungswort');
             const m = puzzle.metrics;
             assert.ok(m.wordCount >= profile.minWords, language + '/' + difficulty + '/' + seed + ' Wortzahl ' + m.wordCount + ' < ' + profile.minWords);
             assert.ok(m.crossingCells >= 1, language + '/' + difficulty + ' hat Kreuzung');
@@ -366,6 +370,7 @@ assert.ok(fs.existsSync(path.join(__dirname, '..', 'index.html')), 'Collection-I
 const css = fs.readFileSync(path.join(__dirname, 'pandakreuzwort.css'), 'utf8');
 assert.match(css, /\.cell\.block\s*\{[^}]*background:\s*var\(--block-bg\)/, 'sichtbare Sperrfelder');
 assert.match(css, /\.board-scroll\s*\{[^}]*overflow:\s*auto/, 'gezielter mobiler Gitter-Scrollbereich');
-assert.match(css, /repeat\(5, minmax\(0, 1fr\)\) !important/, 'größere mobile Bildschirmtasten');
+assert.match(css, /\.solution-box/, 'Lösungswort-Leiste gestaltet');
+assert.match(css, /html\.kb-open/, 'VisualViewport-Schutz für Systemtastatur vorhanden');
 
-console.log(`smoke ok (${DATA.entries.length} Wörter, 8 Profil-Samples, Qualitäts-/Overlap-/Speicher-Negativtests)`);
+console.log(`smoke ok (${DATA.entries.length} Wörter, Lösungswörter, 8 Profil-Samples, Qualitäts-/Overlap-/Speicher-Negativtests)`);

@@ -584,7 +584,7 @@ export class UI {
       const r = this.reward;
       text = WARDEN_LINES.done;
       body = `<div class="reward-box"><h3>Rewards received</h3><div class="rw-row"><span class="gold">+${r.gold} gold</span><span class="xp">+${r.xp} XP</span>${r.potions ? `<span>+${r.potions} potions</span>` : ''}</div>
-        ${r.item ? `<div class="rw-item">${slotHtml(r.item, 'reward', 0)}<div><b class="r-${r.item.rarity}">${esc(r.item.name)}</b><small>${r.stored ? 'Your pack was full — it was placed in your storage chest.' : 'Added to your pack.'}</small></div></div>` : ''}
+        ${r.item ? `<div class="rw-item">${slotHtml(r.item, 'reward', 0)}<div><b class="r-${r.item.rarity}">${esc(r.item.name)}</b><small>${r.dropped ? 'Pack & chest full – dropped at your feet.' : r.stored ? 'Your pack was full — it was placed in your storage chest.' : 'Added to your pack.'}</small></div></div>` : ''}
         <div class="row-buttons"><button class="btn primary ui-hit" data-action="reward-ok">See new tasks</button></div></div>`;
     } else if (q && q.done) {
       text = WARDEN_LINES.done;
@@ -706,7 +706,7 @@ export class UI {
           <h3>Controls</h3>
           ${k('W A S D', 'Move')}${k('Mouse', 'Aim')}${k('Left button', 'Weapon attack (hold to keep swinging)')}${k('Right button', 'Cast your focus spell')}
           ${k('Space', 'Dash — brief invulnerability')}${k('E', 'Interact, talk, use stairs, pick up items')}${k('Q', 'Drink a health potion')}
-          ${k('I', 'Inventory & character')}${k('M', 'Toggle the full map')}${k('Esc', 'Pause / close a window')}${k('Alt', 'Show all item labels')}${k('N', 'Mute')}${k('F3', 'Debug info')}
+          ${k('I', 'Inventory & character')}${k('M', 'Toggle the full map')}${k('F1 / H', 'Toggle this help window')}${k('Esc', 'Pause / close a window')}${k('Alt', 'Show all item labels')}${k('N', 'Mute')}${k('F3', 'Debug info')}
         </div>
         <div class="col">
           <h3>Tips</h3>
@@ -716,6 +716,7 @@ export class UI {
             <li>The equipped <b>focus</b> decides your spell: Ember Bolt, Frost Lance, Chain Lightning or Void Orb.</li>
             <li>Every fifth floor holds a <b>guardian</b>. The stairs stay sealed until it falls.</li>
             <li>Take the <b>up-stairs</b> (where you arrived) to return to Wickhollow at any time.</li>
+            <li>Items left on the ground do not survive area transitions or reloads — pick up valuable loot before leaving.</li>
             <li>Powder kegs, bloaters and spore pods explode — use them against monsters.</li>
             <li>Loot colours: <span class="r-common">Common</span>, <span class="r-magic">Magic</span>, <span class="r-rare">Rare</span>, <span class="r-epic">Epic</span>, <span class="r-legendary">Legendary</span>.</li>
           </ul>

@@ -45,6 +45,8 @@
   let previousTime = performance.now();
   let reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let lastPointerAim = null;
+  let touchAimPointerId = null;
+  let touchAimCanceled = false;
   let saveTimer = 0;
   let swapTimer = 0;
   let roundToken = 0;
@@ -56,6 +58,8 @@
     next: 'sky',
     score: 0,
     highScore: 0,
+    wins: 0,
+    gamesPlayed: 0,
     misses: Logic.CONFIG.missesPerRow,
     power: 0,
     shots: 0,
@@ -87,15 +91,32 @@
   function readSettings() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-      if (!saved || typeof saved !== 'object') return;
-      state.highScore = Number.isFinite(saved.highScore) ? Math.max(0, Math.floor(saved.highScore)) : 0;
-      state.sound = saved.sound !== false;
+      if (saved && typeof saved === 'object') {
+        state.highScore = Number.isFinite(saved.highScore) ? Math.max(0, Math.floor(saved.highScore)) : 0;
+        state.wins = Number.isFinite(saved.wins) ? Math.max(0, Math.floor(saved.wins)) : 0;
+        state.gamesPlayed = Number.isFinite(saved.gamesPlayed) ? Math.max(0, Math.floor(saved.gamesPlayed)) : 0;
+        state.sound = saved.sound !== false;
+      }
     } catch (_error) { /* local storage is optional */ }
+    if (window.GameAudio) {
+      state.sound = !window.GameAudio.isMuted();
+    }
+    if (window.GameScores && (state.highScore > 0 || state.gamesPlayed > 0)) {
+      window.GameScores.sync('panda-bubbles', {
+        score: state.highScore,
+        meta: { wins: state.wins, gamesPlayed: state.gamesPlayed }
+      });
+    }
   }
 
   function saveSettings() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ highScore: state.highScore, sound: state.sound }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        highScore: state.highScore,
+        wins: state.wins,
+        gamesPlayed: state.gamesPlayed,
+        sound: state.sound
+      }));
     } catch (_error) { /* local storage is optional */ }
   }
 
@@ -165,8 +186,29 @@
     return palette[Math.floor(random() * palette.length)];
   }
 
+  function isAudioMuted() {
+    return !state.sound || !!(window.GameAudio && window.GameAudio.isMuted());
+  }
+
+  function applyAudioMute(muted) {
+    state.sound = !muted;
+    if (muted) {
+      if (masterGain && audioContext) {
+        masterGain.gain.cancelScheduledValues(audioContext.currentTime);
+        masterGain.gain.value = 0;
+      }
+    } else if (masterGain && audioContext) {
+      masterGain.gain.value = 1;
+    }
+    const btn = $('sound-btn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(state.sound));
+      btn.textContent = state.sound ? '🔊 Ton an' : '🔇 Ton aus';
+    }
+  }
+
   function initAudio() {
-    if (!state.sound) return null;
+    if (isAudioMuted()) return null;
     try {
       const AudioCtor = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtor) return null;
@@ -207,7 +249,7 @@
   }
 
   function playSound(name, amount = 1) {
-    if (!state.sound) return;
+    if (isAudioMuted()) return;
     if (name === 'shoot') tone(260, .11, { to: 520, type: 'triangle', gain: .035 });
     else if (name === 'bounce') tone(620, .055, { to: 500, type: 'sine', gain: .025 });
     else if (name === 'pop') {
@@ -272,7 +314,6 @@
     canvas.setAttribute('aria-disabled', String(state.status !== 'playing'));
     updateAccessibility(true);
     drawPreviews();
-    scheduleSave();
   }
 
   function newGame(seed, shouldFocus = true) {
@@ -314,6 +355,8 @@
     state.shake = 0;
     state.swapped = false;
     lastPointerAim = null;
+    touchAimPointerId = null;
+    touchAimCanceled = false;
     $('pause-overlay').hidden = true;
     $('result').hidden = true;
     $('result').classList.remove('won', 'lost');
@@ -464,7 +507,11 @@
       announce('Bambusblase bereit – sie findet beim Auftreffen die stärkste Farbe!');
       return;
     }
+    const available = Logic.availableColors(state.board);
     state.current = state.next;
+    if (available.length && state.current !== 'rainbow' && !available.includes(state.current)) {
+      state.current = pickColor();
+    }
     state.next = pickColor();
   }
 
@@ -505,9 +552,19 @@
     state.flash = 0;
     state.shake = 0;
     if (state.score > state.highScore) state.highScore = state.score;
+    state.gamesPlayed += 1;
+    if (won) state.wins += 1;
     saveSettings();
+    if (window.GameScores) {
+      window.GameScores.record('panda-bubbles', {
+        score: state.score,
+        won: !!won,
+        meta: { shots: state.shots, wins: state.wins, gamesPlayed: state.gamesPlayed }
+      });
+    }
+    const shotsLabel = state.shots === 1 ? 'in 1 Schuss' : 'in ' + state.shots + ' Schüssen';
     const summary = won
-      ? 'Alle Blasen sind weg. ' + formatScore(state.score) + ' Punkte in ' + state.shots + ' Schüssen.'
+      ? 'Alle Blasen sind weg. ' + formatScore(state.score) + ' Punkte ' + shotsLabel + '.'
       : 'Du hast ' + formatScore(state.score) + ' Punkte erreicht. Ein neuer Versuch startet mit einem frischen Feld.';
     announce(won ? 'Runde geschafft – der Bambushain ist wieder frei.' : 'Runde beendet – die Blasen haben die Bambusgrenze erreicht.');
     $('result-icon').textContent = won ? '🐼🎋' : '🐼';
@@ -582,11 +639,14 @@
       state.streak = 0;
       state.misses--;
       setPhase('impact', .3);
-      announce('Knapp daneben – noch ' + state.misses + ' Fehlwürfe bis zur nächsten Reihe.');
+      announce('Knapp daneben – ' + (state.misses === 1 ? 'noch 1 Fehlwurf' : 'noch ' + state.misses + ' Fehlwürfe') + ' bis zur nächsten Reihe.');
     }
 
     state.board = result.board;
-    if (state.score > state.highScore) state.highScore = state.score;
+    if (state.score > state.highScore) {
+      state.highScore = state.score;
+      scheduleSave();
+    }
 
     if (result.cleared) {
       queueRoundEnd(true, result.dropped.length ? 1.05 : .88);
@@ -883,7 +943,7 @@
   }
 
   function drawAim(currentTheme) {
-    if (inputLocked()) return;
+    if (inputLocked() || touchAimCanceled) return;
     const points = aimPath();
     if (!points.length) return;
     const banked = points.some(point => point.banked);
@@ -1194,32 +1254,81 @@
   }
 
   function toggleSound() {
-    state.sound = !state.sound;
+    if (window.GameAudio) {
+      window.GameAudio.toggle();
+    } else {
+      applyAudioMute(state.sound);
+    }
     if (state.sound) {
       initAudio();
       playSound('swap');
       announce('Sound eingeschaltet.');
     } else {
-      if (masterGain && audioContext) {
-        masterGain.gain.cancelScheduledValues(audioContext.currentTime);
-        masterGain.gain.value = 0;
-      }
       announce('Sound ausgeschaltet.');
     }
-    updateUi();
+    saveSettings();
+  }
+
+  if (window.GameAudio) {
+    window.GameAudio.onChange(muted => {
+      applyAudioMute(muted);
+      saveSettings();
+    });
+  }
+
+  function isBelowCannon(clientY) {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.height) return false;
+    const y = (clientY - rect.top) * HEIGHT / rect.height;
+    return y > SHOOTER.y + 16;
   }
 
   canvas.addEventListener('pointermove', event => {
+    if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+      if (touchAimPointerId !== event.pointerId || inputLocked()) return;
+      touchAimCanceled = isBelowCannon(event.clientY);
+      if (!touchAimCanceled) aimAt(event.clientX, event.clientY);
+      return;
+    }
     if (inputLocked()) return;
     aimAt(event.clientX, event.clientY);
   });
   canvas.addEventListener('pointerdown', event => {
-    if (event.button !== 0 && event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+      if (inputLocked() || touchAimPointerId !== null) return;
+      event.preventDefault();
+      canvas.focus({ preventScroll: true });
+      touchAimPointerId = event.pointerId;
+      touchAimCanceled = isBelowCannon(event.clientY);
+      try { canvas.setPointerCapture(event.pointerId); } catch (_error) { /* optional */ }
+      if (!touchAimCanceled) aimAt(event.clientX, event.clientY);
+      return;
+    }
+    if (event.button !== 0) return;
     if (inputLocked()) return;
     event.preventDefault();
     canvas.focus({ preventScroll: true });
     aimAt(event.clientX, event.clientY);
     shoot();
+  });
+  canvas.addEventListener('pointerup', event => {
+    if (touchAimPointerId !== event.pointerId) return;
+    const canceled = touchAimCanceled || isBelowCannon(event.clientY);
+    touchAimPointerId = null;
+    touchAimCanceled = false;
+    if (canceled) {
+      announce('Wurf abgebrochen.');
+      return;
+    }
+    if (inputLocked()) return;
+    aimAt(event.clientX, event.clientY);
+    shoot();
+  });
+  canvas.addEventListener('pointercancel', event => {
+    if (touchAimPointerId === event.pointerId) {
+      touchAimPointerId = null;
+      touchAimCanceled = false;
+    }
   });
   canvas.addEventListener('contextmenu', event => event.preventDefault());
   canvas.addEventListener('keydown', event => {

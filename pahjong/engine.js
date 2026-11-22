@@ -62,11 +62,11 @@
     add(28, 7, 0);
     add(30, 7, 0);
 
-    // Vier zentrierte obere Ebenen (36 + 16 + 4 + 1).
-    for (let y = 2; y <= 12; y += 2) for (let x = 8; x <= 18; x += 2) add(x, y, 1);
-    for (let y = 4; y <= 10; y += 2) for (let x = 10; x <= 16; x += 2) add(x, y, 2);
-    for (let y = 6; y <= 8; y += 2) for (let x = 12; x <= 14; x += 2) add(x, y, 3);
-    add(13, 7, 4);
+    // Vier symmetrisch über der Basis (x = 4..28, Mitte 16) zentrierte obere Ebenen (36 + 16 + 4 + 1).
+    for (let y = 2; y <= 12; y += 2) for (let x = 10; x <= 20; x += 2) add(x, y, 1);
+    for (let y = 4; y <= 10; y += 2) for (let x = 12; x <= 18; x += 2) add(x, y, 2);
+    for (let y = 6; y <= 8; y += 2) for (let x = 14; x <= 16; x += 2) add(x, y, 3);
+    add(15, 7, 4);
 
     if (slots.length !== 144) throw new Error(`Turtle-Layout hat ${slots.length} statt 144 Plätze.`);
     return Object.freeze(slots.map(Object.freeze));

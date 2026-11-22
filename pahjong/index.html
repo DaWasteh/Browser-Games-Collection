@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f1e8">
   <title>Pahjong – Mahjong-Solitaire</title>
-  <meta name="description" content="Mahjong-Solitaire im echten 144-Stein-Turtle-Layout mit lösbaren Deals, Anleitung, Zoom, Hinweisen und Tastatursteuerung.">
+  <meta name="description" content="Mahjong-Solitaire im klassischen 144-Stein-Turtle-Layout mit Zoom, Hinweisen, Bestzeiten und Tastatursteuerung.">
   <script src="../shared/game-shell.js"></script>
+  <script src="../shared/game-scores.js"></script>
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
   <link rel="stylesheet" href="styles.css">
@@ -34,19 +35,21 @@
       <div><span>Züge</span><strong id="moves">0</strong></div>
       <div><span>Mischungen</span><strong id="shuffles">0</strong></div>
       <div><span>Zeit</span><strong id="time">00:00</strong></div>
+      <div><span>Bestzeit</span><strong id="best-time">–</strong></div>
+      <div><span>Siege</span><strong id="wins">0</strong></div>
     </section>
 
     <p id="message" class="message" role="status" aria-live="polite">Wähle einen freien Stein.</p>
 
     <section class="quick-guide" aria-labelledby="quick-guide-title">
       <div class="guide-heading">
-        <p class="eyebrow">SPIELANLEITUNG</p>
-        <h2 id="quick-guide-title">In drei Schritten</h2>
+        <p class="eyebrow">KURZANLEITUNG</p>
+        <h2 id="quick-guide-title">So spielst du</h2>
       </div>
       <ol>
-        <li><span class="step">1</span><div><strong>Freien Stein erkennen</strong><p>Oben liegt nichts darauf und mindestens eine lange Seite ist offen. Bedeckte Steine sind abgeblendet.</p></div></li>
-        <li><span class="step">2</span><div><strong>Passendes Paar wählen</strong><p>Zahl und Symbol müssen gleich sein. Beliebige zwei Blumen beziehungsweise Jahreszeiten passen zusammen.</p></div></li>
-        <li><span class="step">3</span><div><strong>Schildkröte leeren</strong><p>Wähle nacheinander zwei freie Partner. Dadurch öffnen sich darunterliegende Steine.</p></div></li>
+        <li><span class="step">1</span><div><strong>Freie Steine</strong><p>Oben frei und links oder rechts offen.</p></div></li>
+        <li><span class="step">2</span><div><strong>Paare finden</strong><p>Gleiches Motiv – oder je zwei Blumen bzw. Jahreszeiten.</p></div></li>
+        <li><span class="step">3</span><div><strong>Brett leeren</strong><p>Entferne alle 144 Steine bis zur untersten Schicht.</p></div></li>
       </ol>
     </section>
 
@@ -76,17 +79,17 @@
 
     <section class="controls" aria-label="Spielaktionen">
       <button id="hint" type="button">💡 Hinweis</button>
-      <button id="shuffle" type="button">🔀 Rest lösbar mischen</button>
+      <button id="shuffle" type="button">🔀 Neu mischen</button>
       <button id="undo" type="button">↶ Rückgängig</button>
       <button id="new-game" type="button" class="primary">＋ Neues Spiel</button>
     </section>
 
-    <details class="rules" open>
+    <details class="rules">
       <summary>Ausführliche Regeln, Sondersteine &amp; Steuerung</summary>
       <div class="rules-grid">
-        <section><h3>Wann ist ein Stein frei?</h3><p>Kein Stein einer höheren Ebene darf seine Fläche überdecken. Zusätzlich muss links oder rechts die gesamte lange Seite offen sein. Das Spiel berechnet genau dieselben Halbstein-Flächen, die du siehst.</p></section>
+        <section><h3>Wann ist ein Stein frei?</h3><p>Kein Stein einer höheren Ebene darf auf ihm liegen. Zusätzlich muss links oder rechts die gesamte lange Seite offen sein.</p></section>
         <section><h3>Welche Steine passen?</h3><p>Kreise, Bambus, Zeichen, Winde und Drachen brauchen dasselbe Motiv und denselben Wert. Die vier unterschiedlichen Blumen passen untereinander; ebenso die vier Jahreszeiten.</p></section>
-        <section><h3>Was bedeutet „lösbar“?</h3><p>Jeder Deal besitzt beim Austeilen einen vollständig geprüften Entfernungsweg. Ein anderer legaler Zug kann trotzdem in eine Sackgasse führen. „Mischen“ verteilt nur die übrigen Motive in eine erneut geprüfte Fortsetzung.</p></section>
+        <section><h3>Sackgasse &amp; Mischen</h3><p>Jedes Spiel startet lösbar. Geraten deine Züge in eine Sackgasse, mischt „Neu mischen“ die übrigen Steine neu.</p></section>
         <section><h3>Tastatur</h3><p>Tab betritt das Brett; Pfeiltasten wechseln räumlich zwischen freien Steinen. Enter/Leertaste wählt. <kbd>H</kbd> Hinweis, <kbd>M</kbd> Mischen, <kbd>U</kbd> Rückgängig, <kbd>N</kbd> neues Spiel, <kbd>Esc</kbd> Auswahl aufheben.</p></section>
       </div>
     </details>
@@ -104,6 +107,6 @@
     </div>
   </main>
 
-  <footer><small>Offline und ohne externe Assets. Laufender Deal und Zoom werden nur lokal im Browser gespeichert.</small></footer>
+  <footer><small>Pahjong · Spielstand, Zoom und Bestzeiten werden lokal im Browser gespeichert.</small></footer>
 </body>
 </html>

@@ -226,24 +226,38 @@
       current.sources.forEach(el => el.classList.remove('pc-drag-source'));
     }
 
-    function findTarget(current, x, y) {
-      const under = document.elementFromPoint(x, y);
-      let target = under ? under.closest(config.targetSelector) : null;
-      if (!target && current.ghost) {
-        const rect = current.ghost.getBoundingClientRect();
-        const probe = document.elementFromPoint(rect.left + rect.width / 2, Math.min(rect.top + rect.width * .6, window.innerHeight - 1));
-        target = probe ? probe.closest(config.targetSelector) : null;
-      }
+    function probeTarget(current, px, py) {
+      const cx = Math.max(0, Math.min(window.innerWidth - 1, px));
+      const cy = Math.max(0, Math.min(window.innerHeight - 1, py));
+      const under = document.elementFromPoint(cx, cy);
+      const target = under ? under.closest(config.targetSelector) : null;
       if (target && config.canDrop && !config.canDrop(current.payload, target)) return null;
       return target;
     }
 
+    function findTarget(current, x, y) {
+      if (current.ghost && current.lift > 0) {
+        const rect = current.ghost.getBoundingClientRect();
+        const lifted = probeTarget(current, rect.left + rect.width / 2, rect.top + Math.min(rect.height * 0.45, rect.width * 0.6));
+        if (lifted) return lifted;
+      }
+      const direct = probeTarget(current, x, y);
+      if (direct) return direct;
+      if (current.ghost) {
+        const rect = current.ghost.getBoundingClientRect();
+        return probeTarget(current, rect.left + rect.width / 2, rect.top + Math.min(rect.height * 0.45, rect.width * 0.6));
+      }
+      return null;
+    }
+
     function begin() {
       drag.started = true;
+      if (config.onStart) config.onStart(drag.payload);
       const cards = config.cards(drag.payload) || [];
       const sources = config.sourceElements ? config.sourceElements(drag.payload) : [drag.el];
       drag.sources = sources;
-      const base = drag.el.getBoundingClientRect();
+      const baseEl = (sources && sources[0] && sources[0].isConnected) ? sources[0] : drag.el;
+      const base = baseEl.getBoundingClientRect();
       drag.rect = base;
       const ghost = document.createElement('div');
       ghost.className = 'pc-ghost';
@@ -254,7 +268,7 @@
         faceEl.className = 'card';
         face(faceEl, card);
         let offset = 0;
-        if (sources[index]) offset = sources[index].getBoundingClientRect().top - base.top;
+        if (sources[index] && sources[index].isConnected) offset = sources[index].getBoundingClientRect().top - base.top;
         else if (index) offset = index * base.height * .32;
         faceEl.style.top = `${offset}px`;
         faceEl.style.height = `${base.height}px`;
@@ -275,7 +289,6 @@
           if (config.canDrop(drag.payload, el)) { el.classList.add('pc-legal'); drag.legal.push(el); }
         });
       }
-      if (config.onStart) config.onStart(drag.payload);
     }
 
     function paint() {
@@ -345,7 +358,7 @@
       release(current, event);
       if (!current.started) return;
       event.preventDefault();
-      suppressUntil = performance.now() + 500;
+      suppressUntil = performance.now() + 180;
       const target = findTarget(current, event.clientX, event.clientY);
       let ok = false;
       if (target) {

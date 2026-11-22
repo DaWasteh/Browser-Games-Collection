@@ -660,7 +660,129 @@
             puzzle.metrics.density >= profile.minDensity &&
             puzzle.metrics.directionBalance >= 0.28;
         puzzle.attemptsUsed = attemptsUsed;
+        if (Array.isArray(opts.solutionWords) && opts.solutionWords.length > 0) {
+            assignSolutionWord(puzzle, opts.solutionWords);
+        }
         return puzzle;
+    }
+
+    // ============================================================
+    // Klassisches Lösungswort (Sonderwort aus nummerierten Feldern)
+    // Deterministisch aus dem Seed abgeleitet: sucht ein Lösungswort,
+    // dessen Buchstaben vollständig in verschiedenen Rasterzellen
+    // vorkommen, und verteilt die Fundstellen über möglichst viele
+    // unterschiedliche Wörter im Gitter.
+    // ============================================================
+    function assignSolutionWord(puzzle, candidates) {
+        if (!puzzle || !puzzle.cells || !Array.isArray(candidates) || candidates.length === 0) {
+            if (puzzle) puzzle.solutionWord = null;
+            return null;
+        }
+        var byLetter = Object.create(null);
+        for (var k in puzzle.cells) {
+            var ch = puzzle.cells[k].letter;
+            if (!byLetter[ch]) byLetter[ch] = [];
+            var parts = k.split(',');
+            byLetter[ch].push({ r: +parts[0], c: +parts[1], key: k, cell: puzzle.cells[k] });
+        }
+        var existingWords = Object.create(null);
+        for (var pi = 0; pi < puzzle.placements.length; pi++) {
+            existingWords[puzzle.placements[pi].gridAnswer] = true;
+        }
+        var prng = createPrng('pk-sol|' + puzzle.seed + '|' + puzzle.language + '|' + puzzle.difficulty + '|' + puzzle.datasetVersion);
+        var order = shuffle(candidates, prng);
+        var preferredMin = puzzle.difficulty === 'leicht' ? 6 : puzzle.difficulty === 'mittel' ? 7 : 8;
+        var preferredMax = puzzle.difficulty === 'leicht' ? 9 : puzzle.difficulty === 'mittel' ? 11 : 13;
+
+        function canForm(word) {
+            var gs = graphemes(word);
+            if (gs.length < 4) return false;
+            var need = Object.create(null);
+            for (var i = 0; i < gs.length; i++) {
+                need[gs[i]] = (need[gs[i]] || 0) + 1;
+                if (!byLetter[gs[i]] || need[gs[i]] > byLetter[gs[i]].length) return false;
+            }
+            return true;
+        }
+
+        var chosen = null;
+        var fallback = null;
+        for (var ci = 0; ci < order.length; ci++) {
+            var item = order[ci];
+            var word = typeof item === 'string' ? normalizeGridAnswer(item) : (item.word || normalizeGridAnswer(item.display));
+            var display = typeof item === 'string' ? item : (item.display || word);
+            var clue = typeof item === 'string' ? '' : (item.clue || '');
+            if (!word || existingWords[word]) continue;
+            if (!canForm(word)) continue;
+            var len = graphemes(word).length;
+            if (len >= preferredMin && len <= preferredMax) {
+                chosen = { word: word, display: display, clue: clue };
+                break;
+            }
+            if (!fallback) fallback = { word: word, display: display, clue: clue };
+        }
+        if (!chosen) chosen = fallback;
+        if (!chosen) {
+            puzzle.solutionWord = null;
+            return null;
+        }
+
+        var letters = graphemes(chosen.word);
+        var usedKeys = Object.create(null);
+        var usedPlacements = Object.create(null);
+        var picked = [];
+
+        for (var li = 0; li < letters.length; li++) {
+            var pool = (byLetter[letters[li]] || []).filter(function (pos) { return !usedKeys[pos.key]; });
+            if (!pool.length) {
+                puzzle.solutionWord = null;
+                return null;
+            }
+            var bestPos = pool[0];
+            var bestScore = -Infinity;
+            for (var oi = 0; oi < pool.length; oi++) {
+                var cand = pool[oi];
+                var overlapPenalty = 0;
+                if (cand.cell.across != null && usedPlacements['a' + cand.cell.across]) overlapPenalty += 30;
+                if (cand.cell.down != null && usedPlacements['d' + cand.cell.down]) overlapPenalty += 30;
+                var minDist = 999;
+                for (var prev = 0; prev < picked.length; prev++) {
+                    var d = Math.abs(cand.r - picked[prev].r) + Math.abs(cand.c - picked[prev].c);
+                    if (d < minDist) minDist = d;
+                }
+                var spreadBonus = picked.length ? Math.min(minDist, 8) * 5 : 0;
+                var startPenalty = cand.cell.number ? 6 : 0; // Startnummern oben links möglichst frei halten
+                var sc = spreadBonus - overlapPenalty - startPenalty + prng() * 2;
+                if (sc > bestScore) {
+                    bestScore = sc;
+                    bestPos = cand;
+                }
+            }
+            usedKeys[bestPos.key] = true;
+            if (bestPos.cell.across != null) usedPlacements['a' + bestPos.cell.across] = true;
+            if (bestPos.cell.down != null) usedPlacements['d' + bestPos.cell.down] = true;
+            var solIdx = li + 1;
+            bestPos.cell.solutionIndex = solIdx;
+            picked.push({ r: bestPos.r, c: bestPos.c, key: bestPos.key, index: solIdx, letter: letters[li] });
+        }
+
+        puzzle.solutionWord = {
+            display: chosen.display,
+            word: chosen.word,
+            clue: chosen.clue,
+            cells: picked
+        };
+        return puzzle.solutionWord;
+    }
+
+    function computeScore(opts) {
+        opts = opts || {};
+        var diffMult = opts.difficulty === 'experte' ? 1.6 : opts.difficulty === 'schwer' ? 1.35 : opts.difficulty === 'mittel' ? 1.15 : 1;
+        var base = Math.max(0, Number(opts.wordCount) || 0) * 50;
+        var solBonus = opts.solutionWordSolved ? 250 : 0;
+        var speedBonus = Math.max(0, Math.round(400 - (Number(opts.elapsedSec) || 0) * 0.6));
+        var penalty = (Math.max(0, Number(opts.mistakes) || 0) * 35) + (Math.max(0, Number(opts.hintsUsed) || 0) * 60);
+        return Math.max(50, Math.round((base + solBonus + speedBonus - penalty) * diffMult));
     }
 
     // ============================================================
@@ -953,6 +1075,26 @@
             if (JSON.stringify(puzzle.clues) !== JSON.stringify(expected.clues)) errors.push('Hinweislisten sind nicht kanonisch.');
         }
 
+        if (puzzle.solutionWord != null) {
+            var sw = puzzle.solutionWord;
+            if (!sw || typeof sw.word !== 'string' || !Array.isArray(sw.cells) || sw.cells.length < 4) {
+                errors.push('solutionWord ungültig.');
+            } else {
+                var swSeen = Object.create(null);
+                var swLetters = '';
+                for (var swi = 0; swi < sw.cells.length; swi++) {
+                    var sc = sw.cells[swi];
+                    var skey = key(sc.r, sc.c);
+                    if (swSeen[skey]) errors.push('solutionWord nutzt Zelle doppelt: ' + skey);
+                    swSeen[skey] = true;
+                    if (!grid[skey]) errors.push('solutionWord verweist auf leere Zelle: ' + skey);
+                    else if (grid[skey] !== sc.letter) errors.push('solutionWord-Buchstabe passt nicht zur Zelle ' + skey);
+                    swLetters += sc.letter;
+                }
+                if (swLetters !== sw.word) errors.push('solutionWord-Buchstaben ergeben nicht das Zielwort.');
+            }
+        }
+
         return { ok: errors.length === 0, errors: errors };
     }
 
@@ -1021,6 +1163,8 @@
         collectCandidates: collectCandidates,
         generateOneAttempt: generateOneAttempt,
         generatePuzzle: generatePuzzle,
+        assignSolutionWord: assignSolutionWord,
+        computeScore: computeScore,
         numberPlacements: numberPlacements,
         buildPuzzle: buildPuzzle,
         computeMetrics: computeMetrics,

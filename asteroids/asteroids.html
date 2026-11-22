@@ -49,6 +49,7 @@
   </div>
 </div>
 <a class="game-collection-link" id="back-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
+<script src="../shared/game-scores.js"></script>
 <script>
 (() => {
 'use strict';
@@ -81,6 +82,7 @@ const HPS = { large: 3, medium: 2, small: 1 };
 const UFO_SCORES = { large: 500, small: 1000 };
 const UFO_HPS = { large: 6, small: 3 };
 const HI_KEY = 'asteroids-highscore';
+const STATS_KEY = 'asteroids_stats_v1';
 const SOUND_KEY = 'browser-games-sound';
 
 // ---------- Waffen-Katalog ----------
@@ -132,7 +134,48 @@ let state = 'menu';
 let paused = false;
 let score = 0, lives = 3, level = 1, nextExtraLife = 10000;
 let hi = 0;
-try { hi = +(localStorage.getItem(HI_KEY) || 0) || 0; } catch (e) {}
+let stats = { bestScore: 0, bestLevel: 1, ufosDestroyed: 0, gamesPlayed: 0 };
+try {
+  hi = +(localStorage.getItem(HI_KEY) || 0) || 0;
+  const rawStats = localStorage.getItem(STATS_KEY);
+  if (rawStats) {
+    const p = JSON.parse(rawStats);
+    if (p && typeof p === 'object') {
+      stats.bestScore = Math.max(hi, Number(p.bestScore) || 0);
+      stats.bestLevel = Math.max(1, Number(p.bestLevel) || 1);
+      stats.ufosDestroyed = Math.max(0, Number(p.ufosDestroyed) || 0);
+      stats.gamesPlayed = Math.max(0, Number(p.gamesPlayed) || 0);
+      hi = stats.bestScore;
+    }
+  } else {
+    stats.bestScore = hi;
+  }
+} catch (e) {}
+function saveStats(countGame) {
+  let changed = false;
+  if (score > hi) { hi = score; changed = true; }
+  if (hi > stats.bestScore) { stats.bestScore = hi; changed = true; }
+  if (level > stats.bestLevel) { stats.bestLevel = level; changed = true; }
+  if (countGame) { stats.gamesPlayed++; changed = true; }
+  if (!changed && !countGame) return;
+  try {
+    localStorage.setItem(HI_KEY, String(hi));
+    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  } catch (e) {}
+  if (window.GameScores) {
+    const payload = {
+      score,
+      level,
+      meta: { ufosDestroyed: stats.ufosDestroyed },
+      label: 'Bestwert ' + stats.bestScore + ' · Lv ' + stats.bestLevel
+    };
+    if (countGame && typeof window.GameScores.record === 'function') window.GameScores.record('asteroids', payload);
+    else if (typeof window.GameScores.sync === 'function') window.GameScores.sync('asteroids', payload);
+  }
+}
+function checkHighScore() {
+  if (score > hi) saveStats(false);
+}
 let muted = false;
 try { muted = localStorage.getItem(SOUND_KEY) === 'off'; } catch (e) {}
 let ship = null, respawnT = 0, levelBanner = 0, thrustSfxT = 0, shakeT = 0, gameoverT = 0;
@@ -159,6 +202,10 @@ window.addEventListener('keydown', e => {
   // Leertaste/Enter auf einem fokussierten Button oder Link gehören dem Element, nicht dem Spiel.
   if ((e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') && isInteractive(e.target)) return;
   if (GAME_KEYS.includes(e.code)) e.preventDefault();
+  if (touchMode && (GAME_KEYS.includes(e.code) || e.code === 'KeyA' || e.code === 'KeyD' || e.code === 'KeyW')) {
+    touchMode = false;
+    syncUi();
+  }
   keys[e.code] = true;
   initAudio();
   if (e.repeat) return;
@@ -195,7 +242,9 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pointerdown', e => {
   initAudio();
   if (e.pointerType === 'touch' && !touchMode) { touchMode = true; syncUi(); }
+  else if (e.pointerType === 'mouse' && touchMode) { touchMode = false; syncUi(); }
 }, true);
+window.addEventListener('pagehide', () => { if (score > 0) saveStats(false); });
 canvas.addEventListener('pointerdown', e => {
   canvas.focus({ preventScroll: true });
   if (state === 'menu' || (state === 'gameover' && gameoverT <= 0)) { e.preventDefault(); startGame(); }
@@ -239,6 +288,7 @@ if (weaponBtn) weaponBtn.addEventListener('click', e => { if (state === 'playing
 
 function setPaused(value) {
   paused = !!value;
+  if (paused && score > 0) saveStats(false);
   releaseAllKeys();
   announce(paused ? 'Pause' : 'Weiter geht’s');
   syncUi();
@@ -351,6 +401,7 @@ function resize() {
   VH = Math.max(1, window.innerHeight || 1);
   DPR = Math.min(Math.max(1, window.devicePixelRatio || 1), 2.5);
   S = clamp(Math.min(VW, VH) / 560, 0.62, 1);
+  if (VW > 2000) S = Math.max(S, VW / 2000);
   W = VW / S;
   H = VH / S;
   canvas.width = Math.round(VW * DPR);
@@ -591,10 +642,24 @@ function updateWeapons(dt) {
   }
 }
 
-function acquireTarget(index) {
+function toroidalDelta(ax, ay, bx, by) {
+  let dx = bx - ax;
+  let dy = by - ay;
+  if (W > 0) {
+    if (dx > W / 2) dx -= W;
+    else if (dx < -W / 2) dx += W;
+  }
+  if (H > 0) {
+    if (dy > H / 2) dy -= H;
+    else if (dy < -H / 2) dy += H;
+  }
+  return { dx, dy, d: Math.hypot(dx, dy) };
+}
+
+function acquireTarget(index, ox = ship ? ship.x : W / 2, oy = ship ? ship.y : H / 2) {
   const targets = [];
-  for (const a of asteroids) targets.push({ ref: a, d: Math.hypot(a.x - ship.x, a.y - ship.y) });
-  for (const u of ufos) targets.push({ ref: u, d: Math.hypot(u.x - ship.x, u.y - ship.y) });
+  for (const a of asteroids) targets.push({ ref: a, d: toroidalDelta(ox, oy, a.x, a.y).d });
+  for (const u of ufos) targets.push({ ref: u, d: toroidalDelta(ox, oy, u.x, u.y).d });
   if (!targets.length) return null;
   targets.sort((p, q) => p.d - q.d);
   return targets[index % targets.length].ref;
@@ -704,9 +769,10 @@ function updateShots(dt) {
     const b = shots[i];
     b.life -= dt;
     if (b.kind === 'homing') {
-      if (b.target && !(asteroids.includes(b.target) || ufos.includes(b.target))) b.target = acquireTarget(0);
+      if (b.target && !(asteroids.includes(b.target) || ufos.includes(b.target))) b.target = acquireTarget(0, b.x, b.y);
       if (b.target) {
-        const desired = Math.atan2(b.target.y - b.y, b.target.x - b.x);
+        const { dx, dy } = toroidalDelta(b.x, b.y, b.target.x, b.target.y);
+        const desired = Math.atan2(dy, dx);
         const da = normAng(desired - b.angle);
         const mt = b.turnRate * dt;
         b.angle += clamp(da, -mt, mt);
@@ -927,17 +993,24 @@ function applyRare(type) {
   return applyStackable(type);
 }
 
-// Munitionskanister: füllt die aktive Waffe auf. Beim Laser (keine Munition) geht er an die
-// leerste Munitionswaffe; ist alles voll, gibt es stattdessen Treibstoff.
+// Munitionskanister: füllt die aktive Waffe nur, wenn sie tatsächlich Munition/Haltbarkeit braucht;
+// sonst die leerste andere eigene Waffe; ist alles voll, gibt es stattdessen Treibstoff.
+function needsRefill(w) {
+  if (!w || !w.owned || w.broken) return false;
+  const d = WEAPONS[w.id];
+  if (d.type === 'energy') return false;
+  return d.type === 'wearable' ? w.dur < d.durMax : w.ammo < d.ammoMax;
+}
 function applyAmmo() {
   const cur = weapons[currentWeapon];
   let target = null;
-  if (WEAPONS[cur.id].type !== 'energy' && !cur.broken) target = cur;
-  else {
+  if (needsRefill(cur)) {
+    target = cur;
+  } else {
     let best = 2;
     for (const id of WEAPON_IDS) {
       const w = weapons[id], d = WEAPONS[id];
-      if (!w.owned || w.broken || d.type === 'energy') continue;
+      if (!needsRefill(w)) continue;
       const frac = d.type === 'wearable' ? w.dur / d.durMax : w.ammo / d.ammoMax;
       if (frac < 1 && frac < best) { best = frac; target = w; }
     }
@@ -1016,7 +1089,9 @@ function hitUfo(u, damage) {
   if (u.hp <= 0) {
     const pts = UFO_SCORES[u.size];
     score += pts;
+    stats.ufosDestroyed++;
     checkExtraLife();
+    checkHighScore();
     popups.push({ x: u.x, y: u.y, text: '+' + pts, life: 1.4, maxLife: 1.4, color: '#ff9ff3' });
     explode(u.x, u.y, '#ff9ff3', 30);
     sfx.explode();
@@ -1114,7 +1189,7 @@ function die() {
     state = 'gameover';
     gameoverT = 1;
     releaseAllKeys();
-    if (score > hi) { hi = score; try { localStorage.setItem(HI_KEY, String(hi)); } catch (e) {} }
+    saveStats(true);
     announce('Game Over. Punkte: ' + score + '. Enter oder Tippen startet neu.');
     sfx.gameover();
     syncUi();
@@ -1124,6 +1199,7 @@ function die() {
 }
 
 function checkExtraLife() {
+  checkHighScore();
   while (score >= nextExtraLife) {
     lives++;
     nextExtraLife += 10000;
@@ -1134,6 +1210,7 @@ function checkExtraLife() {
 
 function nextLevel() {
   level++;
+  if (level > stats.bestLevel) saveStats(false);
   levelBanner = 2.5;
   // Levelbonus: ein Viertel Tank und eine Ladung Blaster-Munition.
   ship.fuel = Math.min(effMaxFuel(), ship.fuel + effMaxFuel() * 0.25);
@@ -1570,19 +1647,23 @@ function drawPowerups(narrow, leftBottom) {
   const active = Object.keys(ship.powerups);
   if (!active.length) return;
   const chipW = narrow ? 70 : 100;
-  let x, y;
-  if (narrow) { x = 10; y = leftBottom + 12; }
-  else { x = VW / 2 - (active.length * chipW) / 2; y = 26; }
-  for (const k of active) {
+  const rowH = 26;
+  const maxWidth = narrow ? Math.max(chipW, VW - 24) : Math.max(chipW, VW - 360);
+  const perRow = Math.max(1, Math.floor(maxWidth / chipW));
+  active.forEach((k, idx) => {
     const def = PICKUP_DEFS[k];
     const t = ship.powerups[k];
+    const row = Math.floor(idx / perRow);
+    const col = idx % perRow;
+    const rowCount = Math.min(perRow, active.length - row * perRow);
+    const x = narrow ? 10 + col * chipW : VW / 2 - (rowCount * chipW) / 2 + col * chipW;
+    const y = (narrow ? leftBottom + 12 : 26) + row * rowH;
     hudFont(11, true);
     ctx.textAlign = 'center';
     ctx.fillStyle = def.color;
     ctx.fillText(def.label, x + chipW / 2, y);
     drawBar(x + 10, y + 5, chipW - 20, 5, t / def.dur, def.color);
-    x += chipW;
-  }
+  });
   ctx.textAlign = 'left';
 }
 
@@ -1640,23 +1721,25 @@ function drawCentered(blocks) {
   ctx.textAlign = 'center';
   const maxWidth = Math.min(VW - 32, 900);
   const height = layoutBlocks(blocks, VW / 2, 0, maxWidth, true);
-  const top = Math.max(60, (VH - height) / 2);
+  const minTop = VH <= 420 ? 18 : 60;
+  const top = Math.max(minTop, (VH - height) / 2);
   layoutBlocks(blocks, VW / 2, top, maxWidth, false);
   ctx.textAlign = 'left';
 }
 
 function menuSizes() {
-  const title = Math.round(clamp(Math.min(VW / 7.5, VH / 7), 32, 64));
-  const body = Math.round(clamp(VW / 40, 12, 15));
-  return { title, body };
+  const compact = VH <= 420;
+  const title = Math.round(clamp(Math.min(VW / 7.5, VH / (compact ? 9.5 : 7)), compact ? 22 : 32, compact ? 36 : 64));
+  const body = Math.round(clamp(Math.min(VW / 40, VH / (compact ? 29 : 34)), compact ? 10 : 12, compact ? 12 : 15));
+  return { title, body, compact };
 }
 
 function drawMenu() {
-  const { title, body } = menuSizes();
+  const { title, body, compact } = menuSizes();
   const blink = Math.floor(performance.now() / 500) % 2 === 0;
   const blocks = [
     { text: 'ASTEROIDS', size: title, bold: true, color: '#fff', glow: '#4df0ff', nowrap: true },
-    { gap: body }
+    { gap: compact ? body * 0.45 : body }
   ];
   if (touchMode) {
     blocks.push({ text: '⟲ ⟳ drehen · ▲ Schub · ✹ schießen · ⇄ Waffe wechseln', size: body, color: '#9ef0ff' });
@@ -1664,14 +1747,20 @@ function drawMenu() {
     blocks.push({ text: '← → / A D drehen · ↑ / W Schub · LEERTASTE schießen', size: body, color: '#9ef0ff' });
     blocks.push({ text: '1–4 / Q Waffe wählen · P / ESC Pause · M Ton', size: body, color: '#9ef0ff' });
   }
+  if (!compact) {
+    blocks.push(
+      { text: 'Treibstoff ist begrenzt – sammle FUEL-Pickups!', size: body, color: '#9ef0ff' },
+      { text: 'UFOs schießen auf dich – hol sie runter für seltene Upgrades!', size: body, color: '#ff9ff3' }
+    );
+  }
   blocks.push(
-    { text: 'Treibstoff ist begrenzt – sammle FUEL-Pickups!', size: body, color: '#9ef0ff' },
-    { text: 'UFOs schießen auf dich – hol sie runter für seltene Upgrades!', size: body, color: '#ff9ff3' },
-    { text: 'WAFFEN: 1 BLASTER (Munition) · 2 LASER (Energie, muss kühlen) · 3 MISSILE (zielsuchend) · 4 CANNON (nutzt sich ab)', size: body, color: '#e040fb' },
-    { gap: body * 1.2 },
-    { text: touchMode ? 'TIPPEN zum Starten' : '[ ENTER ] zum Starten', size: Math.round(body * 1.4), bold: true, color: '#fff', hidden: !blink }
+    { text: 'WAFFEN: 1 BLASTER · 2 LASER (Hitze) · 3 MISSILE (zielsuchend) · 4 CANNON', size: body, color: '#e040fb' },
+    { gap: compact ? body * 0.65 : body * 1.2 },
+    { text: touchMode ? 'TIPPEN zum Starten' : '[ ENTER ] zum Starten', size: Math.round(body * 1.35), bold: true, color: '#fff', hidden: !blink }
   );
-  if (hi > 0) blocks.push({ gap: body * 0.6 }, { text: 'HI-SCORE: ' + hi, size: body, color: '#9ef0ff' });
+  if (hi > 0 || stats.gamesPlayed > 0) {
+    blocks.push({ gap: compact ? body * 0.35 : body * 0.6 }, { text: 'BESTWERT: ' + hi + ' · MAX LEVEL: ' + stats.bestLevel + ' · UFOS: ' + stats.ufosDestroyed, size: body, color: '#9ef0ff' });
+  }
   drawCentered(blocks);
 }
 

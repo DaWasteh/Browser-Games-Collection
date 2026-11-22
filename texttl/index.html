@@ -6,6 +6,7 @@
   <meta name="description" content="Texttl – deutsches Fünf-Buchstaben-Rätsel mit über 1000 Lösungen, Tages-/Zufallsmodus, Tipp-Funktion und optionalem Knifflig-Modus. Komplett offline.">
   <title>Texttl – Deutsches Worträtsel</title>
   <script src="../shared/game-shell.js"></script>
+  <script src="../shared/game-scores.js"></script>
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
   <link rel="stylesheet" href="texttl.css">
@@ -31,7 +32,7 @@
     </div>
     <button id="hard-mode" class="icon-btn challenge-toggle" type="button" aria-pressed="false" title="Alle bereits aufgedeckten Hinweise müssen im nächsten Wort benutzt werden">◇ Knifflig</button>
     <button id="hint-btn" class="icon-btn hint-toggle" type="button" aria-pressed="false" title="Einmal pro Runde einen Buchstaben samt Position aufdecken">💡 Tipp</button>
-    <div class="stat"><span>Streak</span><strong id="hud-streak">0</strong></div>
+    <div class="stat"><span>Serie</span><strong id="hud-streak">0</strong></div>
     <div class="stat"><span>Siege</span><strong id="hud-wins">0</strong></div>
     <button id="restart-btn" class="icon-btn" type="button" aria-label="Aktuelles Rätsel neu starten">↻ Neu</button>
   </section>
@@ -54,12 +55,11 @@
       <li>Im <strong>Tagesmodus</strong> erhalten alle Spieler am selben UTC-Kalendertag dasselbe Wort. Im <strong>Zufallsmodus</strong> wird jedes Mal ein neues Wort gezogen.</li>
       <li><strong>Knifflig:</strong> Grüne Buchstaben müssen an ihrer Stelle bleiben; gelbe Buchstaben müssen an einer neuen Stelle erneut verwendet werden. Auch bereits erkannte Doppelbuchstaben zählen.</li>
       <li><strong>💡 Tipp:</strong> Einmal pro Runde wird ein noch nicht gefundener Buchstabe samt Position aufgedeckt. Er erscheint blass in der aktuellen Reihe und auf der Tastatur; geteilte Ergebnisse tragen dann ein 💡.</li>
-      <li>Der Tagespool wächst am 10. September 2026 (UTC) auf über 1000 Lösungen – frühere Tageswörter bleiben unverändert.</li>
     </ul>
-    <p><strong>Steuerung:</strong> Tipp über die Bildschirmtastatur oder die physische Tastatur. <kbd>Enter</kbd> ratebestätigen, <kbd>⌫</kbd>/<kbd>Backspace</kbd> löschen. Die Tasten <kbd>Ä</kbd> <kbd>Ö</kbd> <kbd>Ü</kbd> und <kbd>ß</kbd> sind verfügbar und zählen jeweils als einzelner Buchstabe.</p>
+    <p><strong>Steuerung:</strong> Tippe über die Bildschirmtastatur oder die physische Tastatur. Mit <kbd>Enter</kbd> bestätigst du deinen Versuch, mit <kbd>⌫</kbd>/<kbd>Backspace</kbd> löschst du. Die Tasten <kbd>Ä</kbd> <kbd>Ö</kbd> <kbd>Ü</kbd> und <kbd>ß</kbd> sind verfügbar und zählen jeweils als einzelner Buchstabe.</p>
   </details>
 
-  <footer><small>Offline-Spiel ohne Frameworks, Server oder externe Assets.</small></footer>
+  <footer><small>Deutsches Worträtsel · Deine Statistik wird lokal gespeichert.</small></footer>
 
   <div id="result-overlay" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="result-title" aria-live="polite">
     <div class="modal" role="document">

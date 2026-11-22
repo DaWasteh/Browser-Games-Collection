@@ -2,10 +2,11 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pandakreuzwort – Kreuzworträtsel</title>
-  <meta name="description" content="Kompakte Kreuzworträtsel auf Deutsch oder Bairisch mit 969 Einträgen, Sperrfeldern, vier Schwierigkeitsgraden, Bestzeiten und mobiler Wort-Eingabe – komplett offline.">
+  <meta name="description" content="Kreuzworträtsel auf Deutsch und Bairisch mit klassischem Lösungswort, vier Stufen, Bestzeiten und bequemer Tastatur- und Touch-Eingabe.">
   <script src="../shared/game-shell.js"></script>
+  <script src="../shared/game-scores.js"></script>
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
   <link rel="stylesheet" href="pandakreuzwort.css">
@@ -18,7 +19,7 @@
   <header class="site-header">
     <a href="../index.html" class="back-link" aria-label="Zur Spieleübersicht">← Spieleübersicht</a>
     <h1>🐼 Pandakreuzwort</h1>
-    <p>Kompakte Kreuzworträtsel – Deutsch oder Bairisch, 969 Einträge, vier Stufen, Bestzeiten, komplett offline.</p>
+    <p>Klassisches Kreuzworträtsel auf Deutsch oder Bairisch – finde alle Begriffe und das verborgene Lösungswort.</p>
   </header>
 
   <main>
@@ -26,12 +27,13 @@
       <div><span>Zeit</span><strong id="time">00:00</strong></div>
       <div><span>Fehler</span><strong id="mistakes">0</strong></div>
       <div><span>Hinweise</span><strong id="hints-left">3</strong></div>
-      <div><span>Bestzeit</span><strong id="best-time">–</strong></div>
       <div><span>Fortschritt</span><strong id="progress">0 %</strong></div>
+      <div><span>Bestzeit</span><strong id="best-time">–</strong></div>
+      <div><span>Bestwert</span><strong id="best-score">–</strong></div>
       <div><span>Status</span><strong id="status">Bereit</strong></div>
     </section>
 
-    <p id="message" class="message" role="status" aria-live="polite">Generiere erstes Rätsel …</p>
+    <p id="message" class="message" role="status" aria-live="polite">Rätsel wird vorbereitet …</p>
 
     <div class="controls-top">
       <label class="lang-control" for="lang-select">
@@ -49,73 +51,90 @@
       </div>
     </div>
 
-    <div class="play-area">
-      <section class="board-wrap" aria-label="Kreuzwortgitter">
-        <div id="active-clue" class="active-clue" aria-live="polite">
-          <span id="active-clue-label">Aktueller Hinweis</span>
-          <strong id="active-clue-text">Rätsel wird vorbereitet …</strong>
-        </div>
-        <div id="board-scroll" class="board-scroll" tabindex="0" aria-label="Kreuzworträtsel. Auf kleinen Bildschirmen horizontal und vertikal verschiebbar.">
-          <div id="board" class="board" role="grid" aria-label="Kreuzworträtsel, Buchstabenfelder"></div>
-        </div>
-        <p id="scroll-hint" class="scroll-hint" hidden>↔ Das Gitter lässt sich verschieben; der aktive Hinweis bleibt sichtbar.</p>
-      </section>
-
-      <aside class="side" aria-label="Eingabe und Werkzeuge">
-        <div class="word-input-wrap">
-          <label id="word-input-label" for="word-input">Aktuelles Wort vollständig eingeben</label>
-          <input id="word-input" type="text" autocomplete="off" autocorrect="off"
-                 autocapitalize="characters" spellcheck="false" inputmode="text"
-                 aria-describedby="word-input-label word-input-help" placeholder="Wort tippen …">
-          <small id="word-input-help">Leere Stellen erscheinen als · und behalten ihre Position.</small>
-        </div>
-        <div id="keyboard" class="keyboard" role="group" aria-label="Gittertastatur"></div>
-        <div class="actions" role="group" aria-label="Aktionen">
-          <button id="dir-btn" type="button">↔ Richtung</button>
-          <button id="hint-btn" type="button">💡 Hinweis</button>
-          <button id="check-btn" type="button">✓ Prüfen</button>
-          <button id="restart-btn" type="button">↻ Neustart</button>
-          <button id="new-btn" type="button">⊕ Neues Rätsel</button>
-          <button id="help-btn" type="button">❓ Hilfe</button>
-        </div>
-      </aside>
-    </div>
-
-    <div class="clues">
-      <section class="clue-col" aria-label="Waagrechte Hinweise">
+    <div class="workspace">
+      <section class="clue-col clue-col-across" aria-label="Waagrechte Hinweise">
         <h2>Waagrecht</h2>
         <ul id="across-list" class="clue-list" role="list"></ul>
       </section>
-      <section class="clue-col" aria-label="Senkrechte Hinweise">
+
+      <div class="center-col">
+        <section class="board-wrap" aria-label="Kreuzwortgitter">
+          <div id="active-clue" class="active-clue" aria-live="polite">
+            <div class="active-clue-top">
+              <span id="active-clue-label">Aktueller Hinweis</span>
+              <div class="active-clue-nav">
+                <button id="prev-word-btn" type="button" class="mini-btn" aria-label="Vorheriges Wort" title="Vorheriges Wort (Shift+Tab)">◀</button>
+                <button id="next-word-btn" type="button" class="mini-btn" aria-label="Nächstes Wort" title="Nächstes Wort (Tab)">▶</button>
+              </div>
+            </div>
+            <strong id="active-clue-text">Rätsel wird vorbereitet …</strong>
+          </div>
+
+          <div id="board-scroll" class="board-scroll" tabindex="0" aria-label="Kreuzworträtsel. Auf kleinen Bildschirmen verschiebbar.">
+            <div id="board" class="board" role="grid" aria-label="Kreuzworträtsel, Buchstabenfelder"></div>
+          </div>
+          <p id="scroll-hint" class="scroll-hint" hidden>↔ Das Gitter lässt sich verschieben; der aktive Hinweis bleibt oben sichtbar.</p>
+
+          <section id="solution-word-box" class="solution-box" aria-label="Lösungswort" hidden>
+            <div class="solution-head">
+              <span class="solution-title">🔑 Lösungswort</span>
+              <span id="solution-clue" class="solution-clue"></span>
+              <span id="solution-badge" class="solution-badge">0 / 0</span>
+            </div>
+            <div id="solution-slots" class="solution-slots" role="group" aria-label="Buchstaben des Lösungsworts"></div>
+          </section>
+        </section>
+
+        <aside class="side" aria-label="Eingabe und Werkzeuge">
+          <div class="word-input-wrap">
+            <div class="word-input-head">
+              <label id="word-input-label" for="word-input">Wort direkt eintippen</label>
+              <button id="kbd-toggle-btn" type="button" class="kbd-toggle-btn" aria-pressed="false" title="Bildschirmtastatur ein- oder ausblenden">⌨ Tastatur</button>
+            </div>
+            <input id="word-input" type="text" autocomplete="off" autocorrect="off"
+                   autocapitalize="characters" spellcheck="false" inputmode="text" enterkeyhint="next"
+                   aria-describedby="word-input-label word-input-help" placeholder="Wort tippen …">
+            <small id="word-input-help">Ä, Ö, Ü und ß werden automatisch als AE, OE, UE, SS eingetragen. Lücken erscheinen als ·.</small>
+          </div>
+          <div id="keyboard" class="keyboard" role="group" aria-label="Bildschirmtastatur"></div>
+          <div class="actions" role="group" aria-label="Aktionen">
+            <button id="dir-btn" type="button">↔ Richtung</button>
+            <button id="hint-btn" type="button">💡 Hinweis</button>
+            <button id="check-btn" type="button">✓ Prüfen</button>
+            <button id="restart-btn" type="button">↻ Neustart</button>
+            <button id="new-btn" type="button" class="primary">⊕ Neues Rätsel</button>
+            <button id="help-btn" type="button">❓ Hilfe</button>
+          </div>
+        </aside>
+      </div>
+
+      <section class="clue-col clue-col-down" aria-label="Senkrechte Hinweise">
         <h2>Senkrecht</h2>
         <ul id="down-list" class="clue-list" role="list"></ul>
       </section>
     </div>
 
     <details class="rules">
-      <summary>Regeln &amp; Steuerung</summary>
-      <p>Trage in jedes weiße Feld den richtigen Buchstaben ein; dunkle Felder sind Sperrfelder. Waagrechte und senkrechte Wörter kreuzen sich in einem kompakten, nummerierten Gitter. Wie bei klassischen Kreuzworträtseln gilt: <em>Ä = AE, Ö = OE, Ü = UE und ß = SS</em>; Leerzeichen und Bindestriche entfallen.</p>
+      <summary>Regeln &amp; Bedienung</summary>
+      <p>Fülle alle weißen Felder mit den passenden Buchstaben; dunkle Felder trennen die Wörter. Wie bei klassischen Kreuzworträtseln gilt: <em>Ä = AE, Ö = OE, Ü = UE, ß = SS</em>.</p>
       <ul>
-        <li>Wähle Sprache und Schwierigkeit, dann „⊕ Neues Rätsel“. <strong>↻ Neustart</strong> behält dasselbe Rätsel, <strong>⊕ Neues Rätsel</strong> erzeugt einen neuen Seed.</li>
-        <li>Tippe ein Feld an oder bewege dich mit den <kbd>Pfeiltasten</kbd>. An einer Kreuzung wechselt <kbd>Enter</kbd> oder ein wiederholter Tip die Richtung (waagrecht/senkrecht).</li>
-        <li>Tippe Buchstaben über die Tastatur oder das Wort-Eingabefeld. <kbd>Backspace</kbd> löscht rückwärts.</li>
-        <li><strong>💡 Hinweis</strong> setzt einen richtigen Buchstaben (begrenzt pro Rätsel). <strong>✓ Prüfen</strong> markiert falsche Buchstaben.</li>
-        <li>Die Hinweislisten sind große Buttons und ein gleichwertiger Bedienweg – auch auf dem Handy.</li>
-        <li>Vollständig richtige Wörter werden in der Hinweisliste abgehakt und kurz hervorgehoben. Je Sprache und Stufe wird deine <strong>Bestzeit</strong> lokal gespeichert.</li>
+        <li><strong>Lösungswort:</strong> Die farbig markierten Felder mit kleiner Kreisnummer ergeben der Reihe nach das gesuchte Sonderwort. Ein Tipp auf ein Feld im Lösungswort-Balken springt direkt zur passenden Stelle im Gitter.</li>
+        <li><strong>Tastatur &amp; Tablet-Tastatur:</strong> Tippe Buchstaben direkt ins ausgewählte Feld. <kbd>Backspace</kbd> löscht das aktuelle Feld oder geht einen Schritt zurück, <kbd>Entf</kbd> leert das Feld an Ort und Stelle. <kbd>Tab</kbd> springt zum nächsten Wort, <kbd>Enter</kbd> oder <kbd>Leertaste</kbd> wechselt an Kreuzungen die Richtung.</li>
+        <li><strong>Touch &amp; Bildschirmtastatur:</strong> Auf Touch-Geräten erscheint automatisch die kompakte Bildschirmtastatur unter dem Gitter, ohne Felder zu verdecken. Über „Wort direkt eintippen“ kannst du alternativ auch die Systemtastatur nutzen.</li>
+        <li><strong>Hilfen &amp; Wertung:</strong> <strong>💡 Hinweis</strong> trägt einen richtigen Buchstaben ein, <strong>✓ Prüfen</strong> markiert falsche Buchstaben. Deine Bestzeiten, Punkte und gelösten Rätsel werden lokal gespeichert.</li>
       </ul>
     </details>
 
     <div id="help" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="help-title">
       <div class="overlay-card">
-        <h2 id="help-title">Hilfe zu Pandakreuzwort</h2>
-        <p>Pandakreuzwort erzeugt jedes Rätsel reproduzierbar aus einem Seed. Das Gitter wird auf echte rechtwinklige Kreuzungen, Kompaktheit, Richtungsbalance und Mindestdichte geprüft.</p>
+        <h2 id="help-title">So spielst du Pandakreuzwort</h2>
         <ol>
-          <li>Hinweis in der Liste oder ein weißes Feld auswählen.</li>
-          <li>Buchstaben direkt tippen oder das vollständige Wort im Eingabefeld ersetzen.</li>
-          <li>An Kreuzungen mit Enter, Leertaste oder erneutem Tippen die Richtung wechseln.</li>
-          <li>Mit „Prüfen“ falsche Einträge markieren; ein Hinweis setzt genau einen Buchstaben.</li>
+          <li>Wähle ein weißes Feld oder einen Hinweis aus den Listen für <strong>Waagrecht</strong> und <strong>Senkrecht</strong>.</li>
+          <li>Tippe Buchstaben per Tastatur, Bildschirmtastatur oder im Wortfeld. Umlaute (Ä, Ö, Ü, ß) werden automatisch umgeschrieben.</li>
+          <li>Mit <kbd>Backspace</kbd> (oder ⌫) korrigierst du rückwärts; ein erneuter Tipp auf eine Kreuzung wechselt die Richtung.</li>
+          <li>Die nummerierten Gold-Felder bilden zusammen das <strong>Lösungswort</strong> unter dem Gitter.</li>
         </ol>
-        <p>Die Wortbank enthält über 960 redaktionelle Einträge (844 Deutsch, 125 Bairisch). Bairische Hinweise nennen zusätzlich Region und standarddeutsche Bedeutung.</p>
+        <p>Bei <strong>Bairisch</strong> zeigen die Hinweise zusätzlich Region und hochdeutsche Bedeutung. Alle Punkte und Bestzeiten bleiben lokal in deinem Browser.</p>
         <div class="overlay-actions">
           <button id="help-close" type="button" class="primary">Verstanden</button>
         </div>
@@ -125,7 +144,13 @@
     <div id="result" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
       <div class="overlay-card">
         <h2 id="result-title">Pandakreuzwort gelöst!</h2>
+        <p id="result-solution" class="result-solution" hidden></p>
         <p id="result-text"></p>
+        <dl class="result-stats">
+          <div><dt>Punkte</dt><dd id="result-score">0</dd></div>
+          <div><dt>Bestwert</dt><dd id="result-best-score">0</dd></div>
+          <div><dt>Gelöst</dt><dd id="result-wins">0</dd></div>
+        </dl>
         <div class="overlay-actions">
           <button id="result-new-btn" type="button" class="primary">Neues Rätsel</button>
           <button id="result-close-btn" type="button">Schließen</button>
@@ -134,6 +159,6 @@
     </div>
   </main>
 
-  <footer><small>Offline-Spiel ohne externe Abhängigkeiten. Über 960 redaktionelle Antworten und Hinweise; keine Netzabfragen.</small></footer>
+  <footer><small>Pandakreuzwort · Bestzeiten und Punktestände werden lokal im Browser gespeichert.</small></footer>
 </body>
 </html>

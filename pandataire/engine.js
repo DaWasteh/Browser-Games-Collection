@@ -16,7 +16,7 @@
   'use strict';
 
   var SUITS = ['♠', '♥', '♦', '♣'];
-  var NAMES = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  var NAMES = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'B', 'D', 'K'];
 
   // Seedbarer LCG (gleiche Familie wie pandacell) für reproduzierbare Deals.
   function rng(seed) {
@@ -144,7 +144,7 @@
     if (move.type === 'recycle') {
       if (state.stock.length) return { ok: false, reason: 'Stock noch nicht leer' };
       if (state.recyclesUsed >= ruleset.maxRecycles) return { ok: false, reason: 'Kein weiterer Umlauf möglich' };
-      if (!state.waste.length) return { ok: false, reason: 'Nichts umzulagern' };
+      if (!state.waste.length) return { ok: false, reason: 'Keine Karten zum Zurücklegen' };
       state.stock = state.waste.slice().reverse();
       state.waste = [];
       state.recyclesUsed++;

@@ -177,7 +177,7 @@
         'Am Eingang hängt nun dein Bild: Mitarbeiterraupe des Tages – Held des Feierabends.',
         'Ein Kollege lächelt und sagt: „Heute wird bestimmt ruhiger.“ Im Hintergrund beginnt bereits eine Warnlampe zu blinken.',
         'Kurze Pause. „Das haben wir gestern auch gesagt.“',
-        'Jeder Tag eine neue Challenge. Jeder Feierabend ein kleiner Sieg. Maulkorb verbindet.'
+        'Jeder Tag bringt eine neue Aufgabe. Jeder Feierabend ein kleiner Sieg. Maulkorb verbindet.'
       ]
     }
   };
@@ -265,7 +265,8 @@
     if (!scene || scene.kind !== 'code') return { state: cloneState(state), correct: false, message: 'Hier gibt es kein Codefeld.' };
     const next = cloneState(state);
     recordAttempt(next, scene.id);
-    if (String(code) !== scene.answer) return { state: next, correct: false, message: 'Der Code wird rot abgelehnt. Prüfe Reihenfolge und Schichtprotokoll.' };
+    const normalized = String(code == null ? '' : code).trim().replace(/[\s–—-]+/g, '');
+    if (normalized !== scene.answer) return { state: next, correct: false, message: 'Der Code wird rot abgelehnt. Prüfe Reihenfolge und Schichtprotokoll.' };
     markSolved(next, scene);
     return { state: next, correct: true, message: scene.success };
   }
@@ -302,9 +303,10 @@
   function progress(state) {
     const scene = SCENES[state.sceneId] || SCENES.intro;
     const solvedPuzzles = ['gas', 'valves', 'meter', 'lab', 'code'].filter((id) => isSolved(state, id)).length;
+    const atEnd = scene.id === 'finale' || scene.id === 'epilogue';
     return {
       chapter: scene.chapter,
-      percent: scene.id === 'epilogue' ? 100 : Math.round((solvedPuzzles / 5) * 100),
+      percent: atEnd ? 100 : Math.min(90, Math.round((solvedPuzzles / 5) * 90)),
       solvedPuzzles
     };
   }

@@ -25,6 +25,7 @@ const PEERS = (() => {
 // Target clue counts per difficulty. Robust fallback: generation never
 // breaks uniqueness — if the target is unreachable it simply stops earlier.
 const DIFFICULTY = { leicht: 40, mittel: 32, schwer: 25 };
+const DIFF_LABELS = { leicht: 'Leicht', mittel: 'Mittel', schwer: 'Schwer' };
 
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -148,6 +149,62 @@ let difficulty = 'mittel';
 let elapsed = 0, runningSince = null;   // aktive Millisekunden + Abschnittsstart
 let genToken = 0;                        // guards overlapping generations
 const STORAGE_KEY = 'pandadoku-save-v1';
+const STATS_KEY = 'pandadoku-stats-v1';
+let stats = loadStats();
+
+function defaultStats() {
+  return { wins: 0, bestTimes: { leicht: null, mittel: null, schwer: null }, bestScore: 0, streak: 0 };
+}
+function loadStats() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STATS_KEY) || 'null');
+    if (!raw || typeof raw !== 'object') return defaultStats();
+    const bt = raw.bestTimes && typeof raw.bestTimes === 'object' ? raw.bestTimes : {};
+    const cleanTime = v => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
+    return {
+      wins: Number.isFinite(raw.wins) && raw.wins >= 0 ? Math.floor(raw.wins) : 0,
+      bestTimes: {
+        leicht: cleanTime(bt.leicht),
+        mittel: cleanTime(bt.mittel),
+        schwer: cleanTime(bt.schwer)
+      },
+      bestScore: Number.isFinite(raw.bestScore) && raw.bestScore >= 0 ? Math.floor(raw.bestScore) : 0,
+      streak: Number.isFinite(raw.streak) && raw.streak >= 0 ? Math.floor(raw.streak) : 0
+    };
+  } catch (_error) {
+    return defaultStats();
+  }
+}
+function saveStats() {
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (_error) { /* optional */ }
+}
+function overallBestTime() {
+  const times = Object.values(stats.bestTimes).filter(v => v != null);
+  return times.length ? Math.min(...times) : null;
+}
+function syncSharedScores(winPayload) {
+  if (!window.GameScores) return;
+  const bestTime = overallBestTime();
+  const label = stats.wins > 0
+    ? (bestTime != null ? 'Bestzeit ' + formatTime(bestTime) + ' · ' : '') + stats.wins + (stats.wins === 1 ? ' Sieg' : ' Siege')
+    : '';
+  if (winPayload) {
+    window.GameScores.record('pandadoku', {
+      score: winPayload.score,
+      timeSec: winPayload.timeSec,
+      won: true,
+      label,
+      meta: { difficulty: winPayload.difficulty, wins: stats.wins, streak: stats.streak, bestTimes: stats.bestTimes }
+    });
+  } else if (stats.wins > 0) {
+    window.GameScores.sync('pandadoku', {
+      score: stats.bestScore,
+      timeSec: bestTime != null ? bestTime : undefined,
+      label,
+      meta: { wins: stats.wins, streak: stats.streak, bestTimes: stats.bestTimes }
+    });
+  }
+}
 
 /* ============================================================
    DOM BUILD  (no innerHTML anywhere)
@@ -191,16 +248,13 @@ function snapshot() {
   return {
     board: board.slice(),
     notes: notes.map(s => new Set(s)),
-    errors: errors.slice(),
-    hintsLeft, mistakes
+    errors: errors.slice()
   };
 }
 function restore(s) {
   board = s.board.slice();
   notes = s.notes.map(x => new Set(x));
   errors = s.errors.slice();
-  hintsLeft = s.hintsLeft;
-  mistakes = s.mistakes;
 }
 function pushHistory() {
   history.push(snapshot());
@@ -212,7 +266,7 @@ function pushHistory() {
    DEFENSIVE PERSISTENCE
    ============================================================ */
 function encodeSnapshot(s) {
-  return { board: s.board, notes: s.notes.map(set => [...set]), errors: s.errors, hintsLeft: s.hintsLeft, mistakes: s.mistakes };
+  return { board: s.board, notes: s.notes.map(set => [...set]), errors: s.errors };
 }
 function decodeSnapshot(raw, fixed) {
   if (!raw || !Array.isArray(raw.board) || raw.board.length !== 81 || !Array.isArray(raw.notes) || raw.notes.length !== 81 || !Array.isArray(raw.errors) || raw.errors.length !== 81) return null;
@@ -283,15 +337,23 @@ function loadGame() {
 /* ============================================================
    ACTIONS
    ============================================================ */
+function isReady() {
+  return !!(board && givens && solution && notes && errors);
+}
+function prunePeerNotes(idx, val) {
+  const peers = PEERS[idx];
+  for (let k = 0; k < peers.length; k++) notes[peers[k]].delete(val);
+}
+
 function selectCell(i) {
-  if (status !== 'playing') return;
+  if (!isReady() || status !== 'playing') return;
   selected = i;
-  cells[i].btn.focus();
+  cells[i].btn.focus({ preventScroll: true });
   render();
 }
 
 function enterNumber(v) {
-  if (status !== 'playing' || selected < 0) return;
+  if (!isReady() || status !== 'playing' || selected < 0) return;
   if (givens[selected]) { announce('Dieses Feld ist fest vorgegeben.'); return; }
   if (noteMode) {
     if (board[selected] !== 0) return;
@@ -313,13 +375,13 @@ function enterNumber(v) {
   board[selected] = v;
   notes[selected].clear();
   if (v !== solution[selected]) { errors[selected] = true; mistakes++; sfx('error'); if (window.GameFX && cells[selected]) window.GameFX.shake(cells[selected].btn); }
-  else { errors[selected] = false; sfx('place'); }
+  else { errors[selected] = false; prunePeerNotes(selected, v); sfx('place'); }
   render();
   checkWin();
 }
 
 function clearCell() {
-  if (status !== 'playing' || selected < 0 || givens[selected]) return;
+  if (!isReady() || status !== 'playing' || selected < 0 || givens[selected]) return;
   if (board[selected] === 0 && notes[selected].size === 0) return;
   pushHistory();
   board[selected] = 0;
@@ -329,26 +391,26 @@ function clearCell() {
 }
 
 function moveSelection(dr, dc) {
-  if (status !== 'playing') return;
+  if (!isReady() || status !== 'playing') return;
   if (selected < 0) { selected = 40; }   // fall back to centre cell
   let r = Math.floor(selected / 9) + dr;
   let c = (selected % 9) + dc;
   r = Math.max(0, Math.min(8, r));
   c = Math.max(0, Math.min(8, c));
   selected = r * 9 + c;
-  cells[selected].btn.focus();
+  cells[selected].btn.focus({ preventScroll: true });
   render();
 }
 
 function toggleNotes() {
-  if (status !== 'playing') return;
+  if (!isReady() || status !== 'playing') return;
   noteMode = !noteMode;
   render();
   announce(noteMode ? 'Notizmodus an: Kandidaten setzen.' : 'Notizmodus aus.');
 }
 
 function hint() {
-  if (status !== 'playing') return;
+  if (!isReady() || status !== 'playing') return;
   if (hintsLeft <= 0) { announce('Keine Hinweise mehr übrig.'); return; }
   let target = -1;
   if (selected >= 0 && !givens[selected] && board[selected] !== solution[selected]) target = selected;
@@ -362,19 +424,20 @@ function hint() {
   board[target] = solution[target];
   errors[target] = false;
   notes[target].clear();
+  prunePeerNotes(target, solution[target]);
   hintsLeft--;
   selected = target;
   sfx('hint');
   if (window.GameFX) window.GameFX.pulse(cells[target].btn);
-  cells[target].btn.focus();
+  cells[target].btn.focus({ preventScroll: true });
   announce('Hinweis eingesetzt: ' + solution[target] + '. Noch ' + hintsLeft + ' übrig.');
   render();
   checkWin();
 }
 
 function undo() {
-  if (status !== 'playing' || !history.length) {
-    if (status === 'playing') announce('Nichts rückgängig zu machen.');
+  if (!isReady() || status !== 'playing' || !history.length) {
+    if (isReady() && status === 'playing') announce('Nichts rückgängig zu machen.');
     return;
   }
   redoStack.push(snapshot());
@@ -385,8 +448,8 @@ function undo() {
 }
 
 function redo() {
-  if (status !== 'playing' || !redoStack.length) {
-    if (status === 'playing') announce('Nichts wiederherzustellen.');
+  if (!isReady() || status !== 'playing' || !redoStack.length) {
+    if (isReady() && status === 'playing') announce('Nichts wiederherzustellen.');
     return;
   }
   history.push(snapshot());
@@ -396,7 +459,7 @@ function redo() {
 }
 
 function togglePause() {
-  if (status === 'won') return;
+  if (!isReady() || status === 'won') return;
   if (status === 'playing') {
     pauseTimer();
     status = 'paused';
@@ -454,24 +517,43 @@ function newGame(diff) {
     $('pause-btn').textContent = '⏸ Pause';
     updateTimerDisplay();
     render();
-    announce('Neues Rätsel (' + difficulty + ', ' + countClues() + ' Vorgaben).');
+    announce('Neues Rätsel (' + (DIFF_LABELS[difficulty] || difficulty) + ', ' + countClues() + ' Vorgaben).');
   }, 20);
 }
 
 /* ============================================================
    WIN + TIMER
    ============================================================ */
+function computeScore(sec) {
+  const base = difficulty === 'schwer' ? 3000 : difficulty === 'mittel' ? 2000 : 1200;
+  return Math.max(100, base - sec * 2 - mistakes * 120 - (3 - hintsLeft) * 150);
+}
 function checkWin() {
+  if (!isReady()) return;
   for (let i = 0; i < 81; i++) if (board[i] !== solution[i]) return;
   status = 'won';
   pauseTimer();
+  const sec = getElapsed();
+  const score = computeScore(sec);
+  stats.wins += 1;
+  stats.streak += 1;
+  if (score > stats.bestScore) stats.bestScore = score;
+  const prevBest = stats.bestTimes[difficulty];
+  const isNewBest = prevBest == null || sec < prevBest;
+  if (isNewBest) stats.bestTimes[difficulty] = sec;
+  saveStats();
+  syncSharedScores({ score, timeSec: sec, difficulty });
   sfx('win');
   if (window.GameFX) window.GameFX.celebrate();
   $('result-title').textContent = 'Pandadoku gelöst! 🎉';
+  const diffLabel = DIFF_LABELS[difficulty] || difficulty;
+  const bestLabel = stats.bestTimes[difficulty] != null ? formatTime(stats.bestTimes[difficulty]) : formatTime(sec);
   $('result-text').textContent =
-    'Zeit: ' + formatTime(getElapsed()) +
+    diffLabel + ' · Zeit: ' + formatTime(sec) + (isNewBest ? ' (Neue Bestzeit!)' : ' · Bestzeit: ' + bestLabel) +
+    ' · Punkte: ' + score.toLocaleString('de-DE') +
     ' · Fehler: ' + mistakes +
-    ' · Benutzte Hinweise: ' + (3 - hintsLeft) + '.';
+    ' · Hinweise: ' + (3 - hintsLeft) +
+    ' · Siege: ' + stats.wins + '.';
   $('result').hidden = false;
   $('result-new-btn').focus();
   render();
@@ -523,13 +605,17 @@ function cellLabel(i) {
 }
 
 function render() {
+  if (!isReady()) return;
   const selVal = selected >= 0 ? board[selected] : 0;
   const activeCell = selected >= 0 ? selected : 0;
   const selPeers = selected >= 0 ? PEERS[selected] : null;
   for (let i = 0; i < 81; i++) {
     const c = cells[i];
     const v = board[i];
+    const r = Math.floor(i / 9), col = i % 9;
     let cls = 'cell';
+    if (col === 2 || col === 5) cls += ' sep-r';
+    if (r === 2 || r === 5) cls += ' sep-b';
     if (givens[i]) cls += ' given';
     if (v) cls += ' filled';
     if (i === selected) cls += ' selected';
@@ -552,11 +638,15 @@ function render() {
 
   $('mistakes').textContent = String(mistakes);
   $('hints-left').textContent = String(hintsLeft);
+  const diffBest = stats.bestTimes[difficulty];
+  if ($('best-time')) $('best-time').textContent = diffBest != null ? formatTime(diffBest) : '–';
+  if ($('wins')) $('wins').textContent = String(stats.wins);
   $('status').textContent = status === 'playing' ? 'Läuft' : status === 'paused' ? 'Pausiert' : status === 'won' ? 'Gelöst' : '';
 
   $('undo-btn').disabled = history.length === 0 || status !== 'playing';
   $('redo-btn').disabled = redoStack.length === 0 || status !== 'playing';
   $('hint-btn').disabled = hintsLeft <= 0 || status !== 'playing';
+  $('pause-btn').disabled = status !== 'playing';
   $('note-btn').setAttribute('aria-pressed', String(noteMode));
 
   for (const d of ['leicht', 'mittel', 'schwer']) {
@@ -568,15 +658,20 @@ function render() {
 /* ============================================================
    EVENT WIRING
    ============================================================ */
+function focusSelectedForPointer() {
+  if (selected < 0 || status !== 'playing') return;
+  if (window.GameShell && window.GameShell.isTouchMode()) return;
+  cells[selected].btn.focus({ preventScroll: true });
+}
 for (let n = 1; n <= 9; n++) {
   $('num-' + n).addEventListener('click', () => {
     enterNumber(n);
-    if (selected >= 0 && status === 'playing') cells[selected].btn.focus();
+    focusSelectedForPointer();
   });
 }
 $('erase').addEventListener('click', () => {
   clearCell();
-  if (selected >= 0 && status === 'playing') cells[selected].btn.focus();
+  focusSelectedForPointer();
 });
 $('note-btn').addEventListener('click', toggleNotes);
 $('hint-btn').addEventListener('click', hint);
@@ -594,6 +689,14 @@ $('result-close-btn').addEventListener('click', () => { $('result').hidden = tru
 
 document.addEventListener('keydown', (e) => {
   const tag = (e.target && e.target.tagName) || '';
+  if (e.ctrlKey || e.metaKey || e.altKey) {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && status === 'playing' && $('result').hidden !== false && tag !== 'SELECT' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+      const modKey = e.key.toLowerCase();
+      if (modKey === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (modKey === 'y' || (modKey === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+    }
+    return;
+  }
   // Im Ergebnisdialog bleiben Buttons vollständig nativ bedienbar.
   // Nur Escape ist ein globaler Dialogbefehl; Enter aktiviert den fokussierten Button.
   if ($('result').hidden === false) {
@@ -634,6 +737,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { if (status === 'playing') pauseTimer(); flushSave(); });
 window.addEventListener('pageshow', () => { if (status === 'playing' && runningSince == null) runningSince = Date.now(); });
 
+syncSharedScores(null);
 if (loadGame()) {
   $('pause-overlay').hidden = status !== 'paused';
   $('pause-btn').textContent = status === 'paused' ? '▶ Weiter' : '⏸ Pause';

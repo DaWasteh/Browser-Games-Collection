@@ -52,6 +52,47 @@
         return { ...base, shape: cloneShape(base.shape), rotation: 0 };
     }
 
+    function createPieceBag(random = Math.random) {
+        let bag = [];
+        function refill() {
+            bag = PIECES.map((_, i) => i);
+            for (let i = bag.length - 1; i > 0; i--) {
+                const j = Math.floor(random() * (i + 1));
+                const tmp = bag[i];
+                bag[i] = bag[j];
+                bag[j] = tmp;
+            }
+        }
+        return {
+            next() {
+                if (bag.length === 0) refill();
+                const base = PIECES[bag.pop()];
+                return { ...base, shape: cloneShape(base.shape), rotation: 0 };
+            },
+            reset() {
+                bag = [];
+            }
+        };
+    }
+
+    const WALL_KICK_DX = Object.freeze([0, -1, 1, -2, 2, -3]);
+    const WALL_KICK_DY = Object.freeze([0, -1, -2, -3]);
+
+    function tryRotate(board, piece, px, py) {
+        if (!piece || !piece.shape) return null;
+        const rotated = rotate(piece.shape);
+        for (let yi = 0; yi < WALL_KICK_DY.length; yi++) {
+            const dy = WALL_KICK_DY[yi];
+            for (let xi = 0; xi < WALL_KICK_DX.length; xi++) {
+                const dx = WALL_KICK_DX[xi];
+                if (!collides(board, piece, px + dx, py + dy, rotated)) {
+                    return { shape: rotated, x: px + dx, y: py + dy, dx, dy };
+                }
+            }
+        }
+        return null;
+    }
+
     function rotate(matrix) {
         const height = matrix.length;
         const width = matrix[0].length;
@@ -114,7 +155,9 @@
         PIECE_BY_ID,
         createBoard,
         randomPiece,
+        createPieceBag,
         rotate,
+        tryRotate,
         collides,
         clearCompletedRows,
         lineScore,

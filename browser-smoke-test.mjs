@@ -222,15 +222,18 @@ try {
 
     const responsiveViewports = [
       { width: 320, height: 568, mobile: true, deviceScaleFactor: 2 },
+      { width: 360, height: 720, mobile: true, deviceScaleFactor: 2 },
       { width: 375, height: 812, mobile: true, deviceScaleFactor: 3 },
       { width: 414, height: 896, mobile: true, deviceScaleFactor: 2 },
       { width: 667, height: 375, mobile: true, deviceScaleFactor: 2 },
       { width: 768, height: 1024, mobile: false, deviceScaleFactor: 1 },
       { width: 1024, height: 768, mobile: false, deviceScaleFactor: 1 },
+      { width: 1280, height: 800, mobile: false, deviceScaleFactor: 1 },
       { width: 1366, height: 768, mobile: false, deviceScaleFactor: 1 },
       { width: 1920, height: 1080, mobile: false, deviceScaleFactor: 1 },
       { width: 2560, height: 1080, mobile: false, deviceScaleFactor: 1 },
-      { width: 3440, height: 1440, mobile: false, deviceScaleFactor: 1 }
+      { width: 3440, height: 1440, mobile: false, deviceScaleFactor: 1 },
+      { width: 3840, height: 1080, mobile: false, deviceScaleFactor: 1 }
     ];
     for (const viewport of responsiveViewports) {
       const { width } = viewport;
@@ -336,10 +339,12 @@ try {
         }
         const cards = [...document.querySelectorAll('#tableau .card')];
         const bottom = Math.max(...cards.map(card => card.getBoundingClientRect().bottom));
-        const stockTop = document.querySelector('.stock-row').getBoundingClientRect().top;
-        return { cards: cards.length, beforeStock: bottom <= stockTop + 1, tableauHeight: document.querySelector('#tableau').getBoundingClientRect().height };
+        const top = Math.min(...cards.map(card => card.getBoundingClientRect().top));
+        const stockBottom = document.querySelector('.stock-row').getBoundingClientRect().bottom;
+        const areaBottom = document.querySelector('.tableau-area').getBoundingClientRect().bottom;
+        return { cards: cards.length, belowStock: top >= stockBottom - 1, insideArea: bottom <= areaBottom + 2, tableauHeight: document.querySelector('#tableau').getBoundingClientRect().height };
       })()`);
-      assert(deepLayout.cards >= 90 && deepLayout.beforeStock, `panda-spider: deep columns overlap stock/controls ${JSON.stringify(deepLayout)}`);
+      assert(deepLayout.cards >= 90 && deepLayout.belowStock && deepLayout.insideArea, `panda-spider: deep columns overlap stock/area ${JSON.stringify(deepLayout)}`);
     }
 
     if (game === 'panda-bubbles') {
@@ -386,6 +391,11 @@ try {
 
         const rect = canvas.getBoundingClientRect();
         canvas.dispatchEvent(new PointerEvent('pointerdown', {
+          pointerId: 71, pointerType: 'touch', isPrimary: true, button: 0,
+          clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height * .25,
+          bubbles: true, cancelable: true
+        }));
+        canvas.dispatchEvent(new PointerEvent('pointerup', {
           pointerId: 71, pointerType: 'touch', isPrimary: true, button: 0,
           clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height * .25,
           bubbles: true, cancelable: true
@@ -878,6 +888,18 @@ try {
         wordField.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'Ä' }));
         const afterComposition = { value: wordField.value, filled: Object.keys(Pandakreuzwort.getBoard()).length, letters: Object.values(Pandakreuzwort.getBoard()).join('') };
         const letterWidths = [...document.querySelectorAll('#board .cell:not(.block)')].map(cell => cell.getBoundingClientRect().width);
+        const solWord = Pandakreuzwort.getPuzzle().solutionWord;
+        const solSlots = document.querySelectorAll('#solution-slots .sol-slot').length;
+        const solBoxVisible = !document.getElementById('solution-word-box').hidden;
+        // Backspace-Regression: zwei Buchstaben tippen, Backspace löscht sauber im selben Wort.
+        wordField.blur();
+        const firstBtn = document.querySelector('#board .cell[role="gridcell"]');
+        firstBtn.click();
+        const startSel = Pandakreuzwort.getState().selected;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'X', bubbles: true }));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
+        const afterBsBoard = Pandakreuzwort.getBoard();
+        const backspaceClean = !afterBsBoard[startSel.r + ',' + startSel.c];
         return {
           initial,
           tabStops,
@@ -894,6 +916,8 @@ try {
           expertPlayable: expert.difficulty === 'experte' && expert.status === 'playing' && expert.wordCount >= 19,
           qualityPassed: expert.metrics && expert.metrics.density >= 0.27 && expert.metrics.directionBalance >= 0.28,
           datasetSize: expert.datasetSize,
+          solutionWordReady: !!solWord && solBoxVisible && solSlots === solWord.cells.length && solSlots >= 5,
+          backspaceClean,
           blockVisible: !!block && getComputedStyle(block).backgroundColor !== 'rgba(0, 0, 0, 0)',
           slotsPreserved: inputSlots.length === 4 && inputSlots[0] === 'A' && inputSlots[1] === null && inputSlots[2] === 'C' && inputSlots[3] === null,
           naturalTyping: firstTyped.value === 'A' && firstTyped.caret === 1 && firstTyped.filled === 1 && secondTyped.value === 'AB' && secondTyped.caret === 2 && secondTyped.filled === 2,
@@ -916,7 +940,9 @@ try {
       assert(crossword.pendingRestartConsistent, 'pandakreuzwort: restart during pending generation mixed seed and puzzle');
       assert(crossword.bavarianPlayable && crossword.bavarianMetadata, 'pandakreuzwort: Bairisch mode or clue metadata is incomplete');
       assert(crossword.expertPlayable && crossword.qualityPassed, 'pandakreuzwort: Experte mode did not meet its layout contract');
-      assert(crossword.datasetSize >= 650, `pandakreuzwort: expanded word bank missing (${crossword.datasetSize})`);
+      assert(crossword.datasetSize >= 1400, `pandakreuzwort: expanded v2.6 word bank missing (${crossword.datasetSize})`);
+      assert(crossword.solutionWordReady, 'pandakreuzwort: Lösungswort UI/cells missing');
+      assert(crossword.backspaceClean, 'pandakreuzwort: Backspace did not cleanly erase typed cell');
       assert(crossword.blockVisible, 'pandakreuzwort: blocked cells are not visibly rendered');
       assert(crossword.slotsPreserved, 'pandakreuzwort: positional word-input blanks are not preserved');
       assert(crossword.naturalTyping && crossword.imeSafe, `pandakreuzwort: mobile word input disrupts cursor/IME ${JSON.stringify(crossword)}`);
@@ -1411,7 +1437,7 @@ try {
     };
   })()`);
   assert(launcher.count === 20 && launcher.unique === 20 && launcher.allTargetsLoad && launcher.headerCount === '20', `launcher: expected 20 unique loadable games ${JSON.stringify(launcher)}`);
-  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.5') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.5 integration is incomplete ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.6') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.6 integration is incomplete ${JSON.stringify(launcher)}`);
 
   // v1.9: Kategorie-Chips, Suche und Ton-Schalter des Launchers.
   const launcherFilters = await evaluate(`(async () => {
@@ -1567,12 +1593,12 @@ try {
   assert(pahjongKeys.compactHistory, 'pahjong: undo history still stores full 144-tile state clones');
   assert(pahjongKeys.won && pahjongKeys.resultFocused && pahjongKeys.terminalUndo, `pahjong: full solution/result/terminal undo failed ${JSON.stringify(pahjongKeys)}`);
 
-  console.log(`browser smoke ok (${games.length} styled games, 20 launcher games, 10 Phone portrait/landscape, Tablet/Desktop/Widescreen/Ultrawide-Viewports at DPR 1–3 × 3 styles, navigation, contrast, focus)`);
+  console.log(`browser smoke ok (${games.length} styled games, 20 launcher games, 13 Phone 9:16/9:18, Landscape, Tablet, 16:10, 16:9, 21:9 & 32:9 Viewports at DPR 1–3 × 3 styles, navigation, contrast, focus)`);
   await cdp.send('Browser.close').catch(() => {});
 } finally {
   cdp?.socket.close();
   server.close();
   if (!browser.killed) browser.kill();
   await delay(200);
-  rmSync(profile, { recursive: true, force: true });
+  try { rmSync(profile, { recursive: true, force: true }); } catch (_error) { /* Windows Chrome profile lock */ }
 }

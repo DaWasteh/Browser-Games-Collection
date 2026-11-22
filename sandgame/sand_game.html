@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sand Game Pro · Advanced Simulation v2.3</title>
+  <title>Sand Game</title>
   <style>
     :root {
       color-scheme: dark;
@@ -85,7 +85,7 @@
       top: 20px;
       z-index: 10;
       width: min(380px, calc(100vw - 40px));
-      max-height: calc(100vh - 40px);
+      max-height: calc(100vh - 80px);
       padding: 16px;
       overflow-y: auto;
       background: var(--panel);
@@ -95,6 +95,29 @@
       backdrop-filter: blur(18px) saturate(135%);
       scrollbar-gutter: stable;
       transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    .local-stats-badge {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: rgba(76, 201, 240, 0.08);
+      border: 1px solid rgba(76, 201, 240, 0.25);
+      color: var(--accent-2);
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .tool-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .tool-row button {
+      flex: 1;
     }
     .ui.hidden {
       transform: translateX(calc(-100% - 32px));
@@ -366,12 +389,21 @@
 <aside class="ui" id="ui" aria-label="Werkzeuge, Materialien und Simulationseinstellungen">
   <header class="header">
     <div class="title">
-      <span class="eyebrow">● Live Cellular Automata</span>
-      <h1>Sand Pro v2.3</h1>
+      <span class="eyebrow">● Partikel-Simulation</span>
+      <h1>Sand Game</h1>
       <p>Physik · Chemie · Biologie · Ökosystem</p>
     </div>
     <button id="toggleUI" class="ghost" type="button" aria-controls="ui" aria-expanded="true">Ausblenden</button>
   </header>
+
+  <div class="local-stats-badge" id="localStatsBadge" aria-live="polite">
+    <span id="statMaterials">Stoffe: 1</span>
+    <span id="statMaxParticles">Rekord: 0 Partikel</span>
+  </div>
+
+  <div class="tool-row">
+    <button id="eraserBtn" type="button" aria-pressed="false" data-mat-id="0">🧹 Radierer (Leeren)</button>
+  </div>
 
   <section class="panel-section" aria-labelledby="powderTitle">
     <h2 class="section-title" id="powderTitle">Pulver</h2>
@@ -409,7 +441,7 @@
     </div>
     <div class="control-row">
       <label for="speedR">Ticks/Frame</label>
-      <input type="range" id="speedR" min="1" max="15" value="5">
+      <input type="range" id="speedR" min="1" max="8" value="5">
       <output class="range-value" id="speedVal" for="speedR">5</output>
     </div>
     <div class="control-row">
@@ -429,7 +461,7 @@
     </div>
     <div class="control-row">
       <label for="gpuToggle">GPU-Rendering</label>
-      <input type="checkbox" id="gpuToggle" checked title="WebGL2-Hardwarebeschleunigung für das Rendering. Wechsel benötigt ein Neuladen (Kontext-Typ ändert sich). Bei Aus schaltet die exakte CPU-Darstellung.">
+      <input type="checkbox" id="gpuToggle" checked title="WebGL2-Hardwarebeschleunigung für die Darstellung. Ein Wechsel lädt die Seite neu; deaktiviert wird die CPU-Darstellung verwendet.">
       <span class="range-value" id="gpuStatus">WebGL2</span>
     </div>
   </section>
@@ -1347,16 +1379,14 @@ function updatePowder(x, y, matId) {
   // leer/luftig, handelt es sich um ein einzelnes fallendes Korn -> fällt hinaus.
   // AUSNAHME: Samen/Sporen auf geeignetem Boden (Erde/Sand) bleiben liegen!
   if (y === H - 1) {
-    const below = grid[y * W + x]; // Das Material selbst
-    const onGround = (below === DIRT || below === SAND || below === SAND_WET || below === SAND_DARK || below === STONE || below === WALL || below === GRAVEL);
-    // Samen/Sporen/Bakterien auf Boden -> bleiben
+    // Unterer Weltrand dient als fester Boden für Samen/Sporen/Mikroben
     const isSeedLike = (matId === PLANT_SEED || matId === FLOWER_SEED || matId === SEED_SUNFLOWER ||
                         matId === SEED_WHEAT || matId === SPORE || matId === POLLEN ||
                         matId === BACTERIA || matId === MUSHROOM);
-    if (isSeedLike && onGround) {
-      return false; // Samen auf Boden bleibt liegen
+    if (isSeedLike) {
+      return false;
     }
-    const above = grid[(y - 1) * W + x];
+    const above = y > 0 ? grid[(y - 1) * W + x] : EMPTY;
     if (above === EMPTY || isGas(above) || above === WATER) {
       if (rng() < 0.85) { grid[i] = EMPTY; aclAddNeighbors(x, y, 1); }
       return true;
@@ -6405,11 +6435,18 @@ function renderCPU() {
  * INITIALIZATION
  */
 function resize() {
-  // Use user-settable grid width, calculate height based on aspect ratio
-  // Maximales Spielfeld: 1080x720 (777.600 Zellen)
-  const newW = Math.max(50, Math.min(1080, targetGridWidth));
-  const aspectRatio = window.innerHeight / window.innerWidth;
-  const newH = Math.max(50, Math.min(720, Math.floor(newW * aspectRatio)));
+  // Seitenverhältnis auch auf 9:16, 9:18 und 32:9 sauber bewahren (max 1080×720)
+  const vw = Math.max(1, window.innerWidth || 1);
+  const vh = Math.max(1, window.innerHeight || 1);
+  const aspectRatio = vh / vw;
+  let newW = Math.max(50, Math.min(1080, targetGridWidth));
+  let newH = Math.round(newW * aspectRatio);
+  if (newH > 720) {
+    newH = 720;
+    newW = Math.max(50, Math.min(1080, Math.round(720 / aspectRatio)));
+  } else if (newH < 50) {
+    newH = 50;
+  }
   
   // Nur resize wenn sich die Größe tatsächlich geändert hat
   if (newW === W && newH === H) return;
@@ -6542,6 +6579,117 @@ function resize() {
   updateKeyboardCursor(false);
 }
 
+// === Lokale Statistiken & GameScores-Synchronisation ===
+const SAND_STATS_KEY = 'sandgame-stats-v1';
+const SHARED_SCORES_KEY = 'browser-games-scores-v1';
+let sandStats = { maxParticles: 0, materialsUsed: [SAND], totalTicks: 0 };
+let sandStatsLoaded = false;
+let sandSessionRecorded = false;
+let lastSandStatsWrite = 0;
+
+function loadSandStats() {
+  if (sandStatsLoaded) return;
+  sandStatsLoaded = true;
+  try {
+    const raw = localStorage.getItem(SAND_STATS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === 'object') {
+        sandStats.maxParticles = Math.max(0, Number(p.maxParticles) || 0);
+        sandStats.totalTicks = Math.max(0, Number(p.totalTicks) || 0);
+        if (Array.isArray(p.materialsUsed)) {
+          sandStats.materialsUsed = [...new Set(p.materialsUsed.filter(n => Number.isInteger(n) && n > 0))];
+        }
+      }
+    }
+  } catch (_e) {}
+  if (!sandStats.materialsUsed.length) sandStats.materialsUsed = [SAND];
+  renderSandStatsBadge();
+}
+
+function renderSandStatsBadge() {
+  const matEl = document.getElementById('statMaterials');
+  const partEl = document.getElementById('statMaxParticles');
+  if (matEl) matEl.textContent = `Stoffe: ${sandStats.materialsUsed.length}`;
+  if (partEl) partEl.textContent = `Rekord: ${sandStats.maxParticles.toLocaleString('de-DE')} Partikel`;
+}
+
+function syncSandSharedScore() {
+  const count = sandStats.materialsUsed.length;
+  const label = `${count} Stoffe · ${sandStats.maxParticles.toLocaleString('de-DE')} Partikel`;
+  if (window.GameScores && typeof window.GameScores.record === 'function') {
+    window.GameScores.record('sandgame', {
+      score: sandStats.maxParticles,
+      played: !sandSessionRecorded,
+      meta: { materialsUsedCount: count, totalTicks: sandStats.totalTicks },
+      label
+    });
+    sandSessionRecorded = true;
+    return;
+  }
+  try {
+    const raw = localStorage.getItem(SHARED_SCORES_KEY);
+    const store = raw ? JSON.parse(raw) : {};
+    if (!store || typeof store !== 'object' || Array.isArray(store)) return;
+    const prev = store.sandgame && typeof store.sandgame === 'object' ? store.sandgame : {};
+    const prevGames = Number(prev.gamesPlayed) || 0;
+    store.sandgame = Object.assign({
+      gamesPlayed: 0, wins: 0, streak: 0, bestStreak: 0,
+      bestScore: null, bestLowScore: null, bestTimeSec: null, bestLevel: null,
+      lastScore: null, lastPlayed: null, label: '', recent: []
+    }, prev, {
+      gamesPlayed: sandSessionRecorded ? prevGames : prevGames + 1,
+      bestScore: Math.max(Number(prev.bestScore) || 0, sandStats.maxParticles),
+      lastScore: sandStats.maxParticles,
+      lastPlayed: new Date().toISOString().slice(0, 10),
+      label,
+      meta: { materialsUsedCount: count, totalTicks: sandStats.totalTicks }
+    });
+    sandSessionRecorded = true;
+    localStorage.setItem(SHARED_SCORES_KEY, JSON.stringify(store));
+  } catch (_e) {}
+}
+
+function saveSandStats(force) {
+  const now = performance.now();
+  if (!force && now - lastSandStatsWrite < 2000) return;
+  lastSandStatsWrite = now;
+  try {
+    localStorage.setItem(SAND_STATS_KEY, JSON.stringify({
+      maxParticles: sandStats.maxParticles,
+      materialsUsedCount: sandStats.materialsUsed.length,
+      materialsUsed: sandStats.materialsUsed,
+      totalTicks: sandStats.totalTicks
+    }));
+  } catch (_e) {}
+  syncSandSharedScore();
+  renderSandStatsBadge();
+}
+
+function trackMaterialUsed(matId) {
+  if (!matId || matId === EMPTY) return;
+  if (!sandStats.materialsUsed.includes(matId)) {
+    sandStats.materialsUsed.push(matId);
+    saveSandStats(true);
+  }
+}
+
+const matButtonsById = new Map();
+
+function updateMaterialSelection() {
+  matButtonsById.forEach((btn, id) => {
+    const active = id === curMat;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  const eraserBtn = document.getElementById("eraserBtn");
+  if (eraserBtn) {
+    const active = curMat === EMPTY;
+    eraserBtn.classList.toggle("active", active);
+    eraserBtn.setAttribute("aria-pressed", active ? "true" : "false");
+  }
+}
+
 function buildUI() {
   const containers = {
     powder: document.getElementById("matGridPowder"),
@@ -6550,26 +6698,40 @@ function buildUI() {
     solid: document.getElementById("matGridSolid"),
     special: document.getElementById("matGridSpecial")
   };
-  
-  // Clear containers
+
+  if (matButtonsById.size > 0) {
+    updateMaterialSelection();
+    return;
+  }
+
   for (const key in containers) containers[key].innerHTML = "";
-  
+
+  const eraserBtn = document.getElementById("eraserBtn");
+  if (eraserBtn && !eraserBtn._bound) {
+    eraserBtn._bound = true;
+    eraserBtn.onclick = () => {
+      curMat = EMPTY;
+      updateMaterialSelection();
+      updateKeyboardCursor(document.activeElement === canvas);
+    };
+  }
+
   for (const id in MATS) {
     if (id == EMPTY) continue;
     const m = MATS[id];
     const btn = document.createElement("button");
     btn.type = "button";
+    btn.dataset.matId = String(m.id);
     btn.textContent = m.name;
     btn.style.setProperty("--mat-color", `rgb(${m.color[0]}, ${m.color[1]}, ${m.color[2]})`);
     btn.title = `${m.name}\nDichte: ${m.density} | Schmelzpunkt: ${m.melting}°C | Siedepunkt: ${m.boiling}°C\nEntzündung: ${Math.round(m.flammability * 100)}% | pH: ${m.ph}`;
-    btn.setAttribute("aria-pressed", m.id === curMat ? "true" : "false");
-    if (m.id === curMat) btn.classList.add("active");
     btn.onclick = () => {
       curMat = m.id;
-      buildUI();
-      updateKeyboardCursor(true);
+      trackMaterialUsed(m.id);
+      updateMaterialSelection();
+      updateKeyboardCursor(document.activeElement === canvas);
     };
-    
+
     let containerKey;
     switch (m.type) {
       case TYPE.POWDER: containerKey = "powder"; break;
@@ -6578,9 +6740,11 @@ function buildUI() {
       case TYPE.SOLID: containerKey = "solid"; break;
       default: containerKey = "special";
     }
-    
+
+    matButtonsById.set(m.id, btn);
     containers[containerKey].appendChild(btn);
   }
+  updateMaterialSelection();
 }
 
 // Input handling
@@ -6852,9 +7016,11 @@ function getPos(e) {
 function paintAt(x, y) {
   renderDirty = true;
   wakeReset(); // Eingabe -> Ruhe-Backoff sofort beenden.
+  const erasing = isErasing || curMat === EMPTY;
+  if (!erasing) trackMaterialUsed(curMat);
 
   // --- PIXEL-ART PFLANZEN: diskrete Stamps statt flächigem Strich ---
-  if (!isErasing) {
+  if (!erasing) {
     const stamp = plantStampFor(curMat);
     if (stamp) {
       const step = Math.max(1, stamp.spacing);
@@ -6918,15 +7084,17 @@ function paintAt(x, y) {
   }
 
   // --- Standard: nicht-biologische Materialien flächig malen ---
+  // Radierer und Feststoffe (Wand, Metall, Holz, Glas, Stein ...) malen lückenlos ohne Speckle.
+  const solidFill = erasing || isSolid(curMat);
   for (let dy = -bsz; dy <= bsz; dy++) {
     for (let dx = -bsz; dx <= bsz; dx++) {
       if (dx * dx + dy * dy > bsz * bsz) continue;
-      if (rng() > 0.75) continue;
+      if (!solidFill && rng() > 0.75) continue;
       
       const nx = x + dx, ny = y + dy;
       if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
         const idx = ny * W + nx;
-        setCellMaterial(idx, isErasing ? EMPTY : curMat);
+        setCellMaterial(idx, erasing ? EMPTY : curMat);
         // Active Cell List: Gemalte Zellen + Nachbarn markieren
         aclAddNeighbors(nx, ny, 1);
       }
@@ -6935,7 +7103,8 @@ function paintAt(x, y) {
 }
 
 function paintLine(x0, y0, x1, y1) {
-  const sparseBiologyBrush = !isErasing && (plantStampFor(curMat) || isSeedScatter(curMat));
+  const erasing = isErasing || curMat === EMPTY;
+  const sparseBiologyBrush = !erasing && (plantStampFor(curMat) || isSeedScatter(curMat));
   if (sparseBiologyBrush) {
     paintAt(x1, y1);
     return;
@@ -6968,6 +7137,7 @@ function paintLine(x0, y0, x1, y1) {
 
 let inputGlobalsBound = false;
 let lastLogicalViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+let lastLogicalViewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
 
 function stopActivePointer(e) {
   if (e && e.pointerId != null && activePointerId !== e.pointerId) return;
@@ -7089,8 +7259,10 @@ function initInput() {
     resizeTimer = setTimeout(() => {
       resizeTimer = null;
       const widthChanged = Math.abs(window.innerWidth - lastLogicalViewportWidth) > 8;
-      if (force || widthChanged) {
+      const heightChanged = Math.abs(window.innerHeight - lastLogicalViewportHeight) > 8;
+      if (force || widthChanged || heightChanged) {
         lastLogicalViewportWidth = window.innerWidth;
+        lastLogicalViewportHeight = window.innerHeight;
         resize();
       }
     }, 220);
@@ -7305,12 +7477,14 @@ function initUI() {
   document.getElementById("floatingToggleUI").onclick = () => setUiCollapsed(false);
   
   window.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const ae = document.activeElement;
+    if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
     const key = e.key;
     const lowerKey = key.toLowerCase();
     
     if (key === " ") {
-      const ae = document.activeElement;
-      if (ae && /^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+      if (ae && /^(BUTTON|A)$/.test(ae.tagName)) return;
       e.preventDefault();
       paused = !paused;
       document.getElementById("pauseBtn").textContent = paused ? "Fortsetzen" : "Pause";
@@ -7328,7 +7502,8 @@ function initUI() {
     const mapped = KEY_MAP[key] !== undefined ? KEY_MAP[key] : KEY_MAP[lowerKey];
     if (mapped !== undefined) {
       curMat = mapped;
-      buildUI();
+      trackMaterialUsed(mapped);
+      updateMaterialSelection();
       updateKeyboardCursor(document.activeElement === canvas);
     }
   });
@@ -7373,6 +7548,7 @@ function loop(timestamp) {
     simAccum = budget.accumulator;
     droppedCatchupTicks += budget.dropped;
     for (let s = 0; s < budget.ticks; s++) simulate();
+    sandStats.totalTicks += budget.ticks;
     simulated = budget.ticks > 0;
   } else {
     simLastTime = timestamp;
@@ -7410,7 +7586,12 @@ function loop(timestamp) {
       ecoStats = ` 🌱${plantCount} 🌿${seedCount} 🍄${moldCount} 🌳${treeCount}`;
     }
     
-    document.getElementById("st").textContent = `${lastFps} FPS | ${(particleCount * 4).toLocaleString()} Partikel${ecoStats}`;
+    const estimatedParticles = particleCount * 4;
+    if (estimatedParticles > sandStats.maxParticles) {
+      sandStats.maxParticles = estimatedParticles;
+      saveSandStats(false);
+    }
+    document.getElementById("st").textContent = `${lastFps} FPS | ${estimatedParticles.toLocaleString()} Partikel${ecoStats}`;
     frameCount = 0;
     fpsTimer = timestamp;
   }
@@ -7443,12 +7624,17 @@ function init() {
   if (typeof window !== 'undefined' && window.innerWidth) {
     targetGridWidth = Math.max(50, Math.min(1080, Math.round(window.innerWidth)));
   }
+  loadSandStats();
   seedRng(12345);
   resize();
   buildUI();
   initInput();
   initUI();
   initImageImport();
+  if (typeof window !== 'undefined' && window.innerWidth <= 640) {
+    setUiCollapsed(true);
+  }
+  window.addEventListener('pagehide', () => saveSandStats(true));
 
   requestAnimationFrame(loop);
 }

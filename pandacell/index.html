@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="PandaCell – ein vollständiger FreeCell-Klon mit reproduzierbaren Deals.">
+  <meta name="description" content="PandaCell – ein vollständiges FreeCell-Spiel mit reproduzierbaren Deals und lokalen Bestwerten.">
   <title>PandaCell – FreeCell</title>
   <script src="../shared/game-shell.js"></script>
+  <script src="../shared/game-scores.js"></script>
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
   <script src="../shared/card-deck.js"></script>
@@ -18,17 +19,19 @@
   <header class="site-header">
     <a class="back-link" href="../index.html">← Spieleübersicht</a>
     <h1>🐼 PandaCell</h1>
-    <p>FreeCell: Räume alle 52 offenen Karten in die vier Foundations.</p>
+    <p>FreeCell: Räume alle 52 offenen Karten in die vier Fundamente.</p>
   </header>
   <main>
     <section class="hud" aria-label="Spielstand">
-      <label class="deal-control">Deal-Nummer
+      <label class="deal-control">Deal-Nr.
         <input id="deal-number" type="number" min="1" max="32000" value="1" inputmode="numeric">
       </label>
       <div><span>Züge</span><strong id="moves">0</strong></div>
       <div><span>Zeit</span><strong id="time">00:00</strong></div>
-      <div><span>Foundations</span><strong id="foundation-count">0 / 52</strong></div>
+      <div><span>Fundamente</span><strong id="foundation-count">0 / 52</strong></div>
       <div><span>Supermove</span><strong id="move-limit">1</strong></div>
+      <div><span>Bestwert</span><strong id="best-score">0</strong></div>
+      <div><span>Siege</span><strong id="wins-count">0</strong></div>
     </section>
     <p id="message" class="message" role="status" aria-live="polite">Wähle eine Karte und danach ihr Ziel.</p>
     <section id="game-table" class="game-table" aria-label="FreeCell-Spielfeld">
@@ -38,7 +41,7 @@
           <div id="free-cells" class="free-cells"></div>
         </section>
         <section class="pile-group foundations-group" aria-labelledby="foundation-title">
-          <h2 id="foundation-title">Foundations</h2>
+          <h2 id="foundation-title">Fundamente</h2>
           <div id="foundations" class="foundations"></div>
         </section>
       </div>
@@ -47,15 +50,15 @@
     <section class="controls" aria-label="Spielaktionen">
       <button id="undo" type="button">↶ Rückgängig</button>
       <button id="restart" type="button">↻ Deal neu starten</button>
-      <button id="new-game" type="button">Neue Deal-Nummer</button>
-      <button id="auto" type="button">⤴ Sichere Auto-Moves</button>
+      <button id="new-game" type="button">Neuer Deal</button>
+      <button id="auto" type="button">⤴ Sichere Auto-Züge</button>
     </section>
     <details class="rules">
       <summary>Regeln &amp; Steuerung</summary>
-      <p>Alle 52 Karten liegen offen in acht Spalten. Baue im Tableau absteigend und mit wechselnden Farben. Eine Karte darf in eine freie Zelle, und Foundations werden je Farbe von Ass bis König gebaut. Verschiebe vollständige, korrekt gebaute Sequenzen; die Länge ist durch <strong>(freie Zellen + 1) × 2<sup>leere Spalten</sup></strong> begrenzt. Beim Ziel in eine leere Spalte zählt diese Zielspalte nicht mit.</p>
+      <p>Alle 52 Karten liegen offen in acht Spalten. Baue im Tableau absteigend und mit wechselnden Farben. Eine Karte darf in eine freie Zelle, und Fundamente werden je Farbe von Ass bis König gebaut. Verschiebe vollständige, korrekt gebaute Sequenzen; die Länge ist durch <strong>(freie Zellen + 1) × 2<sup>leere Spalten</sup></strong> begrenzt. Beim Ziel in eine leere Spalte zählt diese Zielspalte nicht mit.</p>
       <ul>
-        <li>Maus/Touch: Karte oder Sequenz antippen, danach die Zielzelle, Foundation oder Spalte antippen – oder die Karten direkt mit Vorschau dorthin ziehen. Doppeltippen bewegt nur sichere Foundation-Züge.</li>
-        <li>Tastatur: <kbd>Tab</kbd> und <kbd>Enter</kbd> bedienen alle Ziele; <kbd>U</kbd> macht rückgängig, <kbd>N</kbd> startet den Deal neu, <kbd>D</kbd> gibt eine neue Deal-Nummer und <kbd>A</kbd> führt sichere Auto-Moves aus.</li>
+        <li>Maus/Touch: Karte oder Sequenz antippen, danach Zielzelle, Fundament oder Spalte wählen – oder die Karten direkt mit Vorschau dorthin ziehen. Doppeltippen auf eine freie Karte legt sie direkt auf das passende Fundament.</li>
+        <li>Tastatur: <kbd>Tab</kbd> und <kbd>Enter</kbd> bedienen alle Ziele; <kbd>U</kbd> Rückgängig, <kbd>A</kbd> sichere Auto-Züge, <kbd>R</kbd> Deal neu starten, <kbd>N</kbd> nächster Deal, <kbd>Esc</kbd> Auswahl aufheben.</li>
       </ul>
     </details>
     <div id="result" class="result" hidden role="dialog" aria-modal="true" aria-labelledby="result-title">
@@ -63,12 +66,12 @@
         <h2 id="result-title">Gewonnen!</h2>
         <p id="result-text"></p>
         <div class="result-actions">
-          <button id="result-new" type="button">Neue Deal-Nummer</button>
-          <button id="result-undo" type="button">Letzten Zug zurück</button>
+          <button id="result-new" class="primary" type="button">Nächster Deal</button>
+          <button id="result-undo" type="button">↶ Letzten Zug zurück</button>
         </div>
       </div>
     </div>
   </main>
-  <footer><small>Offline-Spiel ohne Frameworks, Server oder externe Assets.</small></footer>
+  <footer><small>PandaCell · Bestwerte und Siege bleiben lokal im Browser gespeichert.</small></footer>
 </body>
 </html>

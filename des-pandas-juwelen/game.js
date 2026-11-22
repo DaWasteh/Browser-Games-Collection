@@ -42,11 +42,12 @@
   let entranceTimer = 0;
   let effectTimer = 0;
   let impactTimer = 0;
+  let impactClearTimer = 0;
   let tipTimer = 0;
   let tipShownAt = 0;
   let scoreFrame = 0;
   let shownScore = 0;
-  let suppressClick = false;
+  let suppressClickUntil = 0;
   let pointerGesture = null;
   let hoverIndex = null;
   let turnToken = 0;
@@ -56,6 +57,8 @@
     board: [],
     score: 0,
     highScore: 0,
+    wins: 0,
+    bestCascade: 0,
     moves: Logic.CONFIG.moves,
     target: Logic.CONFIG.target,
     charge: 0,
@@ -152,21 +155,40 @@
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (_error) { /* local storage is optional */ }
     state.boosters = { ...STARTER_BOOSTERS };
-    if (!saved || typeof saved !== 'object') return;
-    state.highScore = Number.isFinite(saved.highScore) ? Math.max(0, Math.floor(saved.highScore)) : 0;
-    state.sound = saved.sound !== false;
-    if (saved.boosters && typeof saved.boosters === 'object') {
-      for (const type of Logic.BOOSTERS) {
-        const count = Math.floor(Number(saved.boosters[type]));
-        state.boosters[type] = Number.isFinite(count) ? Math.max(0, Math.min(Logic.CONFIG.boosterMax, count)) : 0;
+    if (saved && typeof saved === 'object') {
+      state.highScore = Number.isFinite(saved.highScore) ? Math.max(0, Math.floor(saved.highScore)) : 0;
+      state.wins = Number.isFinite(saved.wins) ? Math.max(0, Math.floor(saved.wins)) : 0;
+      state.bestCascade = Number.isFinite(saved.bestCascade) ? Math.max(0, Math.floor(saved.bestCascade)) : 0;
+      state.sound = saved.sound !== false;
+      if (saved.boosters && typeof saved.boosters === 'object') {
+        for (const type of Logic.BOOSTERS) {
+          const count = Math.floor(Number(saved.boosters[type]));
+          state.boosters[type] = Number.isFinite(count) ? Math.max(0, Math.min(Logic.CONFIG.boosterMax, count)) : 0;
+        }
       }
+      if (Array.isArray(saved.seen)) state.seen = new Set(saved.seen.filter(item => typeof item === 'string').slice(0, 40));
     }
-    if (Array.isArray(saved.seen)) state.seen = new Set(saved.seen.filter(item => typeof item === 'string').slice(0, 40));
+    if (window.GameAudio) {
+      state.sound = !window.GameAudio.isMuted();
+    }
+    if (window.GameScores && (state.highScore > 0 || state.wins > 0)) {
+      window.GameScores.sync('des-pandas-juwelen', {
+        score: state.highScore,
+        meta: { wins: state.wins, bestCascade: state.bestCascade }
+      });
+    }
   }
 
   function saveSettings() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ highScore: state.highScore, sound: state.sound, boosters: state.boosters, seen: [...state.seen] }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        highScore: state.highScore,
+        wins: state.wins,
+        bestCascade: state.bestCascade,
+        sound: state.sound,
+        boosters: state.boosters,
+        seen: [...state.seen]
+      }));
     } catch (_error) { /* local storage is optional */ }
   }
 
@@ -423,12 +445,16 @@
     if (reducedMotion) return;
     const token = turnToken;
     clearTimeout(impactTimer);
+    clearTimeout(impactClearTimer);
     impactTimer = window.setTimeout(() => {
       if (token !== turnToken) return;
       boardEl.classList.remove('cascade-impact', 'heavy-impact');
       void boardEl.offsetWidth;
       boardEl.classList.add(heavy ? 'heavy-impact' : 'cascade-impact');
-      window.setTimeout(() => boardEl.classList.remove('cascade-impact', 'heavy-impact'), heavy ? 460 : 360);
+      impactClearTimer = window.setTimeout(() => {
+        boardEl.classList.remove('cascade-impact', 'heavy-impact');
+        impactClearTimer = 0;
+      }, heavy ? 460 : 360);
     }, delay);
   }
 
@@ -537,8 +563,29 @@
 
   // ---------------------------------------------------------------- Audio
 
+  function isAudioMuted() {
+    return !state.sound || !!(window.GameAudio && window.GameAudio.isMuted());
+  }
+
+  function applyAudioMute(muted) {
+    state.sound = !muted;
+    if (muted) {
+      if (masterGain && audioContext) {
+        masterGain.gain.cancelScheduledValues(audioContext.currentTime);
+        masterGain.gain.value = 0;
+      }
+    } else if (masterGain && audioContext) {
+      masterGain.gain.value = 1;
+    }
+    const btn = $('sound-btn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(state.sound));
+      btn.textContent = state.sound ? '🔊 Ton an' : '🔇 Ton aus';
+    }
+  }
+
   function initAudio() {
-    if (!state.sound) return null;
+    if (isAudioMuted()) return null;
     try {
       const AudioCtor = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtor) return null;
@@ -611,7 +658,7 @@
   }
 
   function playSound(name, level = 1, delay = 0) {
-    if (!state.sound) return;
+    if (isAudioMuted()) return;
     if (name === 'select') tone(460, .07, { to: 560, type: 'sine', gain: .025, delay });
     else if (name === 'swap') {
       tone(330, .11, { to: 520, type: 'sine', gain: .026, delay });
@@ -892,7 +939,6 @@
     $('sound-btn').setAttribute('aria-pressed', String(state.sound));
     $('sound-btn').textContent = state.sound ? '🔊 Ton an' : '🔇 Ton aus';
     boardEl.setAttribute('aria-busy', String(state.status === 'resolving' || state.status === 'celebrating'));
-    scheduleSave();
   }
 
   // ---------------------------------------------------------------- Tipps
@@ -951,7 +997,9 @@
       const info = SPECIAL_INFO[gem.special];
       const text = gem.special === 'prism'
         ? 'Tausche das Prisma mit einem Nachbarn: Alle Juwelen dieser Farbe verschwinden.'
-        : 'Bilde damit eine Reihe oder triff es mit einer Explosion – dann ' + info.effect + '.';
+        : gem.special === 'bomb'
+          ? 'Bilde damit eine Reihe oder triff sie mit einer Explosion – dann sprengt sie das 3 × 3-Feld um sich herum.'
+          : 'Bilde damit eine Reihe oder triff es mit einer Explosion – dann ' + (gem.special === 'row' ? 'räumt es die ganze Zeile.' : 'räumt es die ganze Spalte.');
       return { visual: gemPreview(gem.color || 'amber', gem.special), title: 'Neu: ' + info.name, text: info.how + ' erzeugen es. ' + text };
     });
   }
@@ -964,7 +1012,7 @@
       return {
         visual: icon,
         title: 'Fundstück: ' + BOOSTER_INFO[type].name,
-        text: 'Liegt jetzt im Schatzbeutel. Einsetzen, Ziel antippen – ' + BOOSTER_INFO[type].effect + ', ohne einen Zug zu kosten.'
+        text: 'Liegt jetzt im Schatzbeutel. Einsetzen, Ziel antippen – es ' + BOOSTER_INFO[type].effect + ', ohne einen Zug zu kosten.'
       };
     });
   }
@@ -982,9 +1030,12 @@
     clearTimeout(entranceTimer);
     clearTimeout(effectTimer);
     clearTimeout(impactTimer);
+    clearTimeout(impactClearTimer);
     comboTimer = 0;
     entranceTimer = 0;
     effectTimer = 0;
+    impactTimer = 0;
+    impactClearTimer = 0;
     pointerGesture = null;
     effectsEl.replaceChildren();
     boardEl.classList.remove('cascade-impact', 'heavy-impact', 'shuffle-out', 'shuffle-in', 'level-complete', 'level-cleared', 'round-lost');
@@ -1354,7 +1405,9 @@
     } else {
       state.board = settledBoard;
     }
-    state.charge = Math.min(Logic.CONFIG.pandaCharge, state.charge + result.cascades);
+    if (!result.usedPower) {
+      state.charge = Math.min(Logic.CONFIG.pandaCharge, state.charge + result.cascades);
+    }
     clearVisual();
     saveSettings();
 
@@ -1451,10 +1504,13 @@
     clearTimeout(entranceTimer);
     clearTimeout(effectTimer);
     clearTimeout(impactTimer);
+    clearTimeout(impactClearTimer);
     hintTimer = 0;
     comboTimer = 0;
     entranceTimer = 0;
     effectTimer = 0;
+    impactTimer = 0;
+    impactClearTimer = 0;
     pointerGesture = null;
     $('combo-pop').hidden = true;
     effectsEl.replaceChildren();
@@ -1467,9 +1523,19 @@
     state.powerMode = false;
     state.boosterMode = null;
     if (state.score > state.highScore) state.highScore = state.score;
+    if (won) state.wins += 1;
+    if (state.largestCascade > state.bestCascade) state.bestCascade = state.largestCascade;
     saveSettings();
+    if (window.GameScores) {
+      window.GameScores.record('des-pandas-juwelen', {
+        score: state.score,
+        won: !!won,
+        meta: { wins: state.wins, bestCascade: state.bestCascade, movesLeft: state.moves }
+      });
+    }
+    const movesLabel = state.moves === 1 ? 'mit 1 übrigem Zug' : 'mit ' + state.moves + ' übrigen Zügen';
     const summary = won
-      ? formatScore(state.score) + ' Punkte mit ' + state.moves + ' übrigen Zügen. Größte Kaskade: ' + Math.max(1, state.largestCascade) + '×.'
+      ? formatScore(state.score) + ' Punkte ' + movesLabel + '. Größte Kaskade: ' + Math.max(1, state.largestCascade) + '×.'
       : formatScore(state.score) + ' von ' + formatScore(state.target) + ' Punkten. Beim nächsten Versuch wartet ein neues Feld.';
     announce(won ? 'Runde geschafft – der Schatzgarten ist vollständig erleuchtet.' : 'Runde beendet – diesmal fehlten noch ein paar Funken.');
     $('result-icon').textContent = won ? '🐼💎' : '🐼';
@@ -1486,8 +1552,8 @@
   // ---------------------------------------------------------------- Eingabe
 
   function handleCellClick(_event, index) {
-    if (suppressClick) {
-      suppressClick = false;
+    if (Date.now() < suppressClickUntil) {
+      suppressClickUntil = 0;
       return;
     }
     if (state.status !== 'playing') return;
@@ -1558,8 +1624,7 @@
     const threshold = Math.max(14, cells[index].button.getBoundingClientRect().width * .22);
     if (Math.max(Math.abs(dx), Math.abs(dy)) < threshold) return;
     event.preventDefault();
-    suppressClick = true;
-    window.setTimeout(() => { suppressClick = false; }, 0);
+    suppressClickUntil = Date.now() + 120;
     const from = positionOf(start.index);
     const to = { row: from.row, col: from.col };
     if (Math.abs(dx) > Math.abs(dy)) to.col += dx > 0 ? 1 : -1;
@@ -1602,19 +1667,26 @@
   }
 
   function toggleSound() {
-    state.sound = !state.sound;
+    if (window.GameAudio) {
+      window.GameAudio.toggle();
+    } else {
+      applyAudioMute(state.sound);
+    }
     if (state.sound) {
       initAudio();
       playSound('select');
       announce('Sound eingeschaltet.');
     } else {
-      if (masterGain && audioContext) {
-        masterGain.gain.cancelScheduledValues(audioContext.currentTime);
-        masterGain.gain.value = 0;
-      }
       announce('Sound ausgeschaltet.');
     }
-    render();
+    saveSettings();
+  }
+
+  if (window.GameAudio) {
+    window.GameAudio.onChange(muted => {
+      applyAudioMute(muted);
+      saveSettings();
+    });
   }
 
   $('power-btn').addEventListener('click', activatePower);

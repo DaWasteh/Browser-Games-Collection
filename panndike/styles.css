@@ -29,8 +29,8 @@ body {
 button, select { font: inherit; }
 button { color: inherit; }
 
-.top, main, footer { width: min(1160px, calc(100% - 2rem)); margin-inline: auto; }
-.top { padding: 1rem 0 .6rem; }
+.top, main, footer { width: min(1240px, calc(100% - 2rem)); margin-inline: auto; }
+.top { padding: .75rem 0 .45rem; }
 .back { color: var(--accent); font-weight: 800; text-underline-offset: .2em; }
 .title-row { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-top: .5rem; }
 .eyebrow, .guide-kicker, .dialog-kicker {
@@ -57,7 +57,7 @@ button { color: inherit; }
 
 .scorebar {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-block: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel) 82%, transparent);
 }
@@ -122,7 +122,7 @@ html[data-game-style] body .game-table {
 .pile, .foundation {
   position: relative;
   display: grid;
-  width: min(100%, 88px);
+  width: min(100%, 94px);
   aspect-ratio: .72;
   margin-inline: auto;
   place-items: center;
@@ -134,16 +134,18 @@ html[data-game-style] body .game-table {
   user-select: none;
 }
 .pile:disabled { cursor: default; opacity: .75; }
-/* Talon, Ablage und Fundamente: leere Plätze sind gestrichelt, belegte werden
-   vom gemeinsamen Kartenmodul (shared/card-deck.css) als echte Karten gezeichnet. */
 .stock { overflow: hidden; box-shadow: 0 3px 0 #092d27, 0 5px 10px rgba(0, 0, 0, .25); }
 .stock.empty { border-style: dashed; background: rgba(255, 255, 255, .05); box-shadow: none; }
 .pile-count { position: absolute; right: 3px; bottom: 3px; z-index: 2; min-width: 1.35rem; padding: .04rem .2rem; border-radius: 1rem; background: #fffef0; color: #183b36; font-size: .66rem; font-weight: 900; }
 .waste { overflow: visible; border-style: dashed; }
 .waste.empty { cursor: default; }
 .waste-card { position: absolute; inset: -1.5px; border-radius: inherit; }
-.waste-card.preview-2 { transform: translateX(-14%); opacity: .82; }
-.waste-card.preview-1 { transform: translateX(-7%); opacity: .92; }
+.waste-card.preview-2 { transform: translateX(0%); opacity: .88; }
+.waste-card.preview-1 { transform: translateX(22%); opacity: .95; }
+.waste-card:not(.preview-1):not(.preview-2) { transform: translateX(0); }
+.waste:has(.preview-1) .waste-card:not(.preview-1):not(.preview-2) { transform: translateX(44%); }
+.waste:has(.preview-1):not(:has(.preview-2)) .waste-card.preview-1 { transform: translateX(0%); }
+.waste:has(.preview-1):not(:has(.preview-2)) .waste-card:not(.preview-1) { transform: translateX(24%); }
 .waste.selected .waste-card:last-child { outline: 3px solid #ffd166; outline-offset: 1px; }
 .foundation {
   border-style: dashed;
@@ -176,7 +178,7 @@ html[data-game-style] body .game-table {
   position: absolute;
   left: 50%;
   display: block;
-  width: min(calc(100% - 2px), 88px);
+  width: min(calc(100% - 2px), 94px);
   aspect-ratio: .72;
   transform: translateX(-50%);
 }
@@ -215,10 +217,19 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: .2
 .dialog-actions { display: flex; justify-content: flex-end; gap: .55rem; flex-wrap: wrap; margin-top: 1rem; }
 .dialog-actions button { min-height: 2.75rem; border: 1px solid var(--line); border-radius: .3rem; background: var(--panel2); padding: .55rem .8rem; cursor: pointer; font-weight: 800; }
 .dialog-actions button.primary { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
-.result-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin: 1rem 0; }
+.result-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin: 1rem 0; }
 .result-stats div { border-block: 1px solid var(--line); padding: .55rem .25rem; text-align: center; }
 .result-stats dt { color: var(--muted); font-size: .68rem; text-transform: uppercase; }
 .result-stats dd { margin: .15rem 0 0; font-size: 1.15rem; font-weight: 900; }
+
+@media (min-width: 1400px) {
+  .top, main, footer { width: min(1360px, calc(100% - 3rem)); }
+  .pile, .foundation { width: min(100%, 112px); }
+  .card { width: min(calc(100% - 2px), 112px); }
+}
+@media (min-width: 2400px) {
+  .top, main, footer { width: min(1480px, calc(100% - 4rem)); }
+}
 
 footer { padding: .5rem 0 1.5rem; color: var(--muted); text-align: center; }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; border: 0 !important; }
@@ -227,9 +238,9 @@ footer { padding: .5rem 0 1.5rem; color: var(--muted); text-align: center; }
 
 @media (max-width: 760px) {
   .top, main, footer { width: min(100% - 1rem, 1160px); }
-  .scorebar { grid-template-columns: repeat(3, 1fr); }
-  .scorebar div:nth-child(4) { border-left: 0; }
-  .scorebar div:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  .scorebar { grid-template-columns: repeat(4, 1fr); }
+  .scorebar div:nth-child(5) { border-left: 0; }
+  .scorebar div:nth-child(n + 5) { border-top: 1px solid var(--line); }
   .actionbar button, .draw-control { flex: 1 1 calc(33.333% - .45rem); justify-content: center; }
   .game-table { border-radius: .35rem; }
   .tableau { min-height: 315px; }
@@ -243,6 +254,10 @@ footer { padding: .5rem 0 1.5rem; color: var(--muted); text-align: center; }
 @media (max-width: 430px) {
   .top h1 { font-size: clamp(1.8rem, 10vw, 2.5rem); }
   .brand-mark { width: 2.8rem; }
+  .scorebar { grid-template-columns: repeat(3, 1fr); }
+  .scorebar div:nth-child(5) { border-left: 1px solid var(--line); }
+  .scorebar div:nth-child(4), .scorebar div:nth-child(7) { border-left: 0; }
+  .scorebar div:nth-child(n + 4) { border-top: 1px solid var(--line); }
   .actionbar button, .draw-control { flex-basis: calc(50% - .45rem); min-width: 0; padding-inline: .38rem; font-size: .82rem; }
   .draw-control { padding-left: .4rem; }
   .draw-control span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -253,7 +268,7 @@ footer { padding: .5rem 0 1.5rem; color: var(--muted); text-align: center; }
   .tableau { min-height: 300px; padding-top: .55rem; }
   .column { min-height: 275px; }
   .rules-grid { grid-template-columns: 1fr; }
-  .result-stats { grid-template-columns: 1fr 1fr 1fr; }
+  .result-stats { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-height: 500px) and (orientation: landscape) {

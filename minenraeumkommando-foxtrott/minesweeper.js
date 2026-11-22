@@ -58,8 +58,12 @@
     var custCols = document.getElementById('cust-cols');
     var custMines = document.getElementById('cust-mines');
     var soundToggle = document.getElementById('sound-toggle');
+    var modeToggle = document.getElementById('mode-toggle');
+    var menuBtn = document.getElementById('menu-btn');
     var ariaStatus = document.getElementById('aria-status');
     var bestTimesList = document.getElementById('best-times-list');
+    var statsSummaryEl = document.getElementById('stats-summary');
+    var menuStatsEl = document.getElementById('menu-stats');
 
     // --- Spielzustand ---
     var state = {
@@ -68,7 +72,8 @@
         minesPlaced: false,
         gameOver: false,
         won: false,
-        startTime: 0,
+        runningSince: 0,
+        accumulatedMs: 0,
         elapsedMs: 0,
         timerId: null,
         cursorR: 0,
@@ -76,6 +81,7 @@
         detonatedCell: null    // {r,c} der Mine, die das Spiel beendet hat
     };
 
+    var flagMode = false;
     var soundEnabled = true;
     var audioCtx = null;
 
@@ -97,8 +103,9 @@
 
     function getBestTime(diffKey, config) {
         var raw = lsGet(bestTimeKey(diffKey, config));
+        if (raw === null || raw === '') return null;
         var n = Number(raw);
-        if (!Number.isFinite(n) || n <= 0) return null;
+        if (!Number.isFinite(n) || n < 0) return null;
         return Math.floor(n);
     }
     function recordBestTime(diffKey, seconds, config) {
@@ -108,6 +115,63 @@
             return true;
         }
         return false;
+    }
+
+    function loadStats() {
+        try {
+            var raw = JSON.parse(lsGet('stats_v1') || 'null');
+            if (!raw || typeof raw !== 'object') return { wins: 0, gamesPlayed: 0, streak: 0, bestStreak: 0 };
+            var clean = function (v) { return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0; };
+            return {
+                wins: clean(raw.wins),
+                gamesPlayed: clean(raw.gamesPlayed),
+                streak: clean(raw.streak),
+                bestStreak: clean(raw.bestStreak)
+            };
+        } catch (e) {
+            return { wins: 0, gamesPlayed: 0, streak: 0, bestStreak: 0 };
+        }
+    }
+    var stats = loadStats();
+    function saveStats() {
+        lsSet('stats_v1', JSON.stringify(stats));
+    }
+    function bestPresetTime() {
+        var best = null;
+        L.DIFFICULTY_ORDER.forEach(function (k) {
+            var t = getBestTime(k);
+            if (t !== null && (best === null || t < best)) best = t;
+        });
+        return best;
+    }
+    function syncSharedScores(outcome) {
+        if (!window.GameScores) return;
+        var best = bestPresetTime();
+        var parts = [];
+        if (best !== null) parts.push('Bestzeit ' + best + 's');
+        if (stats.wins > 0) parts.push(stats.wins + (stats.wins === 1 ? ' Sieg' : ' Siege'));
+        var label = parts.join(' · ');
+        if (outcome) {
+            window.GameScores.record('minenraeumkommando-foxtrott', {
+                timeSec: outcome.won ? outcome.seconds : undefined,
+                won: !!outcome.won,
+                label: label || undefined,
+                meta: { wins: stats.wins, gamesPlayed: stats.gamesPlayed, streak: stats.streak, bestStreak: stats.bestStreak, difficulty: outcome.difficulty }
+            });
+        } else if (stats.gamesPlayed > 0 || best !== null) {
+            window.GameScores.sync('minenraeumkommando-foxtrott', {
+                timeSec: best !== null ? best : undefined,
+                label: label || undefined,
+                meta: { wins: stats.wins, gamesPlayed: stats.gamesPlayed, streak: stats.streak, bestStreak: stats.bestStreak }
+            });
+        }
+    }
+    function renderStatsSummary() {
+        var text = stats.gamesPlayed > 0
+            ? ('Siege: ' + stats.wins + ' / ' + stats.gamesPlayed + ' · Serie: ' + stats.streak + ' (Bestwert: ' + stats.bestStreak + ')')
+            : '';
+        if (statsSummaryEl) statsSummaryEl.textContent = text;
+        if (menuStatsEl) menuStatsEl.textContent = text;
     }
 
     function renderBestTimes() {
@@ -140,6 +204,7 @@
             liC.appendChild(valC);
             bestTimesList.appendChild(liC);
         }
+        renderStatsSummary();
     }
 
     // --- Web-Audio (osc.onended Cleanup wie im Tetris-Vorbild) ---
@@ -214,23 +279,39 @@
     }
 
     // --- Timer ---
+    function getElapsedMs() {
+        return state.accumulatedMs + (state.runningSince ? (Date.now() - state.runningSince) : 0);
+    }
     function startTimer() {
-        state.startTime = Date.now();
+        state.runningSince = Date.now();
         if (state.timerId) window.clearInterval(state.timerId);
         state.timerId = window.setInterval(tickTimer, 250);
     }
-    function stopTimer() {
+    function pauseTimer() {
+        if (state.runningSince) {
+            state.accumulatedMs += Date.now() - state.runningSince;
+            state.runningSince = 0;
+        }
         if (state.timerId) { window.clearInterval(state.timerId); state.timerId = null; }
-        state.elapsedMs = Date.now() - state.startTime;
+        state.elapsedMs = state.accumulatedMs;
         timerEl.textContent = pad3(Math.floor(state.elapsedMs / 1000));
     }
+    function resumeTimer() {
+        if (state.minesPlaced && !state.gameOver && !state.runningSince && !visibleModal()) {
+            startTimer();
+        }
+    }
+    function stopTimer() {
+        pauseTimer();
+    }
     function tickTimer() {
-        state.elapsedMs = Date.now() - state.startTime;
+        state.elapsedMs = getElapsedMs();
         timerEl.textContent = pad3(Math.floor(state.elapsedMs / 1000));
     }
     function resetTimer() {
         if (state.timerId) { window.clearInterval(state.timerId); state.timerId = null; }
-        state.startTime = 0;
+        state.runningSince = 0;
+        state.accumulatedMs = 0;
         state.elapsedMs = 0;
         timerEl.textContent = '000';
     }
@@ -267,7 +348,7 @@
         if (cell.state === STATE.REVEALED) {
             if (cell.mine) return name + ', Mine, aufgedeckt';
             if (cell.adjacent === 0) return name + ', leer, aufgedeckt';
-            return name + ', ' + cell.adjacent + ' Minen benachbart, aufgedeckt';
+            return name + ', ' + cell.adjacent + (cell.adjacent === 1 ? ' Mine benachbart, aufgedeckt' : ' Minen benachbart, aufgedeckt');
         }
         return name + ', verborgen';
     }
@@ -407,18 +488,34 @@
         stopTimer();
         // Ergebnis, HUD und gespeicherte Bestzeit verwenden dieselbe volle-Sekunden-Regel.
         var seconds = Math.max(0, Math.floor(state.elapsedMs / 1000));
+        stats.gamesPlayed += 1;
         if (won) {
+            stats.wins += 1;
+            stats.streak += 1;
+            if (stats.streak > stats.bestStreak) stats.bestStreak = stats.streak;
+            // Alle verbliebenen Minen automatisch flaggen, damit der Zähler 000 zeigt.
+            for (var wr = 0; wr < state.board.rows; wr++) {
+                for (var wc = 0; wc < state.board.cols; wc++) {
+                    var wCell = state.board.grid[wr][wc];
+                    if (wCell.mine && wCell.state === STATE.HIDDEN) {
+                        wCell.state = STATE.FLAGGED;
+                        renderCell(wr, wc);
+                    }
+                }
+            }
+            updateMineCounter();
             setSmiley('😎');
             setStatus('Sieg!');
             sndWin();
             var isNew = recordBestTime(state.config.key, seconds, state.config);
             resultOverlay.className = 'show win';
             resultTitle.textContent = 'Sieg!';
-            resultText.textContent = isNew
+            resultText.textContent = (isNew
                 ? 'Zeit: ' + seconds + ' s — neue Bestzeit! 🎉'
-                : 'Zeit: ' + seconds + ' s';
+                : 'Zeit: ' + seconds + ' s') + ' · Siege: ' + stats.wins + ' (Serie: ' + stats.streak + ')';
             announce('Sieg nach ' + seconds + ' Sekunden.');
         } else {
+            stats.streak = 0;
             setSmiley('😵');
             setStatus('Niederlage');
             sndBoom();
@@ -434,9 +531,11 @@
             renderAll();
             resultOverlay.className = 'show lose';
             resultTitle.textContent = 'Niederlage';
-            resultText.textContent = 'Du hast eine Mine ausgelöst. Zeit: ' + seconds + ' s';
+            resultText.textContent = 'Du hast eine Mine ausgelöst. Zeit: ' + seconds + ' s · Siege: ' + stats.wins + '/' + stats.gamesPlayed;
             announce('Niederlage. Mine ausgelöst nach ' + seconds + ' Sekunden.');
         }
+        saveStats();
+        syncSharedScores({ won: won, seconds: seconds, difficulty: state.config ? state.config.key : '' });
         renderBestTimes();
         setGameInert(true); // Hintergrund inert, solange das Ergebnis-Modal offen ist
         // Fokus auf Replay-Button für Tastatur-Nutzer
@@ -453,10 +552,12 @@
         var r = Number(btn.dataset.r);
         var c = Number(btn.dataset.c);
         if (e.button === 0) {
-            // Linksklick: auf revealed Zahl → Chord, sonst Reveal
+            // Linksklick: auf revealed Zahl → Chord, im Flaggen-Modus → Flagge, sonst Reveal
             var cell = state.board.grid[r][c];
             if (cell.state === STATE.REVEALED && cell.adjacent > 0) {
                 doChord(r, c);
+            } else if (flagMode) {
+                doFlag(r, c);
             } else {
                 doReveal(r, c);
             }
@@ -485,20 +586,34 @@
         initAudio();
         var r = Number(btn.dataset.r);
         var c = Number(btn.dataset.c);
+        if (touchActive) {
+            // Android feuert contextmenu oft vor dem 500ms-Timer: Long-Press als
+            // verarbeitet markieren, damit touchend kein doReveal() auslöst!
+            longPressFired = true;
+            suppressContextMenuUntil = Date.now() + 1200;
+        }
         doFlag(r, c);
     });
 
-    // Touch: Tap = Reveal, Long-Press (~500ms) = Flagge
+    // Touch: Tap = Reveal (oder Flagge im Flaggen-Modus), Long-Press (~500ms) = Flagge
     var longPressTimer = null;
     var longPressFired = false;
+    var touchActive = false;
     var suppressContextMenuUntil = 0;
     var touchStartPos = null;
     var touchMoved = false;
 
     boardEl.addEventListener('touchstart', function (e) {
+        if (longPressTimer) { window.clearTimeout(longPressTimer); longPressTimer = null; }
+        if (e.touches && e.touches.length > 1) {
+            touchMoved = true;
+            touchActive = false;
+            return;
+        }
         var btn = e.target.closest ? e.target.closest('.cell') : null;
         if (!btn) return;
         initAudio();
+        touchActive = true;
         longPressFired = false;
         touchMoved = false;
         var r = Number(btn.dataset.r);
@@ -527,6 +642,7 @@
 
     boardEl.addEventListener('touchend', function (e) {
         if (longPressTimer) { window.clearTimeout(longPressTimer); longPressTimer = null; }
+        touchActive = false;
         if (longPressFired) {
             // Long-Press hat bereits geflaggt → kein zusätzliches Reveal
             e.preventDefault();
@@ -547,6 +663,8 @@
         var cell = state.board.grid[r][c];
         if (cell.state === STATE.REVEALED && cell.adjacent > 0) {
             doChord(r, c);
+        } else if (flagMode) {
+            doFlag(r, c);
         } else {
             doReveal(r, c);
         }
@@ -556,12 +674,13 @@
 
     boardEl.addEventListener('touchcancel', function () {
         if (longPressTimer) { window.clearTimeout(longPressTimer); longPressTimer = null; }
+        touchActive = false;
         longPressFired = false;
         touchMoved = false;
         touchStartPos = null;
     });
 
-    // Tastatur: Pfeile bewegen, Enter/Space = Reveal, F = Flag, C = Chord
+    // Tastatur: Pfeile bewegen, Enter/Space = Reveal/Chord, F = Flag, C = Chord
     boardEl.addEventListener('keydown', function (e) {
         var focused = document.activeElement;
         if (!focused || !focused.classList || !focused.classList.contains('cell')) return;
@@ -578,7 +697,10 @@
             case ' ':
                 e.preventDefault();
                 initAudio();
-                doReveal(r, c);
+                var curCell = state.board.grid[r][c];
+                if (curCell.state === STATE.REVEALED && curCell.adjacent > 0) doChord(r, c);
+                else if (flagMode) doFlag(r, c);
+                else doReveal(r, c);
                 break;
             case 'f':
             case 'F':
@@ -668,7 +790,7 @@
     }
 
     function showMenu() {
-        if (state.timerId) { window.clearInterval(state.timerId); state.timerId = null; }
+        pauseTimer();
         resultOverlay.className = '';
         menuOverlay.style.display = 'flex';
         renderBestTimes();
@@ -732,14 +854,45 @@
     });
     resultMenu.addEventListener('click', showMenu);
 
-    soundToggle.addEventListener('click', function () {
-        soundEnabled = !soundEnabled;
+    function syncModeButton() {
+        if (!modeToggle) return;
+        modeToggle.setAttribute('aria-pressed', flagMode ? 'true' : 'false');
+        modeToggle.textContent = flagMode ? '🚩 Flagge' : '⛏ Aufdecken';
+    }
+    if (modeToggle) {
+        modeToggle.addEventListener('click', function () {
+            flagMode = !flagMode;
+            syncModeButton();
+            announce(flagMode ? 'Flaggen-Modus aktiv: Tippen setzt oder entfernt Flaggen.' : 'Aufdecken-Modus aktiv.');
+        });
+    }
+    if (menuBtn) {
+        menuBtn.addEventListener('click', showMenu);
+    }
+
+    function syncSoundButton() {
         soundToggle.textContent = soundEnabled ? '🔊' : '🔇';
         soundToggle.setAttribute('aria-label', soundEnabled ? 'Ton ausschalten' : 'Ton einschalten');
+    }
+    soundToggle.addEventListener('click', function () {
+        soundEnabled = !soundEnabled;
+        lsSet('sound', soundEnabled ? 'on' : 'off');
+        syncSoundButton();
         if (soundEnabled) initAudio();
     });
 
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) pauseTimer();
+        else resumeTimer();
+    });
+    window.addEventListener('pagehide', pauseTimer);
+    window.addEventListener('pageshow', resumeTimer);
+
     // --- Initialisierung ---
+    soundEnabled = lsGet('sound') !== 'off';
+    syncSoundButton();
+    syncModeButton();
+    syncSharedScores(null);
     renderBestTimes();
     menuOverlay.style.display = 'flex';
     setGameInert(true);

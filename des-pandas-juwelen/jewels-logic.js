@@ -249,6 +249,32 @@
       }
     }
 
+    function pickCandidate(run) {
+      var candidates = preferred.concat(run.cells[Math.floor((run.cells.length - 1) / 2)], run.cells);
+      for (var candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
+        var candidate = candidates[candidateIndex];
+        if (!candidate || !run.cells.some(function (cell) { return samePosition(cell, candidate); })) continue;
+        var candidateGem = board[candidate.row][candidate.col];
+        if (candidateGem && !candidateGem.special && !claimed.has(key(candidate.row, candidate.col))) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+
+    // 1) Fünferreihen (Panda-Prisma) haben Vorrang vor T-/L-Kreuzungen (Pfotenbombe).
+    for (var pIndex = 0; pIndex < matches.groups.length; pIndex++) {
+      var prismRun = matches.groups[pIndex];
+      if (prismRun.cells.length < 5) continue;
+      if (prismRun.cells.some(function (cell) { return claimed.has(key(cell.row, cell.col)); })) continue;
+      var prismTarget = pickCandidate(prismRun);
+      if (!prismTarget) continue;
+      var prismSource = board[prismTarget.row][prismTarget.col];
+      for (var pc = 0; pc < prismRun.cells.length; pc++) claimed.add(key(prismRun.cells[pc].row, prismRun.cells[pc].col));
+      creations.push({ row: prismTarget.row, col: prismTarget.col, gem: makeGem(prismSource.color, 'prism') });
+    }
+
+    // 2) T- und L-Kreuzungen erzeugen eine Pfotenbombe, sofern kein Teil bereits ein Prisma bildet.
     var intersections = Array.from(memberships.entries()).filter(function (entry) { return entry[1].size > 1; }).map(function (entry) { return parseKey(entry[0]); });
     intersections.sort(function (a, b) {
       var ai = preferred.findIndex(function (cell) { return samePosition(cell, a); });
@@ -259,33 +285,25 @@
     });
     for (var x = 0; x < intersections.length; x++) {
       var intersection = intersections[x];
+      var interKey = key(intersection.row, intersection.col);
+      if (claimed.has(interKey)) continue;
       var gem = board[intersection.row][intersection.col];
       if (gem && !gem.special) {
-        claimed.add(key(intersection.row, intersection.col));
+        claimed.add(interKey);
         creations.push({ row: intersection.row, col: intersection.col, gem: makeGem(gem.color, 'bomb') });
       }
     }
 
+    // 3) Viererreihen erzeugen ein Linienjuwel.
     for (var groupIndex = 0; groupIndex < matches.groups.length; groupIndex++) {
       var run = matches.groups[groupIndex];
       if (run.cells.length < 4) continue;
       if (run.cells.some(function (cell) { return claimed.has(key(cell.row, cell.col)); })) continue;
-      var candidates = preferred.concat(run.cells[Math.floor((run.cells.length - 1) / 2)], run.cells);
-      var chosen = null;
-      for (var candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
-        var candidate = candidates[candidateIndex];
-        if (!candidate || !run.cells.some(function (cell) { return samePosition(cell, candidate); })) continue;
-        var candidateGem = board[candidate.row][candidate.col];
-        if (candidateGem && !candidateGem.special && !claimed.has(key(candidate.row, candidate.col))) {
-          chosen = candidate;
-          break;
-        }
-      }
+      var chosen = pickCandidate(run);
       if (!chosen) continue;
       var sourceGem = board[chosen.row][chosen.col];
-      var special = run.cells.length >= 5 ? 'prism' : run.orientation;
       claimed.add(key(chosen.row, chosen.col));
-      creations.push({ row: chosen.row, col: chosen.col, gem: makeGem(sourceGem.color, special) });
+      creations.push({ row: chosen.row, col: chosen.col, gem: makeGem(sourceGem.color, run.orientation) });
     }
     return creations;
   }
@@ -651,8 +669,10 @@
     var work = cloneBoard(board);
     var plan = boosterClearKeys(work, type, target);
     var activation = { row: target.row, col: target.col, special: type, booster: true, color: gem.color, time: 0, targetColor: plan.targetColor };
+    var consumed = type === 'color' && gem.special === 'prism' ? new Set([key(target.row, target.col)]) : undefined;
     var steps = [];
     var first = createClearStep(work, plan.keys, [], 1, random, colorCount, [], {
+      consumed: consumed,
       activations: [activation],
       defaultCause: 0,
       treasure: options.treasure

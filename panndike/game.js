@@ -8,12 +8,12 @@
   const ui = {
     table: document.querySelector('.game-table'), tableau: $('tableau'), foundations: $('foundations'), stock: $('stock'), waste: $('waste'),
     stockCount: $('stock-count'), moves: $('moves'), score: $('score'), time: $('time'),
-    foundationCount: $('foundation-count'), drawLabel: $('draw-label'), dealCode: $('deal-code'),
+    foundationCount: $('foundation-count'), hudBest: $('hud-best'), drawLabel: $('draw-label'), dealCode: $('deal-code'),
     message: $('message'), drawMode: $('draw-mode'), undo: $('undo'), hint: $('hint'), auto: $('auto'),
     restart: $('restart'), newGame: $('new-game'), daily: $('daily'),
     confirm: $('confirm'), confirmText: $('confirm-text'), confirmCancel: $('confirm-cancel'), confirmOk: $('confirm-ok'),
     result: $('result'), resultText: $('result-text'), resultNew: $('result-new'), resultDaily: $('result-daily'), resultUndo: $('result-undo'),
-    bestScore: $('best-score'), wins: $('wins'), streak: $('streak')
+    bestScore: $('best-score'), bestTime: $('best-time'), wins: $('wins'), streak: $('streak')
   };
 
   const SAVE_KEY = 'panndike-save-v3';
@@ -33,6 +33,7 @@
   let pendingFocusKey = '';
   let winRecorded = false;
   let resizeTimer = 0;
+  let lastTap = { key: '', time: 0 };
   let stats = loadStats();
 
   function say(text) { ui.message.textContent = text; }
@@ -204,6 +205,7 @@
 
   function requestAction(action) {
     if (state && state.status === 'playing' && state.moves > 0) {
+      pauseClock();
       pendingAction = action;
       confirmReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       ui.confirmText.textContent = action.kind === 'restart'
@@ -281,7 +283,6 @@
     pauseClock();
     sfx('undo');
     state = previous.state;
-    elapsedMs = previous.elapsedMs;
     selected = null;
     clearHint();
     ui.result.hidden = true;
@@ -316,14 +317,15 @@
     selected = null;
     clearHint();
     pendingFocusKey = 'auto';
+    sfx('success');
     render();
-    say(`${result.moved} sichere${result.moved === 1 ? 'r' : ''} Fundament-Zug${result.moved === 1 ? '' : 'e'} ausgeführt.`);
+    say(result.moved === 1 ? '1 sicherer Fundament-Zug ausgeführt.' : `${result.moved} sichere Fundament-Züge ausgeführt.`);
     if (result.won) finishWin();
     saveGame();
   }
 
   function describeHint(moveInfo) {
-    if (moveInfo.kind === 'draw') return 'Ziehe eine Karte vom Talon.';
+    if (moveInfo.kind === 'draw') return state.drawCount === 3 ? 'Ziehe 3 Karten vom Talon.' : 'Ziehe eine Karte vom Talon.';
     if (moveInfo.kind === 'recycle') return 'Drehe die Ablage um und beginne den Talon erneut.';
     const cards = E.sourceCards(state, moveInfo.source);
     const card = cards && cards[0];
@@ -348,7 +350,15 @@
 
   function chooseSource(source, event) {
     if (state.status !== 'playing') return;
-    if (event && event.detail >= 2 && tryAutoFoundation(source)) return;
+    const tapKey = source.zone === 'waste' ? 'waste' : (source.zone === 'foundation' ? `f-${source.suit}` : `t-${source.col}-${source.index}`);
+    const now = performance.now();
+    const isDoubleTap = (event && event.detail >= 2) || (lastTap.key === tapKey && (now - lastTap.time) < 380);
+    lastTap = { key: tapKey, time: now };
+    if (isDoubleTap && source.zone !== 'foundation') {
+      lastTap = { key: '', time: 0 };
+      if (tryAutoFoundation(source)) return;
+      if (selected && sameSource(selected, source)) return;
+    }
 
     if (selected) {
       if (sameSource(selected, source)) {
@@ -357,10 +367,13 @@
         say('Auswahl aufgehoben.');
         return;
       }
-      if (source.zone === 'tableau' && selected.zone !== 'tableau' || source.zone === 'tableau' && selected.col !== source.col) {
+      if ((source.zone === 'tableau' && (selected.zone !== 'tableau' || selected.col !== source.col)) &&
+          E.canMoveToTableau(state, selected, source.col)) {
         if (performMove(selected, { zone: 'tableau', col: source.col })) return;
       }
-      if (source.zone === 'foundation' && performMove(selected, { zone: 'foundation', suit: source.suit })) return;
+      if (source.zone === 'foundation' && E.canMoveToFoundation(state, selected, source.suit)) {
+        if (performMove(selected, { zone: 'foundation', suit: source.suit })) return;
+      }
     }
 
     const cards = E.sourceCards(state, source);
@@ -373,6 +386,7 @@
     selected = source;
     clearHint();
     pendingFocusKey = sourceFocusKey(source);
+    sfx('select');
     render();
     say(cards.length > 1
       ? `${cards.length} Karten gewählt – tippe oder ziehe sie auf ein markiertes Ziel.`
@@ -414,12 +428,13 @@
     const gap = Number.parseFloat(style.columnGap) || 3;
     const width = Math.max(210, ui.tableau.clientWidth || 700);
     const columnWidth = (width - gap * 6) / 7;
-    const cardWidth = Math.min(88, Math.max(28, columnWidth - 2));
+    const maxCardW = window.innerWidth >= 1400 ? 112 : 94;
+    const cardWidth = Math.min(maxCardW, Math.max(28, columnWidth - 2));
     const cardHeight = cardWidth / .72;
     return {
       cardHeight,
-      downStep: Math.max(11, Math.min(27, cardHeight * .22)),
-      upStep: Math.max(18, Math.min(38, cardHeight * .36))
+      downStep: Math.max(11, Math.min(28, cardHeight * .20)),
+      upStep: Math.max(18, Math.min(40, cardHeight * .33))
     };
   }
 
@@ -497,7 +512,13 @@
       if (hintMove && hintMove.source && hintMove.source.zone === 'foundation' && hintMove.source.suit === suit) button.classList.add('hinted');
       button.addEventListener('click', event => {
         if (selected && !sameSource(selected, { zone: 'foundation', suit })) {
-          if (performMove(selected, { zone: 'foundation', suit })) return;
+          if (E.canMoveToFoundation(state, selected, suit)) {
+            if (performMove(selected, { zone: 'foundation', suit })) return;
+          } else if (!card) {
+            sfx('error');
+            say('Diese Karte passt noch nicht auf dieses Fundament.');
+            return;
+          }
         }
         chooseSource({ zone: 'foundation', suit }, event);
       });
@@ -560,6 +581,7 @@
     ui.score.textContent = String(state.score);
     ui.time.textContent = formatTime(currentElapsedMs());
     ui.foundationCount.textContent = `${E.foundationCount(state)} / 52`;
+    if (ui.hudBest) ui.hudBest.textContent = stats.bestScore > 0 ? stats.bestScore.toLocaleString('de-DE') : '–';
     ui.drawLabel.textContent = `Zieh ${state.drawCount}`;
     ui.dealCode.textContent = state.dealType === 'daily' ? `☀ ${dailyKeyForState(state).slice(5)}` : E.dealCode(state);
     ui.dealCode.title = `Deal-Code ${E.dealCode(state)}`;
@@ -598,6 +620,14 @@
       }
       winRecorded = true;
       saveStats();
+      if (window.GameScores) {
+        window.GameScores.record('panndike', {
+          score: state.score,
+          timeSec: Math.floor(total / 1000),
+          won: true,
+          label: `Bestwert ${stats.bestScore.toLocaleString('de-DE')} · ${stats.wins} ${stats.wins === 1 ? 'Sieg' : 'Siege'}`
+        });
+      }
     }
     showResult();
     saveGame();
@@ -606,6 +636,7 @@
   function showResult() {
     ui.resultText.textContent = `Gelöst in ${state.moves} Zügen, ${formatTime(currentElapsedMs())} und mit ${state.score} Punkten.`;
     ui.bestScore.textContent = String(stats.bestScore);
+    if (ui.bestTime) ui.bestTime.textContent = stats.bestTimeMs != null ? formatTime(stats.bestTimeMs) : '–';
     ui.wins.textContent = String(stats.wins);
     ui.streak.textContent = String(stats.dailyStreak);
     ui.resultUndo.disabled = history.length === 0;
@@ -621,7 +652,10 @@
       const step = event.key === 'ArrowLeft' ? -1 : 1;
       for (let next = col + step; next >= 0 && next < 7; next += step) {
         const column = state.tableau[next];
-        if (!column.length) continue;
+        if (!column.length) {
+          document.querySelector(`[data-focus-key="column-${next}"]`)?.focus();
+          return;
+        }
         let targetIndex = Math.min(index, column.length - 1);
         while (targetIndex >= 0 && !column[targetIndex].faceUp) targetIndex -= 1;
         if (targetIndex >= 0) { document.querySelector(`[data-focus-key="card-${column[targetIndex].id}"]`)?.focus(); return; }
@@ -673,7 +707,10 @@
         return E.canMoveToFoundation(state, source, destination.suit);
       },
       onStart(source) {
-        if (selected && !sameSource(selected, source)) { selected = null; render(); }
+        if (selected && !sameSource(selected, source)) {
+          selected = null;
+          ui.table.querySelectorAll('.selected, .legal-target').forEach(el => el.classList.remove('selected', 'legal-target'));
+        }
       },
       drop(source, target, ghostRects) {
         const destination = dropDestination(target);
@@ -683,7 +720,7 @@
         flipOverrides = null;
         return ok;
       },
-      cancel(source, hadTarget) { if (!hadTarget) say('Karte losgelassen – kein Ziel gewählt.'); }
+      cancel(source, hadTarget) { if (!hadTarget) say('Karte wieder zurückgelegt.'); }
     });
   }
 
@@ -705,6 +742,7 @@
   function closeConfirm() {
     pendingAction = null;
     ui.confirm.hidden = true;
+    resumeClock();
     if (confirmReturnFocus && confirmReturnFocus.isConnected) confirmReturnFocus.focus({ preventScroll: true });
     confirmReturnFocus = null;
   }
@@ -732,12 +770,13 @@
   window.addEventListener('pagehide', () => { pauseClock(); saveGame(); });
 
   document.addEventListener('keydown', event => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
     if (!ui.confirm.hidden || !ui.result.hidden) {
       if (key === 'escape' && !ui.confirm.hidden) { event.preventDefault(); closeConfirm(); }
       return;
     }
-    if (event.target instanceof Element && event.target.matches('input, select, textarea, button, a')) return;
+    if (event.target instanceof Element && event.target.matches('input, select, textarea')) return;
     if (key === 'escape') {
       if (selected) { selected = null; render(); say('Auswahl aufgehoben.'); }
       return;
@@ -768,5 +807,12 @@
     engine: E
   };
 
+  if (window.GameScores && stats.wins > 0) {
+    window.GameScores.sync('panndike', {
+      score: stats.bestScore,
+      timeSec: stats.bestTimeMs != null ? Math.floor(stats.bestTimeMs / 1000) : undefined,
+      label: `Bestwert ${stats.bestScore.toLocaleString('de-DE')} · ${stats.wins} ${stats.wins === 1 ? 'Sieg' : 'Siege'}`
+    });
+  }
   if (!loadGame()) startGame({ seed: randomSeed(), drawCount: preferredDrawCount(), dealType: 'random' });
 })();

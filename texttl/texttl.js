@@ -114,6 +114,46 @@
         return lsSet(LS_STATS, JSON.stringify(stats)); // abwärtskompatibler Cache
     }
 
+    var cachedStats = null;
+    function getStats(forceRefresh) {
+        if (forceRefresh || !cachedStats) cachedStats = loadStats();
+        return cachedStats;
+    }
+
+    function syncSharedScores(stats, recordedOutcome) {
+        if (!window.GameScores || !stats) return;
+        var label = stats.won + (stats.won === 1 ? ' Sieg' : ' Siege') + ' · Serie ' + (stats.maxStreak || 0);
+        var payload = {
+            score: stats.maxStreak || 0,
+            label: label,
+            meta: {
+                played: stats.played || 0,
+                won: stats.won || 0,
+                currentStreak: stats.currentStreak || 0,
+                maxStreak: stats.maxStreak || 0
+            }
+        };
+        if (recordedOutcome) {
+            payload.won = !!recordedOutcome.won;
+            window.GameScores.record('texttl', payload);
+        } else if (stats.played > 0) {
+            window.GameScores.sync('texttl', payload);
+        }
+    }
+
+    function hasRecordedDaily(dayKey) {
+        if (!Number.isFinite(dayKey)) return false;
+        var prefix = LS_RESULT_PREFIX + 'daily-' + dayKey + '-';
+        try {
+            for (var i = 0; i < window.localStorage.length; i++) {
+                var k = window.localStorage.key(i);
+                if (k && k.indexOf(prefix) === 0) return true;
+            }
+        } catch (e) { return false; }
+        var base = parseStats(lsGet(LS_STATS_BASE));
+        return base.dailySolvedKey === dayKey;
+    }
+
     function recordStatsResult(options, gameId) {
         // Tagesresultate verwenden getrennte, unveränderliche Keys pro Ausgang.
         // So kann kein Tab den Ausgang eines anderen Tabs überschreiben; der
@@ -131,7 +171,7 @@
                 createdAt: Date.now()
             }));
         }
-        var stats = loadStats();
+        var stats = getStats(true);
         saveStats(stats);
         return stats;
     }
@@ -192,12 +232,14 @@
         gameId: '',                 // idempotenter Statistik-Event-Key je Partie
         accepting: true,            // Eingaben erlaubt?
         hintUsed: false,            // Tipp (ein Buchstabe) in dieser Runde benutzt?
-        hint: null                  // {index, letter} des aufgedeckten Tipps
+        hint: null,                 // {index, letter} des aufgedeckten Tipps
+        dailyPractice: false        // Übungs-Neustart nach bereits abgeschlossenem Tagesrätsel
     };
     var countdownTimer = null;      // Live-Countdown bis zum nächsten Tagesrätsel
     var lastGame = null;            // {mode,puzzleNumber,won,attempts,rows,solution} für Teilen
     var overlayReturnFocus = null;
-    var toastTimer = null;
+    var errorTimer = null;
+    var shakeTimer = null;
     var gameVersion = 0;            // invalidiert ausstehende Animations-Timer bei Neustart/Moduswechsel
 
     function newGameId() {
@@ -266,7 +308,10 @@
     }
 
     function makeKeyHandler(key) {
-        return function () {
+        return function (e) {
+            if (e && e.currentTarget && typeof e.currentTarget.blur === 'function') {
+                e.currentTarget.blur();
+            }
             if (key === 'ENTER') submitGuess();
             else if (key === 'BACK') backspace();
             else typeLetter(key);
@@ -361,7 +406,7 @@
     }
 
     function renderHud() {
-        var stats = loadStats();
+        var stats = getStats(false);
         hudStreakEl.textContent = String(stats.currentStreak || 0);
         hudWinsEl.textContent = String(stats.won || 0);
         hardModeBtn.setAttribute('aria-pressed', state.hardMode ? 'true' : 'false');
@@ -434,7 +479,7 @@
         state.current = [];
         state.accepting = false;
         renderHud();
-        if (state.mode === 'daily') {
+        if (state.mode === 'daily' && !state.dailyPractice) {
             var committedStatus = L.isWin(grades) ? 'won' : (state.guesses.length >= MAX_ROWS ? 'lost' : 'playing');
             saveDaily({
                 key: state.dailyKey,
@@ -511,12 +556,18 @@
         state.accepting = false;
         var attempts = state.guesses.length;
 
-        var stats = recordStatsResult({
-            mode: state.mode,
-            won: won,
-            attempts: attempts,
-            dayKey: (state.mode === 'daily') ? state.dailyKey : null
-        }, state.gameId);
+        var stats;
+        if (state.mode === 'daily' && state.dailyPractice) {
+            stats = getStats(false);
+        } else {
+            stats = recordStatsResult({
+                mode: state.mode,
+                won: won,
+                attempts: attempts,
+                dayKey: (state.mode === 'daily') ? state.dailyKey : null
+            }, state.gameId);
+            syncSharedScores(stats, { won: won });
+        }
 
         // rows für Teilen (jeweils Bewertung pro Versuch)
         var rows = state.guesses.map(function (g) { return L.evaluate(g, state.solution); });
@@ -531,7 +582,7 @@
             hintUsed: state.hintUsed
         };
 
-        if (state.mode === 'daily') {
+        if (state.mode === 'daily' && !state.dailyPractice) {
             saveDaily({
                 key: state.dailyKey,
                 puzzleNumber: state.puzzleNumber,
@@ -580,13 +631,14 @@
         resultBodyEl.appendChild(word);
 
         var sub = document.createElement('p');
+        var triesLabel = state.guesses.length === 1 ? '1 Versuch' : (state.guesses.length + ' Versuchen');
         if (state.mode === 'daily') {
             sub.textContent = won
-                ? ('Tagesrätsel #' + (state.puzzleNumber || '') + ' in ' + state.guesses.length + ' Versuchen gelöst.')
+                ? ('Tagesrätsel #' + (state.puzzleNumber || '') + ' in ' + triesLabel + ' gelöst.' + (state.dailyPractice ? ' (Übungsrunde – Tageswertung bleibt unverändert.)' : ''))
                 : ('Tagesrätsel #' + (state.puzzleNumber || '') + ' – schau morgen wieder vorbei.');
         } else {
             sub.textContent = won
-                ? ('Zufallswort in ' + state.guesses.length + ' Versuchen gelöst.')
+                ? ('Zufallswort in ' + triesLabel + ' gelöst.')
                 : 'Beim nächsten Versuch klappt es.';
         }
         resultBodyEl.appendChild(sub);
@@ -620,7 +672,7 @@
     }
 
     function showStatsOnlyModal() {
-        var stats = loadStats();
+        var stats = getStats(true);
         resultTitleEl.textContent = '📊 Statistik';
         resultBodyEl.textContent = '';
 
@@ -691,11 +743,17 @@
 
     function hideOverlay() {
         stopCountdown();
-        overlayEl.hidden = true;
-        if (overlayReturnFocus && overlayReturnFocus.isConnected) {
-            overlayReturnFocus.focus({ preventScroll: true });
-        }
+        var returnEl = overlayReturnFocus;
         overlayReturnFocus = null;
+        overlayEl.hidden = true;
+        // game-shell.js hebt inert erst über den MutationObserver auf; Fokus-Fallback leicht verzögern
+        if (returnEl && returnEl.isConnected) {
+            setTimeout(function () {
+                if (overlayEl.hidden && returnEl.isConnected && (!document.activeElement || document.activeElement === document.body)) {
+                    returnEl.focus({ preventScroll: true });
+                }
+            }, 0);
+        }
     }
 
     // ============================================================
@@ -709,7 +767,8 @@
             won: lastGame.won,
             attempts: lastGame.attempts,
             rows: lastGame.rows,
-            hardMode: lastGame.hardMode
+            hardMode: lastGame.hardMode,
+            hintUsed: lastGame.hintUsed
         });
         copyToClipboard(text).then(function (ok) {
             announce(ok ? 'In die Zwischenablage kopiert!' : 'Kopieren fehlgeschlagen – Text zum Teilen in der Statusmeldung.');
@@ -773,7 +832,7 @@
         if (!hint) { announce('Alle Buchstaben sind schon gefunden.'); return; }
         state.hintUsed = true;
         state.hint = hint;
-        if (state.mode === 'daily') {
+        if (state.mode === 'daily' && !state.dailyPractice) {
             saveDaily({
                 key: state.dailyKey,
                 puzzleNumber: state.puzzleNumber,
@@ -793,6 +852,11 @@
 
     function renderHintTile() {
         if (!state.hint || state.status !== 'playing') return;
+        // Sobald die Tipp-Position in einem früheren Versuch bereits grün getroffen wurde, nicht mehr einblenden
+        for (var g = 0; g < state.guesses.length; g++) {
+            var guessed = L.graphemes(state.guesses[g]);
+            if (guessed[state.hint.index] === state.hint.letter) return;
+        }
         var row = rowEls()[state.guesses.length];
         if (!row) return;
         var tile = row.children[state.hint.index];
@@ -805,8 +869,15 @@
     function startCountdown(target) {
         stopCountdown();
         function tick() {
-            var ms = L.msUntilNextDaily(new Date());
-            var total = Math.floor(ms / 1000);
+            var now = new Date();
+            if (state.mode === 'daily' && state.dailyKey !== null && L.dayKey(now) !== state.dailyKey) {
+                stopCountdown();
+                hideOverlay();
+                startDaily();
+                return;
+            }
+            var ms = L.msUntilNextDaily(now);
+            var total = Math.max(0, Math.floor(ms / 1000));
             var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
             var p = function (n) { return (n < 10 ? '0' : '') + n; };
             target.textContent = 'Nächstes Tagesrätsel in ' + p(h) + ':' + p(m) + ':' + p(s);
@@ -832,6 +903,7 @@
         state.puzzleNumber = L.puzzleNumber(now);
         state.solution = L.dailyWord(now);
         state.gameId = 'daily-' + state.dailyKey;
+        state.dailyPractice = false;
 
         var saved = validateDailySave(loadDaily(), state.dailyKey, state.solution);
         if (saved) {
@@ -906,6 +978,7 @@
         state.gameId = newGameId();
         state.dailyKey = null;
         state.puzzleNumber = null;
+        state.dailyPractice = false;
         resetBoardState();
         renderAll();
         modeLabelEl.textContent = 'Zufallsmodus · 5 Buchstaben · 6 Versuche';
@@ -919,10 +992,14 @@
         if (isResolvingGuess()) { announce('Bitte warte kurz, bis der Versuch ausgewertet ist.'); return; }
         // Gleiche Lösung noch einmal üben (keine Statistikänderung beim bloßen Reset).
         if (!state.solution) return;
+        // Ein bereits beendetes Tagesrätsel (Sieg oder Niederlage) darf durch
+        // Neustart niemals nachträglich in der Tageswertung überschrieben werden.
+        var wasFinishedDaily = state.mode === 'daily' && (state.status !== 'playing' || state.dailyPractice || hasRecordedDaily(state.dailyKey));
         gameVersion++;
         resetBoardState();
+        state.dailyPractice = wasFinishedDaily;
         state.gameId = state.mode === 'daily' ? ('daily-' + state.dailyKey) : newGameId();
-        if (state.mode === 'daily') {
+        if (state.mode === 'daily' && !state.dailyPractice) {
             // Auch nach Reload bleibt der Neustart frisch; die Statistik wird
             // ausschließlich in finishGame/recordResult verändert.
             saveDaily({
@@ -938,7 +1015,9 @@
         lastGame = null;
         hideOverlay();
         renderAll();
-        announce('Neustart – dasselbe Wort, frische Versuche.');
+        announce(state.dailyPractice
+            ? 'Übungsrunde – dein heutiges Tagesergebnis bleibt unverändert.'
+            : 'Neustart – dasselbe Wort, frische Versuche.');
     }
 
     function toggleHardMode() {
@@ -946,7 +1025,7 @@
         state.hardMode = !state.hardMode;
         sfx('tap');
         lsSet(LS_HARD, state.hardMode ? '1' : '0');
-        if (state.mode === 'daily' && state.status === 'playing') {
+        if (state.mode === 'daily' && state.status === 'playing' && !state.dailyPractice) {
             saveDaily({
                 key: state.dailyKey,
                 puzzleNumber: state.puzzleNumber,
@@ -984,17 +1063,22 @@
         announce(msg);
         statusEl.classList.add('error');
         var row = rowEls()[state.guesses.length];
+        if (shakeTimer) { clearTimeout(shakeTimer); shakeTimer = null; }
         if (row && !reducedMotion) {
+            row.classList.remove('shake');
+            void row.offsetWidth;
             row.classList.add('shake');
-            setTimeout(function () { row.classList.remove('shake'); }, 420);
+            shakeTimer = setTimeout(function () { row.classList.remove('shake'); shakeTimer = null; }, 420);
         }
-        setTimeout(function () { statusEl.classList.remove('error'); }, 1500);
+        if (errorTimer) clearTimeout(errorTimer);
+        errorTimer = setTimeout(function () { statusEl.classList.remove('error'); errorTimer = null; }, 1500);
     }
 
     // ============================================================
     // Physische Tastatur
     // ============================================================
     function onKeydown(e) {
+        if (e.isComposing || e.keyCode === 229) return;
         // Modifikatoren durchreichen
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
@@ -1065,6 +1149,12 @@
         });
 
         document.addEventListener('keydown', onKeydown);
+        window.addEventListener('storage', function (e) {
+            if (!e.key || e.key.indexOf('texttl_') === 0) {
+                getStats(true);
+                renderHud();
+            }
+        });
 
         if (window.matchMedia) {
             var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1082,6 +1172,7 @@
         buildBoard();
         buildKeyboard();
         wire();
+        syncSharedScores(getStats(true), null);
         renderHud();
         startDaily();
     }

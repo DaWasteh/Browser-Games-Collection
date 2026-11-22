@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>SNAKE ULTIMATE</title>
-    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@400;700&family=Press+Start+2P&family=Varela+Round&display=swap" rel="stylesheet">
+    <title>Snake Ultimate</title>
     <style>
-        /* ===== CSS VARIABLES & THEMES ===== */
+        /* ===== CSS VARIABLES & THEMES (100% offline system font stacks) ===== */
         :root {
             --bg-color: #0b0c10;
             --ui-accent: #45a29e;
             --text-color: #fff;
-            --font-family: 'Orbitron', sans-serif;
-            --menu-bg: rgba(0, 0, 0, 0.85);
+            --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --menu-bg: rgba(0, 0, 0, 0.88);
             --border-style: 4px solid var(--ui-accent);
             --canvas-shadow: 0 0 20px var(--ui-accent);
             --maiden-color: #45a29e;
@@ -21,7 +20,7 @@
             --bg-color: #07080a;
             --ui-accent: #00f3ff;
             --text-color: #e0ffff;
-            --font-family: 'Orbitron', sans-serif;
+            --font-family: 'Segoe UI', 'Trebuchet MS', system-ui, sans-serif;
             --canvas-shadow: 0 0 30px #00f3ff, inset 0 0 20px rgba(0, 243, 255, 0.2);
             --maiden-color: #ff0055;
         }
@@ -29,7 +28,7 @@
             --bg-color: #4a5c39;
             --ui-accent: #112211;
             --text-color: #112211;
-            --font-family: 'Press Start 2P', monospace;
+            --font-family: 'Courier New', Consolas, monospace;
             --menu-bg: rgba(139, 172, 15, 0.95);
             --border-style: 10px solid #222;
             --canvas-shadow: 10px 10px 0px rgba(0,0,0,0.5);
@@ -39,8 +38,8 @@
             --bg-color: #001a33;
             --ui-accent: #00ffcc;
             --text-color: #e6ffff;
-            --font-family: 'Varela Round', sans-serif;
-            --menu-bg: rgba(0, 26, 51, 0.85);
+            --font-family: 'Segoe UI', Verdana, system-ui, sans-serif;
+            --menu-bg: rgba(0, 26, 51, 0.88);
             --border-style: 8px solid #0059b3;
             --canvas-shadow: 0 0 40px rgba(0, 255, 204, 0.3);
             --maiden-color: #000033;
@@ -49,8 +48,8 @@
             --bg-color: #1a0000;
             --ui-accent: #ff3300;
             --text-color: #ffb3b3;
-            --font-family: 'Creepster', cursive;
-            --menu-bg: rgba(26, 0, 0, 0.9);
+            --font-family: Impact, 'Trebuchet MS', system-ui, sans-serif;
+            --menu-bg: rgba(26, 0, 0, 0.92);
             --border-style: 4px dashed #ff3300;
             --canvas-shadow: 0 0 50px rgba(255, 0, 0, 0.6);
             --maiden-color: #4d0000;
@@ -59,8 +58,8 @@
             --bg-color: #2d5a27;
             --ui-accent: #76c843;
             --text-color: #ffcc00;
-            --font-family: 'Varela Round', sans-serif;
-            --menu-bg: rgba(45, 90, 39, 0.9);
+            --font-family: 'Segoe UI', Verdana, system-ui, sans-serif;
+            --menu-bg: rgba(45, 90, 39, 0.92);
             --border-style: 6px solid #76c843;
             --canvas-shadow: 0 0 30px rgba(118, 200, 67, 0.4);
             --maiden-color: #8b4513;
@@ -69,7 +68,7 @@
             --bg-color: #000500;
             --ui-accent: #00ff41;
             --text-color: #00cc33;
-            --font-family: 'Orbitron', monospace;
+            --font-family: Consolas, 'Courier New', monospace;
             --menu-bg: rgba(0, 8, 0, 0.95);
             --border-style: 1px solid #00ff41;
             --canvas-shadow: 0 0 12px #00ff41, 0 0 28px rgba(0, 255, 65, 0.25);
@@ -79,7 +78,7 @@
             --bg-color: #1b0040;
             --ui-accent: #ff71ce;
             --text-color: #b967ff;
-            --font-family: 'Orbitron', sans-serif;
+            --font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
             --menu-bg: rgba(27, 0, 64, 0.92);
             --border-style: 3px solid #ff71ce;
             --canvas-shadow: 0 0 20px #ff71ce, 0 0 50px rgba(185, 103, 255, 0.35);
@@ -89,7 +88,7 @@
             --bg-color: #0a130a;
             --ui-accent: #6aaa40;
             --text-color: #b8d4a0;
-            --font-family: 'Varela Round', sans-serif;
+            --font-family: 'Segoe UI', Georgia, serif;
             --menu-bg: rgba(10, 19, 10, 0.93);
             --border-style: 3px solid #4a8030;
             --canvas-shadow: 0 0 18px rgba(106, 170, 64, 0.45);
@@ -244,12 +243,52 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding: 20px;
+            justify-content: safe center;
+            padding: 16px 20px;
             border-radius: 8px;
             backdrop-filter: blur(4px);
             z-index: 200;
             gap: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .overlay .game-collection-link {
+            position: static;
+            margin-top: 10px;
+            box-shadow: none;
+            font-size: 13px;
+            padding: 7px 14px;
+            flex-shrink: 0;
+        }
+        .touch-pause-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            min-height: 44px;
+            background: rgba(0, 0, 0, 0.55);
+            border: 2px solid var(--ui-accent);
+            color: var(--ui-accent);
+            font-family: var(--font-family);
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 10px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        body.touch-playing .touch-pause-btn { display: inline-flex; }
+        body.touch-playing > .game-collection-link {
+            top: auto;
+            bottom: 8px;
+            left: 8px;
+            padding: 5px 10px;
+            font-size: 11px;
+            opacity: 0.78;
+        }
+        @media (max-width: 600px) and (orientation: portrait) {
+            body.touch-playing > .game-collection-link {
+                display: none;
+            }
         }
         body[data-theme="retro"] .overlay { backdrop-filter: none; border-radius: 0; }
         #gameOver  { display: none; }
@@ -808,9 +847,9 @@
     <a class="game-collection-link" href="../index.html" aria-label="Zur Spieleauswahl">← Spieleauswahl</a>
     <div class="top-bar">
         <h1>SNAKE ULTIMATE</h1>
-        <div class="topbar-hs" id="topbarHs">🏆 BEST: <span id="hsBestVal">0</span></div>
+        <div class="topbar-hs" id="topbarHs">🏆 BESTWERT: <span id="hsBestVal">0</span></div>
         <div class="controls-wrapper">
-            <label for="themeSelect">STYLE:</label>
+            <label for="themeSelect">DESIGN:</label>
             <select id="themeSelect" onchange="changeTheme(this.value)">
                 <option value="cyberpunk">Neon Cyberpunk</option>
                 <option value="retro">Classic 3310</option>
@@ -837,11 +876,12 @@
     <div class="game-wrapper">
         <div class="score-board">
             <div class="player-hud" id="hud1">
-                <div class="score-text" id="score1">P1: 0</div>
+                <div class="score-text" id="score1">S1: 0</div>
                 <div class="hunger-track" id="ht1"><div class="hunger-fill" id="hf1"></div></div>
             </div>
+            <button type="button" class="touch-pause-btn" id="touchPauseBtn" onclick="pauseGame()" aria-label="Pause">⏸ Pause</button>
             <div class="player-hud" id="hud2">
-                <div class="score-text" id="score2">P2: 0</div>
+                <div class="score-text" id="score2">S2: 0</div>
                 <div class="hunger-track" id="ht2"><div class="hunger-fill" id="hf2"></div></div>
             </div>
         </div>
@@ -858,10 +898,10 @@
                     <button class="mode-btn" id="btnMulti" onclick="setMode('multi')">2 SPIELER</button>
                 </div>
 
-                <!-- Mobile-only: Style & Lautstärke im Overlay (Top-Bar nicht erreichbar) -->
+                <!-- Mobile-only: Design & Lautstärke im Overlay (Top-Bar nicht erreichbar) -->
                 <div class="overlay-mobile-settings">
                     <div class="overlay-style-row">
-                        <span class="overlay-vol-label">STYLE:</span>
+                        <span class="overlay-vol-label">DESIGN:</span>
                         <select id="themeSelectOverlay" onchange="changeTheme(this.value)">
                             <option value="cyberpunk">Neon Cyberpunk</option>
                             <option value="retro">Classic 3310</option>
@@ -891,16 +931,16 @@
 
                 <div class="menu-grids">
                     <div class="diff-buttons">
-                        <div class="menu-col-title">GESCHWINDIGKEIT</div>
-                        <button class="action-btn" id="btn-easy"      onclick="setDifficulty('easy')">LEICHT (175ms)</button>
-                        <button class="action-btn" id="btn-slow"     onclick="setDifficulty('slow')">LANGSAM (125ms)</button>
-                        <button class="action-btn" id="btn-medium"    onclick="setDifficulty('medium')">MITTEL (100ms)</button>
-                        <button class="action-btn" id="btn-quick"    onclick="setDifficulty('quick')">SCHNELL (70ms)</button>
-                        <button class="action-btn" id="btn-ultra"     onclick="setDifficulty('ultra')">ULTRA (45ms)</button>
-                        <button class="action-btn btn-nightmare" id="btn-nightmare" onclick="setDifficulty('nightmare')">ALBTRAUM (35ms)</button>
+                        <div class="menu-col-title">TEMPO</div>
+                        <button class="action-btn" id="btn-easy"      onclick="setDifficulty('easy')">LEICHT</button>
+                        <button class="action-btn" id="btn-slow"     onclick="setDifficulty('slow')">LANGSAM</button>
+                        <button class="action-btn" id="btn-medium"    onclick="setDifficulty('medium')">MITTEL</button>
+                        <button class="action-btn" id="btn-quick"    onclick="setDifficulty('quick')">SCHNELL</button>
+                        <button class="action-btn" id="btn-ultra"     onclick="setDifficulty('ultra')">ULTRA</button>
+                        <button class="action-btn btn-nightmare" id="btn-nightmare" onclick="setDifficulty('nightmare')">ALBTRAUM</button>
                     </div>
                     <div class="addon-buttons">
-                        <div class="menu-col-title">ADDONS (Toggles)</div>
+                        <div class="menu-col-title">EXTRAS</div>
                         <button class="action-btn addon-btn" id="btn-addon-obstacles" onclick="toggleAddon('obstacles')">[1] HINDERNISSE</button>
                         <button class="action-btn addon-btn" id="btn-addon-hunger"    onclick="toggleAddon('hunger')">[2] HUNGER</button>
                         <button class="action-btn addon-btn" id="btn-addon-maiden"    onclick="toggleAddon('maiden')">[3] EIS. JUNGFRAU</button>
@@ -911,23 +951,23 @@
                 <button class="action-btn" id="startGameBtn" onclick="startGame()">▶ SPIEL STARTEN</button>
 
                 <p class="legend" id="keyboardLegend">
-                    [↑/↓] Tempo | [1,2,3,4] Addons | [ALT GR] 1/2 Spieler | [+/-] Style<br>
-                    [LEERTASTE] = Spiel Starten | [M] Mute | [S] SFX | [U] Musik<br>
+                    [↑/↓] Tempo | [1-4] Extras | [ALT GR] 1/2 Spieler | [+/-] Design<br>
+                    [LEERTASTE] Start | [M] Stumm | [S] SFX | [U] Musik
                 </p>
                 <a class="game-collection-link" href="../index.html" aria-label="Vom Snake-Menü zur Spieleauswahl">← Spieleauswahl</a>
             </div>
 
             <!-- Game Over -->
             <div class="overlay" id="gameOver" role="dialog" aria-modal="true" aria-label="Spiel zu Ende">
-                <h2 id="winnerText" style="color: #ff3333;">GAME OVER</h2>
-                <h3 id="finalScore" style="margin-bottom: 6px;">Score: 0</h3>
-                <div class="hs-banner" id="hsBanner">🏆 BEST: 0</div>
+                <h2 id="winnerText" style="color: #ff3333;">SPIEL VORBEI</h2>
+                <h3 id="finalScore" style="margin-bottom: 6px;">Punkte: 0</h3>
+                <div class="hs-banner" id="hsBanner">🏆 BESTWERT: 0</div>
                 <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:4px;">
                     <button class="action-btn" style="opacity:1;" onclick="startGame()">↺ NOCHMAL</button>
                     <button class="action-btn" style="opacity:1;" onclick="showMenu()">☰ HAUPTMENÜ</button>
                 </div>
-                <p class="legend" id="keyboardLegendGO" style="margin-top:12px;">
-                    [LEERTASTE] = Retry | [STRG] = Hauptmenü
+                <p class="legend" id="keyboardLegendGO" style="margin-top:10px;">
+                    [LEERTASTE] Nochmal | [STRG] Hauptmenü
                 </p>
                 <a class="game-collection-link" href="../index.html" aria-label="Vom Ergebnis zur Spieleauswahl">← Spieleauswahl</a>
             </div>
@@ -935,7 +975,10 @@
             <!-- Pause Overlay -->
             <div class="overlay" id="pauseOverlay" role="dialog" aria-modal="true" aria-label="Pause">
                 <h2>⏸ PAUSE</h2>
-                <button class="action-btn" style="opacity:1; margin-top:10px;" onclick="resumeGame()">▶ WEITER</button>
+                <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-top:10px;">
+                    <button class="action-btn" style="opacity:1;" onclick="resumeGame()">▶ WEITER</button>
+                    <button class="action-btn" style="opacity:1;" onclick="showMenu()">☰ MENÜ</button>
+                </div>
                 <p class="legend" id="pauseLegend" style="margin-top:10px;">
                     [P] / [ESC] / [LEERTASTE] = Weiter
                 </p>
@@ -983,6 +1026,7 @@
         </div>
     </div>
 
+    <script src="../shared/game-scores.js"></script>
     <script>
         /* ═══════════════════════════════════════════════════════════════
            SOUND ENGINE (8-Bit Synth via Web Audio API)
@@ -1000,30 +1044,32 @@
         let currentMode = 'normal'; // 'normal' oder 'nightmare'
 
         // Lautstärkeregler Funktionen
-        function setSFXVolume(val) {
-            sfxVolume = val / 100;
-            const pct = Math.round(val) + '%';
+        function setSFXVolume(val, persist = true) {
+            sfxVolume = Math.max(0, Math.min(1, Number(val) / 100));
+            const pct = Math.round(sfxVolume * 100) + '%';
             const mainVal = document.getElementById('sfxVolumeVal');
             const ovSlider = document.getElementById('sfxVolumeOverlay');
             const ovVal    = document.getElementById('sfxVolOverlayVal');
             const mainSlider = document.getElementById('sfxVolume');
             if (mainVal)   mainVal.textContent  = pct;
             if (ovVal)     ovVal.textContent     = pct;
-            if (ovSlider)  ovSlider.value        = Math.round(val);
-            if (mainSlider) mainSlider.value     = Math.round(val);
+            if (ovSlider)  ovSlider.value        = Math.round(sfxVolume * 100);
+            if (mainSlider) mainSlider.value     = Math.round(sfxVolume * 100);
+            if (persist) saveVolumes();
         }
 
-        function setMusicVolume(val) {
-            musicVolume = val / 100;
-            const pct = Math.round(val) + '%';
+        function setMusicVolume(val, persist = true) {
+            musicVolume = Math.max(0, Math.min(1, Number(val) / 100));
+            const pct = Math.round(musicVolume * 100) + '%';
             const mainVal = document.getElementById('musicVolumeVal');
             const ovSlider = document.getElementById('musicVolumeOverlay');
             const ovVal    = document.getElementById('musVolOverlayVal');
             const mainSlider = document.getElementById('musicVolume');
             if (mainVal)   mainVal.textContent  = pct;
             if (ovVal)     ovVal.textContent     = pct;
-            if (ovSlider)  ovSlider.value        = Math.round(val);
-            if (mainSlider) mainSlider.value     = Math.round(val);
+            if (ovSlider)  ovSlider.value        = Math.round(musicVolume * 100);
+            if (mainSlider) mainSlider.value     = Math.round(musicVolume * 100);
+            if (persist) saveVolumes();
         }
 
         function loadSavedVolumes() {
@@ -1034,11 +1080,11 @@
                 const parsedMusic = Number.parseFloat(savedMusic);
                 if (savedSfx !== null && Number.isFinite(parsedSfx)) {
                     sfxVolume = Math.max(0, Math.min(1, parsedSfx));
-                    setSFXVolume(Math.round(sfxVolume * 100));
+                    setSFXVolume(Math.round(sfxVolume * 100), false);
                 }
                 if (savedMusic !== null && Number.isFinite(parsedMusic)) {
                     musicVolume = Math.max(0, Math.min(1, parsedMusic));
-                    setMusicVolume(Math.round(musicVolume * 100));
+                    setMusicVolume(Math.round(musicVolume * 100), false);
                 }
             } catch (e) { /* localStorage kann blockiert sein */ }
         }
@@ -1456,6 +1502,9 @@
         function toggleMute() {
             isMuted = !isMuted;
             updateSoundButtons();
+            saveAudioSettings();
+            if (isMuted) stopMusic();
+            else if (gameState === 'PLAYING' && musicEnabled) startMusic();
             if (audioCtx && audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
@@ -1465,13 +1514,12 @@
         function toggleSFX() {
             sfxEnabled = !sfxEnabled;
             updateSoundButtons();
+            saveAudioSettings();
             
-            // Feedback sound when toggling (uses current volume)
+            // Feedback sound when toggling (playSquare applies sfxVolume once)
             if (sfxEnabled && !isMuted) {
-                playSquare(440, 0.1, 0.05 * sfxVolume);
-                setTimeout(() => playSquare(523.25, 0.1, 0.05 * sfxVolume), 60);
-            } else if (!sfxEnabled && !isMuted) {
-                playNoise(0.1, 0.1 * sfxVolume);
+                playSquare(440, 0.1, 0.06);
+                setTimeout(() => playSquare(523.25, 0.1, 0.06), 60);
             }
         }
 
@@ -1479,15 +1527,14 @@
         function toggleMusic() {
             musicEnabled = !musicEnabled;
             updateSoundButtons();
+            saveAudioSettings();
             
             if (musicEnabled && !isMuted) {
-                startMusic();
-                // Start sound feedback
-                playTriangle(523.25, 0.1, 0.08 * sfxVolume);
+                if (gameState === 'PLAYING') startMusic();
+                playTriangle(523.25, 0.1, 0.08);
             } else {
                 stopMusic();
-                // Stop sound feedback
-                playNoise(0.1, 0.1 * sfxVolume);
+                playNoise(0.08, 0.08);
             }
         }
 
@@ -1532,8 +1579,9 @@
 
         // Toggle Mute/SFX/Music via keyboard
         document.addEventListener('keydown', (event) => {
+            if (event.ctrlKey || event.metaKey || event.altKey) return;
             const active = document.activeElement;
-            if (active && /^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/.test(active.tagName)) return;
+            if (active && /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)) return;
             const key = event.key.toLowerCase();
 
             // [M] toggles mute
@@ -1620,23 +1668,53 @@
         let frameCount = 0;
         let graceTicks  = 0;
 
-        // ── HIGHSCORE ─────────────────────────────────────────────────────
+        // ── HIGHSCORE & STATISTIKEN ───────────────────────────────────────
+        const SNAKE_STATS_KEY = 'snakeUltimate_stats_v1';
         let highscore = (() => {
-            try { return parseInt(localStorage.getItem('snakeUltimate_hs') || '0') || 0; }
+            try { return parseInt(localStorage.getItem('snakeUltimate_hs') || '0', 10) || 0; }
             catch (e) { return 0; }
+        })();
+        let snakeStats = (() => {
+            const base = { bestScore: highscore, gamesPlayed: 0, totalApples: 0 };
+            try {
+                const raw = localStorage.getItem(SNAKE_STATS_KEY);
+                if (raw) {
+                    const p = JSON.parse(raw);
+                    if (p && typeof p === 'object') {
+                        base.bestScore = Math.max(highscore, Number(p.bestScore) || 0);
+                        base.gamesPlayed = Math.max(0, Number(p.gamesPlayed) || 0);
+                        base.totalApples = Math.max(0, Number(p.totalApples) || 0);
+                        highscore = base.bestScore;
+                    }
+                }
+            } catch (e) {}
+            return base;
         })();
         let isNewRecord = false;
         function updateHighscoreDisplay() {
             document.getElementById('hsBestVal').textContent = highscore;
         }
-        function checkAndSaveHighscore(score) {
-            if (score > highscore) {
+        function checkAndSaveHighscore(score, applesEaten = 0) {
+            const improved = score > highscore;
+            if (improved) {
                 highscore = score;
-                try { localStorage.setItem('snakeUltimate_hs', highscore); } catch (e) {}
-                updateHighscoreDisplay();
-                return true;
             }
-            return false;
+            snakeStats.bestScore = Math.max(snakeStats.bestScore, highscore);
+            snakeStats.gamesPlayed = (snakeStats.gamesPlayed || 0) + 1;
+            snakeStats.totalApples = (snakeStats.totalApples || 0) + Math.max(0, applesEaten);
+            try {
+                localStorage.setItem('snakeUltimate_hs', String(highscore));
+                localStorage.setItem(SNAKE_STATS_KEY, JSON.stringify(snakeStats));
+            } catch (e) {}
+            if (window.GameScores && typeof window.GameScores.record === 'function') {
+                window.GameScores.record('snake-ultimate', {
+                    score,
+                    meta: { apples: applesEaten, difficulty: currentDifficulty, multiplayer: isMultiplayer },
+                    label: `Bestwert ${snakeStats.bestScore} · ${snakeStats.totalApples} Äpfel`
+                });
+            }
+            updateHighscoreDisplay();
+            return improved;
         }
 
         // ── POISON FOOD ───────────────────────────────────────────────────
@@ -1668,19 +1746,30 @@
         let maidenProgress = 0;
         let maidenTick     = 0;
 
-        // ── D-PAD VISIBILITY ──────────────────────────────────────────────
+        // ── HYBRID-AWARE TOUCH DETECTION & D-PAD VISIBILITY ───────────────
+        let touchActive = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+        function setTouchActive(active) {
+            if (touchActive === active) return;
+            touchActive = active;
+            updateDpad();
+        }
+        window.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'touch') setTouchActive(true);
+            else if (e.pointerType === 'mouse') setTouchActive(false);
+        }, { passive: true });
+
         function updateDpad() {
             const wrapper = document.getElementById('dpad-wrapper');
             const p2Zone  = document.getElementById('dpad-p2-zone');
             const label1  = document.getElementById('dpad-label-p1');
             if (!wrapper) return;
 
-            const isTouch     = window.matchMedia('(pointer: coarse)').matches;
             const isLandscape = window.matchMedia('(max-height: 500px) and (orientation: landscape)').matches;
-            const show        = isTouch && gameState === 'PLAYING';
+            const show        = touchActive && gameState === 'PLAYING';
 
             wrapper.classList.toggle('visible',     show);
             wrapper.classList.toggle('multiplayer', show && isMultiplayer);
+            document.body.classList.toggle('touch-playing', show);
 
             if (p2Zone) p2Zone.style.display = (show && isMultiplayer) ? 'flex' : 'none';
             if (label1) label1.style.display  = isMultiplayer ? 'block' : 'none';
@@ -1969,8 +2058,8 @@
         }
 
         function updateScoreboard() {
-            document.getElementById('score1').innerText = `P1: ${p1.score}`;
-            if (isMultiplayer) document.getElementById('score2').innerText = `P2: ${p2.score}`;
+            document.getElementById('score1').innerText = `S1: ${p1.score}`;
+            if (isMultiplayer) document.getElementById('score2').innerText = `S2: ${p2.score}`;
         }
 
         function updateHungerUI() {
@@ -2041,53 +2130,58 @@
             }
         }
 
-        function checkCollisions() {
+        function checkCollisions(prevHead1, prevHead2) {
             [p1, p2].forEach(snake => {
                 if (snake.dead) return;
                 const head = snake.body[0];
                 if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
                     playSoundCrash();
                     snake.dead = true;
+                    return;
                 }
                 for (let i = 1; i < snake.body.length; i++) {
                     if (head.x === snake.body[i].x && head.y === snake.body[i].y) {
                         playSoundCrash();
                         snake.dead = true;
+                        return;
                     }
                 }
                 if (activeAddons.obstacles && obstacles.some(o => o.x === head.x && o.y === head.y)) {
                     playSoundCrash();
                     snake.dead = true;
+                    return;
                 }
                 if (activeAddons.maiden) {
                     for (let i = 0; i < maidenProgress; i++) {
                         if (maidenSpiral[i].x === head.x && maidenSpiral[i].y === head.y) {
                             playSoundCrash();
                             snake.dead = true;
+                            return;
                         }
                     }
                 }
                 if (hunter.active && head.x === hunter.x && head.y === hunter.y) {
-                    // Nightmare mode: use darker crash sound
                     playSoundCrashNightmare();
                     snake.dead = true;
+                    return;
                 }
             });
 
             if (isMultiplayer && !p1.dead && !p2.dead) {
                 const h1 = p1.body[0], h2 = p2.body[0];
-                if (h1.x === h2.x && h1.y === h2.y) {
+                const swappedHeads = !!(prevHead1 && prevHead2 &&
+                    h1.x === prevHead2.x && h1.y === prevHead2.y &&
+                    h2.x === prevHead1.x && h2.y === prevHead1.y);
+                if ((h1.x === h2.x && h1.y === h2.y) || swappedHeads) {
                     playSoundCrash();
                     p1.dead = true; p2.dead = true;
-                }
-                else {
-                    if (p2.body.some(s => s.x === h1.x && s.y === h1.y)) {
+                } else {
+                    const p1Hit = p2.body.some(s => s.x === h1.x && s.y === h1.y);
+                    const p2Hit = p1.body.some(s => s.x === h2.x && s.y === h2.y);
+                    if (p1Hit || p2Hit) {
                         playSoundCrash();
-                        p1.dead = true;
-                    }
-                    if (p1.body.some(s => s.x === h2.x && s.y === h2.y)) {
-                        playSoundCrash();
-                        p2.dead = true;
+                        if (p1Hit) p1.dead = true;
+                        if (p2Hit) p2.dead = true;
                     }
                 }
             }
@@ -2141,17 +2235,19 @@
 
         function update() {
             frameCount++;
+            const prevHead1 = p1 && p1.body[0] ? { x: p1.body[0].x, y: p1.body[0].y } : null;
+            const prevHead2 = isMultiplayer && p2 && p2.body[0] ? { x: p2.body[0].x, y: p2.body[0].y } : null;
             moveSnake(p1);
             if (isMultiplayer) moveSnake(p2);
             updateHunterAndMaiden();
-            checkCollisions();
+            checkCollisions(prevHead1, prevHead2);
             updateHungerUI();
 
             if ((!isMultiplayer && p1.dead) || (isMultiplayer && p1.dead && p2.dead)) {
-                endGame('GAME OVER', `P1: ${p1.score}`);
+                endGame(isMultiplayer ? 'UNENTSCHIEDEN!' : 'SPIEL VORBEI', isMultiplayer ? `S1: ${p1.score} · S2: ${p2.score}` : `Punkte: ${p1.score}`);
             } else if (isMultiplayer) {
-                if (p1.dead && !p2.dead) endGame('SPIELER 2 GEWINNT!', `P2: ${p2.score}`);
-                if (p2.dead && !p1.dead) endGame('SPIELER 1 GEWINNT!', `P1: ${p1.score}`);
+                if (p1.dead && !p2.dead) endGame('SPIELER 2 GEWINNT!', `Punkte: ${p2.score}`);
+                if (p2.dead && !p1.dead) endGame('SPIELER 1 GEWINNT!', `Punkte: ${p1.score}`);
             }
             draw();
         }
@@ -2159,7 +2255,6 @@
         function endGame(titleText, scoreText) {
             stopLoop();
             stopMusic();
-            // Nightmare mode: use darker game over sound
             if (currentDifficulty === 'nightmare') {
                 playSoundGameOverNightmare();
             } else {
@@ -2167,16 +2262,16 @@
             }
             gameState = 'GAMEOVER';
 
-            // v0.4 FIX: Maiden-Spiral bei Spielende zurücksetzen
-            maidenProgress = 0;
-
+            // maidenProgress bleibt auf dem Game-Over-Standbild sichtbar (Reset erfolgt in startGame -> initEntities)
             const bestThisRun = isMultiplayer ? Math.max(p1.score, p2.score) : p1.score;
-            isNewRecord = checkAndSaveHighscore(bestThisRun);
+            const applesThisRun = (p1 ? p1.foodEaten : 0) + (isMultiplayer && p2 ? p2.foodEaten : 0);
+            isNewRecord = checkAndSaveHighscore(bestThisRun, applesThisRun);
 
             document.getElementById('winnerText').innerText = titleText;
             document.getElementById('finalScore').innerText = scoreText;
             const banner = document.getElementById('hsBanner');
-            banner.textContent = isNewRecord ? '🏆 NEUER REKORD: ' + highscore + '!' : '🏆 BEST: ' + highscore;
+            banner.textContent = (isNewRecord ? '🏆 NEUER BESTWERT: ' + highscore + '!' : '🏆 BESTWERT: ' + highscore) +
+                ` · Spiele: ${snakeStats.gamesPlayed} · Äpfel: ${snakeStats.totalApples}`;
             banner.className   = 'hs-banner' + (isNewRecord ? ' new-record' : '');
             document.getElementById('gameOver').style.display = 'flex';
             openSnakeModal('gameOver');
@@ -2989,20 +3084,24 @@
         ═══════════════════════════════════════════════════════════════ */
         document.addEventListener('keydown', (event) => {
             const key = event.key;
-            // Formularelemente (z. B. Theme-/Modus-Select) nicht captieren:
-            // Pfeiltasten sollen das Dropdown navigieren, nicht die Schwierigkeit ändern.
             const ae = document.activeElement;
-            // P/Escape bleiben Dialogbefehle, auch wenn der Fokus auf einem
-            // nativen Pause-Button liegt. Leertaste aktiviert dort den Button selbst.
+            // Formularelemente (INPUT, SELECT, TEXTAREA) niemals kapern:
+            if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+
+            // P/Escape bleiben Dialogbefehle, auch wenn der Fokus auf einem Button liegt.
             if (gameState === 'PAUSED' && (key === 'p' || key === 'P' || key === 'Escape')) {
                 event.preventDefault();
                 resumeGame();
                 return;
             }
-            if (ae && /^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/.test(ae.tagName)) return;
+
+            const onButtonOrLink = !!(ae && /^(BUTTON|A)$/.test(ae.tagName));
+            // Auf fokussierten Buttons/Links nur Space/Enter nicht abfangen (sonst Doppelauslösung).
+            if (onButtonOrLink && (key === ' ' || key === 'Enter')) return;
+
             if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(key)) event.preventDefault();
 
-            // ── PAUSE state: any resume key ──
+            // ── PAUSE state ──
             if (gameState === 'PAUSED') {
                 if (key === ' ') resumeGame();
                 return;
@@ -3022,7 +3121,8 @@
                     if (key === '+') idx = (idx + 1) % themesList.length;
                     else             idx = (idx - 1 + themesList.length) % themesList.length;
                     document.getElementById('themeSelect').value = themesList[idx];
-                    changeTheme(themesList[idx]);                } else if (key === '1') { toggleAddon('obstacles'); }
+                    changeTheme(themesList[idx]);
+                } else if (key === '1') { toggleAddon('obstacles'); }
                   else if (key === '2') { toggleAddon('hunger'); }
                   else if (key === '3') { toggleAddon('maiden'); }
                   else if (key === '4') { toggleAddon('poison'); }
@@ -3036,6 +3136,11 @@
             }
 
             if (gameState !== 'PLAYING') return;
+
+            // Echte Tastatureingabe im Spiel blendet Touch-D-Pad sauber aus
+            if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","w","a","s","d","W","A","S","D"].includes(key)) {
+                setTouchActive(false);
+            }
 
             // ── Pause ──
             if (key === 'p' || key === 'P' || key === 'Escape') { pauseGame(); return; }

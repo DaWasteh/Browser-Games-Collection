@@ -7,6 +7,7 @@
   <title>Panda: Jäger der Blasen – Bubble Shooter</title>
   <meta name="description" content="Moderner Bubble Shooter mit Bandenwürfen, Bambusblase, Sound und flüssigen Animationen – komplett offline.">
   <script src="../shared/game-shell.js"></script>
+  <script src="../shared/game-scores.js"></script>
   <script src="../shared/game-audio.js"></script>
   <script src="../shared/game-fx.js"></script>
   <link rel="stylesheet" href="styles.css">
@@ -95,7 +96,7 @@
       <div class="rules-grid">
         <p>Schieße auf mindestens zwei gleichfarbige Blasen. Gruppen ab drei platzen; alles, was danach nicht mehr an der Decke hängt, fällt herunter. Nach fünf erfolglosen Würfen rückt eine neue Reihe nach.</p>
         <ul>
-          <li><strong>Maus/Touch:</strong> Im Feld zielen und zum Schießen tippen.</li>
+          <li><strong>Maus/Touch:</strong> Mit der Maus zielen und klicken. Per Touch ziehen zum Zielen, loslassen zum Schießen.</li>
           <li><strong>Tastatur:</strong> <kbd>←</kbd>/<kbd>→</kbd> zielen, <kbd>Leertaste</kbd>/<kbd>Enter</kbd> schießen, <kbd>S</kbd> tauschen, <kbd>P</kbd> pausieren, <kbd>N</kbd> neu starten.</li>
           <li>Pralle an einer Seitenwand ab und räume eine Gruppe ab, um mehr Bambusenergie und Bonuspunkte zu erhalten.</li>
           <li>Das Spiel endet, wenn eine Blase die gestrichelte Bambusgrenze erreicht.</li>
@@ -116,6 +117,6 @@
     </div>
   </main>
 
-  <footer><small>Offline spielbar · Sound wird erst nach der ersten Eingabe aktiviert.</small></footer>
+  <footer><small>Offline spielbar · Bestwert und Siege werden lokal gespeichert.</small></footer>
 </body>
 </html>

@@ -46,15 +46,17 @@ export class Combat {
       if (!opts.dot || Math.random() < 0.5) g.floaters.add(e.x, e.y - e.height - 4, opts.crit ? `${amount}!` : amount, col, opts.crit ? 2 : 1);
     }
     // player sustain
+    let triggerStorm = false;
     if (opts.source === 'melee' || opts.source === 'spell') {
       const s = g.stats;
       let heal = 0;
       if (opts.source === 'melee' && s.lifeOnHit) heal += s.lifeOnHit;
       if (s.powers.has('vampiric')) heal += amount * 0.05;
       if (heal > 0) g.player.heal(heal, true);
-      if (opts.crit && s.powers.has('stormcaller') && !opts.chained) this.stormStrike(e, amount * 0.8);
+      if (opts.crit && s.powers.has('stormcaller') && !opts.chained) triggerStorm = true;
     }
     if (e.hp <= 0) this.killEnemy(e, opts);
+    if (triggerStorm) this.stormStrike(e, amount * 0.8);
     return amount;
   }
 
@@ -64,7 +66,7 @@ export class Combat {
     g.spawnBolt([[e.x + (Math.random() - 0.5) * 20, e.y - 120], [e.x, e.y - 6]], '#dfe8ff');
     g.audio.play('storm', 0.6);
     for (const o of g.area.enemies) {
-      if (o.dead) continue;
+      if (o.dead || o.hp <= 0) continue;
       if (Math.hypot(o.x - e.x, o.y - e.y) < 26) this.hitEnemy(o, dmg, { element: 'storm', chained: true, source: 'proc' });
     }
   }
@@ -89,8 +91,8 @@ export class Combat {
     if (e.elite) { items = rng.chance(0.65) ? 1 : 0; minRarity = 1; if (rng.chance(0.2)) items++; }
     if (e.isBoss) { items = 3; minRarity = 2; }
     for (let i = 0; i < items; i++) {
-      const it = generateItem(rng, Math.max(depth, Math.floor(p.level * 0.8)), { magicFind: s.magicFind, minRarity: i === 0 ? minRarity : Math.min(minRarity, 1) });
-      if (e.isBoss && i === 0 && rng.chance(0.35)) Object.assign(it, generateItem(rng, depth + 1, { rarity: 'legendary', magicFind: s.magicFind }));
+      let it = generateItem(rng, Math.max(depth, Math.floor(p.level * 0.8)), { magicFind: s.magicFind, minRarity: i === 0 ? minRarity : Math.min(minRarity, 1) });
+      if (e.isBoss && i === 0 && rng.chance(0.35)) it = generateItem(rng, depth + 1, { rarity: 'legendary', magicFind: s.magicFind });
       g.dropItem(e.x, e.y, it);
     }
     if (rng.chance(e.elite ? 0.3 : 0.045) && p.potions + g.countGroundPotions() < MAX_POTIONS) g.dropPotion(e.x, e.y);
