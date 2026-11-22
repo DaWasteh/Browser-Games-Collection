@@ -647,11 +647,12 @@ try {
         await delay(80);
         const stickZero = await evaluate('window.__gloam.input.stick.x === 0 && window.__gloam.input.stick.y === 0');
         assert(moved > 20 && stickZero, `gloamdeep: Touch-Stick bewegt nicht oder bleibt hängen ${JSON.stringify({ moved, stickZero })}`);
-        await evaluate(`(() => { const p = window.__gloam.game.player; p.attackCd = 0; p.hp = 20; p.potionCd = 0; return true; })()`);
+        const swingsBefore = await evaluate(`(() => { const p = window.__gloam.game.player; p.attackCd = 0; p.hp = 20; p.potionCd = 0; return p.swingCount; })()`);
         await tapAt(...await centerOf('#sk-attack'));
+        const swung = await evaluate(`(() => { const p = window.__gloam.game.player; return p.swingCount > ${swingsBefore} || p.attackCd > 0 || !!p.swing; })()`);
         const potionsBefore = await evaluate('window.__gloam.game.profile.potions');
         await tapAt(...await centerOf('#sk-potion'));
-        const acted = await evaluate(`(() => { const g = window.__gloam.game; return { swung: g.player.attackCd > 0 || !!g.player.swing, potions: g.profile.potions }; })()`);
+        const acted = await evaluate(`(() => { const g = window.__gloam.game; return { swung: ${swung} || g.player.swingCount > ${swingsBefore} || g.player.attackCd > 0 || !!g.player.swing, potions: g.profile.potions }; })()`);
         assert(acted.swung && acted.potions === potionsBefore - 1, `gloamdeep: Angriffs-/Trankknopf wirkungslos ${JSON.stringify({ acted, potionsBefore })}`);
         await evaluate(`(() => { const g = window.__gloam.game; const n = g.area.npcs.find(n => /Isolde/.test(n.name || '')); g.player.place(n.x + 14, n.y + 10); g.snapCamera(); return true; })()`);
         await delay(200);
