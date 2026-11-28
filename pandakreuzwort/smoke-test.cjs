@@ -33,12 +33,13 @@ const dv = L.validateDataset(DATA);
 assert.equal(dv.ok, true, 'Dataset gültig: ' + JSON.stringify(dv.errors));
 const deEntries = DATA.entries.filter(e => e.language === 'de');
 const barEntries = DATA.entries.filter(e => e.language === 'bar');
-assert.ok(deEntries.length >= 570, 'deutlich erweiterte deutsche Wortbank (' + deEntries.length + ')');
-assert.ok(barEntries.length >= 80, 'mindestens 80 Bairisch-Einträge (' + barEntries.length + ')');
-assert.ok(DATA.entries.length >= 650, 'mindestens 650 Einträge insgesamt (' + DATA.entries.length + ')');
-assert.equal(DATA.datasetVersion, '2026-11-v2.6', 'Wortbank-Version v2.6');
-assert.ok(DATA.entries.length >= 1400, 'v2.6-Wortbank mit mindestens 1400 Einträgen (' + DATA.entries.length + ')');
-assert.ok(DATA.solutionWords && DATA.solutionWords.de.length >= 50 && DATA.solutionWords.bar.length >= 20, 'Lösungswort-Pools für Deutsch und Bairisch vorhanden');
+assert.ok(deEntries.length >= 4000, 'massiv erweiterte deutsche Wortbank (' + deEntries.length + ')');
+assert.ok(barEntries.length >= 900, 'massiv erweiterte Bairisch-Wortbank (' + barEntries.length + ')');
+assert.ok(DATA.entries.length >= 5000, 'v2.7-Wortbank mit mindestens 5000 Einträgen (' + DATA.entries.length + ')');
+assert.equal(DATA.datasetVersion, '2026-11-v2.7', 'Wortbank-Version v2.7');
+assert.ok(DATA.solutionWords && DATA.solutionWords.de.length >= 150 && DATA.solutionWords.bar.length >= 75 && DATA.solutionWords.mix.length >= 230, 'erweiterte Lösungswort-Pools für Deutsch, Bairisch und Verbund vorhanden');
+const legacyV26 = DATA.legacyDatasets && DATA.legacyDatasets['2026-11-v2.6'];
+assert.ok(Array.isArray(legacyV26) && Object.isFrozen(legacyV26) && legacyV26.length === 1510, 'v2.6-Wortbank (1510) für bestehende Speicherstände eingefroren');
 const legacyV19 = DATA.legacyDatasets && DATA.legacyDatasets['2026-09-v1.9'];
 assert.ok(Array.isArray(legacyV19) && Object.isFrozen(legacyV19) && legacyV19.length === 969, 'v1.9-Wortbank (969) für bestehende Speicherstände eingefroren');
 const legacyV16 = DATA.legacyDatasets && DATA.legacyDatasets['2026-08-v1.6'];
@@ -53,6 +54,20 @@ const legacyDigest = crypto.createHash('sha256').update(JSON.stringify(legacyV15
     e.allowedProfiles, e.region || '', e.standardGerman || ''
 ]))).digest('hex');
 assert.equal(legacyDigest, '8a0bf84dd499fd5329692d83ab6e5fc149a4ebe7a466a955248b15a83fd3898e', 'v1.5-Wortbank-Reihenfolge/Inhalt historisch stabil');
+
+// Neue v2.7-Einträge enthalten niemals ihre eigene Antwort im Hinweis (Anti-Spoiler).
+for (const e of DATA.entries.slice(legacyV26.length)) {
+    if (e.gridAnswer.length >= 3) {
+        assert.ok(!L.normalizeGridAnswer(e.clue).includes(e.gridAnswer), 'Kein Antwort-Spoiler im v2.7-Hinweis ' + e.id);
+    }
+}
+
+// Spoiler-Schutz für standardGerman-Zusatzzeilen
+assert.equal(L.shouldDisplayStandardGerman(DATA.entries.find(e => e.id === 'bar-weisswurst')), false, 'Weißwurst-Spoiler unterdrückt');
+assert.equal(L.shouldDisplayStandardGerman(DATA.entries.find(e => e.id === 'bar-dahoam')), false, 'Dahoam-Doppelung unterdrückt');
+assert.equal(L.shouldDisplayStandardGerman(DATA.entries.find(e => e.id === 'bar-oachkatzl')), false, 'Oachkatzl-Doppelung im Hinweis unterdrückt');
+assert.equal(L.shouldDisplayStandardGerman(DATA.entries.find(e => e.id === 'bar-kasspatzn')), true, 'Kasspatzn-Hochdeutsch hilfreich angezeigt');
+assert.equal(L.shouldDisplayStandardGerman(DATA.entries.find(e => e.id === 'bar-schmankerl')), true, 'Schmankerl-Hochdeutsch hilfreich angezeigt');
 
 // Eindeutige IDs und Antworten, NFC, erlaubte Grapheme, Hinweis vorhanden,
 // reviewed, ausschließlich project-editorial; Bairisch mit Region + Standarddeutsch.
@@ -99,12 +114,13 @@ assert.equal(L.canonicalizePuzzle(p1), L.canonicalizePuzzle(p2), 'gleicher Schl�
 assert.equal(L.GENERATOR_VERSION, 3);
 
 // ============================================================
-// 5) Strukturelle Gültigkeit für Seed-Samples je Sprache × Profil
+// 5) Strukturelle Gültigkeit für Seed-Samples je Sprache × Profil (inkl. Deutsch & Bairisch)
 // ============================================================
 const SAMPLE_SEEDS = ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8'];
-for (const language of ['de', 'bar']) {
+for (const language of ['mix', 'de', 'bar']) {
     for (const difficulty of L.PROFILE_NAMES) {
         const profile = L.PROFILES[difficulty];
+        const mixMin = language === 'mix' ? L.mixTargets(profile) : null;
         for (const seed of SAMPLE_SEEDS) {
             const puzzle = L.generatePuzzle({ seed, language, difficulty, entries: DATA.entries, datasetVersion: DATA.datasetVersion, solutionWords: DATA.solutionWords[language] });
             const v = L.validatePuzzle(puzzle, DATA.entries);
@@ -119,9 +135,15 @@ for (const language of ['de', 'bar']) {
             assert.equal(puzzle.qualityPassed, true, language + '/' + difficulty + ' Qualitätsvertrag');
             assert.ok(m.rows <= 16 && m.cols <= 16, language + '/' + difficulty + ' Bounding-Box ' + m.rows + 'x' + m.cols);
             assert.ok(m.wordCount <= profile.targetWords, 'Wortzahl überschreitet Ziel');
-            // keine doppelte entryId und jede Zelle höchstens einmal je Richtung
+            if (mixMin) {
+                assert.ok(m.barCount >= mixMin.minBar && m.deCount >= mixMin.minDe,
+                    'mix/' + difficulty + '/' + seed + ' verbindet Deutsch (' + m.deCount + ') & Bairisch (' + m.barCount + ')');
+            }
+            // keine doppelte entryId oder doppelte gridAnswer und jede Zelle höchstens einmal je Richtung
             const used = new Set(puzzle.placements.map(p => p.entryId));
+            const usedAns = new Set(puzzle.placements.map(p => p.gridAnswer));
             assert.equal(used.size, puzzle.placements.length, 'keine doppelte entryId ' + language + '/' + difficulty);
+            assert.equal(usedAns.size, puzzle.placements.length, 'keine doppelte gridAnswer ' + language + '/' + difficulty);
             for (const cell of Object.values(puzzle.cells)) {
                 assert.ok(cell.across == null || cell.down == null || cell.across !== cell.down, 'rechtwinklige Kreuzung');
             }
@@ -139,14 +161,14 @@ function avgWords(language, difficulty) {
     for (const s of PROF_SEEDS) sum += L.generatePuzzle({ seed: s, language, difficulty, entries: DATA.entries, datasetVersion: DATA.datasetVersion }).metrics.wordCount;
     return sum / PROF_SEEDS.length;
 }
-const deLeicht = avgWords('de', 'leicht');
-const deSchwer = avgWords('de', 'schwer');
-const deExperte = avgWords('de', 'experte');
+const deLeicht = avgWords('mix', 'leicht');
+const deSchwer = avgWords('mix', 'schwer');
+const deExperte = avgWords('mix', 'experte');
 assert.ok(deSchwer > deLeicht, 'schwer (' + deSchwer.toFixed(2) + ') > leicht (' + deLeicht.toFixed(2) + ')');
 assert.ok(deExperte > deSchwer, 'experte (' + deExperte.toFixed(2) + ') > schwer (' + deSchwer.toFixed(2) + ')');
 
 // ============================================================
-// 7) Sprachtrennung: Deutsch erzeugt nur de-Einträge, Bairisch nur bar
+// 7) Sprachtrennung & Verbundmodus
 // ============================================================
 for (const language of ['de', 'bar']) {
     const p = L.generatePuzzle({ seed: 'lang-sep', language, difficulty: 'mittel', entries: DATA.entries, datasetVersion: DATA.datasetVersion });
@@ -155,13 +177,20 @@ for (const language of ['de', 'bar']) {
         assert.equal(entry.language, language, 'Sprachtrennung ' + pl.entryId);
     }
 }
+{
+    const mixP = L.generatePuzzle({ seed: 'lang-mix', language: 'mix', difficulty: 'mittel', entries: DATA.entries, datasetVersion: DATA.datasetVersion });
+    assert.ok(mixP.metrics.deCount >= 7 && mixP.metrics.barCount >= 4, 'Verbundmodus verbindet Deutsch und Bairisch');
+    // Altspielstand v1.5 reproduziert weiterhin exakt Zelle 10,6 = J
+    const v15p = L.generatePuzzle({ seed: 'v1.5-save-fixture', language: 'de', difficulty: 'mittel', entries: legacyV15, datasetVersion: '2026-08-v1.5' });
+    assert.equal(v15p.cells['10,6'] && v15p.cells['10,6'].letter, 'J', 'v1.5-Fixture bitgenau reproduzierbar');
+}
 
 // ============================================================
 // 8) Varianz: verschiedene Seeds → verschiedene kanonische Puzzles
 // ============================================================
 const VAR_SEEDS = [];
 for (let i = 0; i < 30; i++) VAR_SEEDS.push('var-' + i);
-for (const language of ['de', 'bar']) {
+for (const language of ['mix', 'de', 'bar']) {
     const sigs = new Set();
     for (const s of VAR_SEEDS) {
         const p = L.generatePuzzle({ seed: s, language, difficulty: 'mittel', entries: DATA.entries, datasetVersion: DATA.datasetVersion });
@@ -327,6 +356,10 @@ assert.match(html, /role="grid"/, 'role=grid für Spielfeld');
 assert.match(html, /id="active-clue"/, 'dauerhaft sichtbarer aktiver Hinweis');
 assert.match(html, /id="board-scroll"[^>]*tabindex="0"/, 'fokussierbarer mobiler Gitter-Scrollbereich');
 assert.match(html, /id="diff-experte"/, 'vierter Schwierigkeitsgrad Experte');
+assert.match(html, /id="daily-btn"/, 'Tagesrätsel-Knopf vorhanden');
+assert.match(html, /value="mix"/, 'Verbundmodus Deutsch & Bairisch vorhanden');
+assert.match(html, /id="result-glossary"/, 'Bairisch-Glossar im Ergebnisdialog vorhanden');
+assert.match(html, /id="clear-errors-btn"/, 'Fehler-Leeren-Knopf vorhanden');
 assert.match(html, /role="dialog"[\s\S]*aria-modal="true"/, 'Modal role/aria-modal');
 assert.doesNotMatch(html, /onclick=/, 'keine Inline-Handler');
 assert.doesNotMatch(html, /innerHTML/, 'kein innerHTML');
@@ -373,4 +406,4 @@ assert.match(css, /\.board-scroll\s*\{[^}]*overflow:\s*auto/, 'gezielter mobiler
 assert.match(css, /\.solution-box/, 'Lösungswort-Leiste gestaltet');
 assert.match(css, /html\.kb-open/, 'VisualViewport-Schutz für Systemtastatur vorhanden');
 
-console.log(`smoke ok (${DATA.entries.length} Wörter, Lösungswörter, 8 Profil-Samples, Qualitäts-/Overlap-/Speicher-Negativtests)`);
+console.log(`smoke ok (${DATA.entries.length} Wörter [${deEntries.length} DE, ${barEntries.length} BAR], ${DATA.solutionWords.mix.length} Lösungswörter, Verbundmodus + 8 Profil-Samples, Anti-Spoiler-/Qualitäts-/Overlap-/Speicher-Tests)`);

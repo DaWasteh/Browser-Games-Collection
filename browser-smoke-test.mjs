@@ -854,11 +854,15 @@ try {
         const languages = [...document.querySelectorAll('#lang-select option')].map(option => option.value);
         const difficulties = [...document.querySelectorAll('.diff button')].map(button => button.id);
         const clueCount = document.querySelectorAll('.clue-btn').length;
+        const mixPills = document.querySelectorAll('.clue-btn .lang-pill').length;
         Pandakreuzwort.restart();
         const restarted = Pandakreuzwort.getState();
+        Pandakreuzwort.startDaily();
+        await new Promise(resolve => setTimeout(resolve, 600));
+        const daily = Pandakreuzwort.getState();
         Pandakreuzwort.newGame('smoke-first');
         Pandakreuzwort.newGame('smoke-final');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 600));
         const raced = Pandakreuzwort.getState();
         const committedSeed = Pandakreuzwort.getPuzzle().seed;
         Pandakreuzwort.newGame('pending-then-restart');
@@ -866,11 +870,11 @@ try {
         await new Promise(resolve => setTimeout(resolve, 100));
         const restartedPending = { stateSeed: Pandakreuzwort.getState().seed, puzzleSeed: Pandakreuzwort.getPuzzle().seed };
         Pandakreuzwort.setLanguage('bar');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 650));
         const bavarian = Pandakreuzwort.getState();
         const bavarianMetadata = document.querySelectorAll('.clue-btn .meta').length === bavarian.wordCount;
         Pandakreuzwort.setDifficulty('experte');
-        await new Promise(resolve => setTimeout(resolve, 750));
+        await new Promise(resolve => setTimeout(resolve, 900));
         const expert = Pandakreuzwort.getState();
         const block = document.querySelector('#board .cell.block');
         const inputSlots = Pandakreuzwort.parseWordDraft('A·C', 4);
@@ -900,12 +904,25 @@ try {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
         const afterBsBoard = Pandakreuzwort.getBoard();
         const backspaceClean = !afterBsBoard[startSel.r + ',' + startSel.c];
+        // Prüfen + Fehler leeren: falschen Buchstaben eintragen, prüfen, per Button leeren.
+        const firstKey = startSel.r + ',' + startSel.c;
+        const trueLetter = Pandakreuzwort.getPuzzle().cells[firstKey].letter;
+        const wrongLetter = trueLetter === 'Q' ? 'Z' : 'Q';
+        firstBtn.click();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: wrongLetter, bubbles: true }));
+        Pandakreuzwort.check();
+        const errAfterCheck = Pandakreuzwort.getState().errorCount;
+        const errBarVisible = !document.getElementById('error-bar').hidden;
+        Pandakreuzwort.clearErrors();
+        const errAfterClear = Pandakreuzwort.getState().errorCount;
         return {
           initial,
           tabStops,
           languages,
           difficulties,
           clueCount,
+          mixDefaultConnected: initial.language === 'mix' && initial.deCount >= 7 && initial.barCount >= 4 && mixPills === initial.barCount,
+          dailyReady: daily.isDaily && daily.language === 'mix' && daily.deCount > 0 && daily.barCount > 0,
           restartKeptSeed: restarted.seed === initial.seed,
           restartKeptShape: restarted.rows === initial.rows && restarted.cols === initial.cols,
           raceKeptLastSeed: raced.seed === 'smoke-final',
@@ -918,6 +935,7 @@ try {
           datasetSize: expert.datasetSize,
           solutionWordReady: !!solWord && solBoxVisible && solSlots === solWord.cells.length && solSlots >= 5,
           backspaceClean,
+          errorFlowClean: errAfterCheck >= 1 && errBarVisible && errAfterClear === 0,
           blockVisible: !!block && getComputedStyle(block).backgroundColor !== 'rgba(0, 0, 0, 0)',
           slotsPreserved: inputSlots.length === 4 && inputSlots[0] === 'A' && inputSlots[1] === null && inputSlots[2] === 'C' && inputSlots[3] === null,
           naturalTyping: firstTyped.value === 'A' && firstTyped.caret === 1 && firstTyped.filled === 1 && secondTyped.value === 'AB' && secondTyped.caret === 2 && secondTyped.filled === 2,
@@ -932,7 +950,9 @@ try {
       assert(crossword.initial.wordCount >= 6, 'pandakreuzwort: generated too few words');
       assert(crossword.initial.rows > 0 && crossword.initial.cols > 0, 'pandakreuzwort: generated an empty grid');
       assert(crossword.tabStops === 1 && crossword.finalTabStops === 1, 'pandakreuzwort: grid must have exactly one tab stop');
-      assert(crossword.languages.join(',') === 'de,bar', 'pandakreuzwort: language choices are incomplete');
+      assert(crossword.languages.join(',') === 'mix,de,bar', 'pandakreuzwort: language choices are incomplete');
+      assert(crossword.mixDefaultConnected, `pandakreuzwort: combined German+Bavarian default mode is incomplete ${JSON.stringify(crossword.initial)}`);
+      assert(crossword.dailyReady, 'pandakreuzwort: daily crossword mode failed');
       assert(crossword.difficulties.join(',') === 'diff-leicht,diff-mittel,diff-schwer,diff-experte', 'pandakreuzwort: difficulty choices are incomplete');
       assert(crossword.clueCount === crossword.initial.wordCount, 'pandakreuzwort: clue count does not match word count');
       assert(crossword.restartKeptSeed && crossword.restartKeptShape, 'pandakreuzwort: restart changed the puzzle');
@@ -940,9 +960,10 @@ try {
       assert(crossword.pendingRestartConsistent, 'pandakreuzwort: restart during pending generation mixed seed and puzzle');
       assert(crossword.bavarianPlayable && crossword.bavarianMetadata, 'pandakreuzwort: Bairisch mode or clue metadata is incomplete');
       assert(crossword.expertPlayable && crossword.qualityPassed, 'pandakreuzwort: Experte mode did not meet its layout contract');
-      assert(crossword.datasetSize >= 1400, `pandakreuzwort: expanded v2.6 word bank missing (${crossword.datasetSize})`);
+      assert(crossword.datasetSize >= 5000, `pandakreuzwort: expanded v2.7 word bank missing (${crossword.datasetSize})`);
       assert(crossword.solutionWordReady, 'pandakreuzwort: Lösungswort UI/cells missing');
       assert(crossword.backspaceClean, 'pandakreuzwort: Backspace did not cleanly erase typed cell');
+      assert(crossword.errorFlowClean, 'pandakreuzwort: check + clearErrors flow failed');
       assert(crossword.blockVisible, 'pandakreuzwort: blocked cells are not visibly rendered');
       assert(crossword.slotsPreserved, 'pandakreuzwort: positional word-input blanks are not preserved');
       assert(crossword.naturalTyping && crossword.imeSafe, `pandakreuzwort: mobile word input disrupts cursor/IME ${JSON.stringify(crossword)}`);
@@ -989,8 +1010,10 @@ try {
       // wirklich lösen (setzt den In-Memory-Zustand 'won', den pagehide dann
       // konsistent persistiert), neu laden und Status + eingefrorene Zeit prüfen.
       await evaluate(`(async () => {
+        Pandakreuzwort.setLanguage('mix');
+        await new Promise(r => setTimeout(r, 600));
         Pandakreuzwort.newGame('won-seed');
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 600));
         const solution = {};
         const puzzle = Pandakreuzwort.getPuzzle();
         for (const k in puzzle.cells) solution[k] = puzzle.cells[k].letter;
@@ -1001,9 +1024,10 @@ try {
           document.dispatchEvent(new KeyboardEvent('keydown', { key: solution[key], bubbles: true }));
         }
       })()`);
-      const wonBefore = await evaluate(`Pandakreuzwort.getState()`);
-      assert(wonBefore.status === 'won', `pandakreuzwort: filling all cells should win (got ${wonBefore.status})`);
-      const elapsedAtWin = wonBefore.elapsed;
+      const wonBefore = await evaluate(`({ state: Pandakreuzwort.getState(), glossaryVisible: !document.getElementById('result-glossary').hidden, glossaryItems: document.querySelectorAll('#result-glossary-list li').length })`);
+      assert(wonBefore.state.status === 'won', `pandakreuzwort: filling all cells should win (got ${wonBefore.state.status})`);
+      assert(wonBefore.glossaryVisible && wonBefore.glossaryItems >= 4, `pandakreuzwort: Bavarian glossary missing on win (${JSON.stringify(wonBefore)})`);
+      const elapsedAtWin = wonBefore.state.elapsed;
       await navigate('pandakreuzwort/index.html');
       const wonState = await evaluate(`Pandakreuzwort.getState()`);
       assert(wonState.status === 'won', `pandakreuzwort: won status not restored after reload (got ${wonState.status})`);
@@ -1437,7 +1461,7 @@ try {
     };
   })()`);
   assert(launcher.count === 20 && launcher.unique === 20 && launcher.allTargetsLoad && launcher.headerCount === '20', `launcher: expected 20 unique loadable games ${JSON.stringify(launcher)}`);
-  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.6') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.6 integration is incomplete ${JSON.stringify(launcher)}`);
+  assert(launcher.hasBubbles && launcher.hasJewels && launcher.version.includes('Version 2.7') && launcher.hasAsteroids && launcher.hasGloamdeep && launcher.actionChip && !launcher.overflow, `launcher: v2.7 integration is incomplete ${JSON.stringify(launcher)}`);
 
   // v1.9: Kategorie-Chips, Suche und Ton-Schalter des Launchers.
   const launcherFilters = await evaluate(`(async () => {

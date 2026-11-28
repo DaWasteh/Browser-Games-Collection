@@ -1,7 +1,7 @@
-/* === Pandakreuzwort — DOM-/UI-Schicht (v2.6) ===
-   Baut Gitter, Lösungswort-Leiste, Hinweislisten, Wort-Eingabe und adaptive
-   Bildschirmtastatur ausschließlich über createElement (kein innerHTML mit
-   Nutzdaten, kein Fetch, keine externen Abhängigkeiten). */
+/* === Pandakreuzwort — DOM-/UI-Schicht (v2.7) ===
+   Baut Gitter, Lösungswort-Leiste, Hinweislisten (Deutsch & Bairisch verbunden),
+   Tagesrätsel, Wort-Eingabe und adaptive Bildschirmtastatur ausschließlich über
+   createElement (kein innerHTML mit Nutzdaten, kein Fetch, keine externen Abhängigkeiten). */
 (() => {
     'use strict';
     if (typeof window === 'undefined') return;
@@ -14,10 +14,24 @@
     var STATS_KEY = 'pandakreuzwort-stats-v1';
     var STORAGE_KEY = 'pandakreuzwort-save-v3';
     var PROFILE_LABELS = { leicht: 'Leicht', mittel: 'Mittel', schwer: 'Schwer', experte: 'Experte' };
+    var LANGUAGE_LABELS = { mix: 'Deutsch & Bairisch', de: 'Deutsch', bar: 'Bairisch' };
     var bestTimes = loadBestTimes();
     var stats = loadStats();
 
     function sfx(name) { if (window.GameAudio) window.GameAudio.play(name); }
+    function languageLabel(lang) { return LANGUAGE_LABELS[lang] || 'Deutsch & Bairisch'; }
+
+    function todayKey() {
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = String(now.getMonth() + 1).padStart(2, '0');
+        var d = String(now.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+    }
+
+    function dailySeedFor(dateStr) {
+        return 'tagesraetsel-' + (dateStr || todayKey());
+    }
 
     function loadBestTimes() {
         try {
@@ -30,17 +44,21 @@
         try { window.localStorage.setItem(BEST_KEY, JSON.stringify(bestTimes)); } catch (_e) { /* optional */ }
     }
     function loadStats() {
-        var fallback = { wins: 0, bestScore: 0, streak: 0, bestStreak: 0, solutionWordsSolved: 0 };
+        var fallback = { wins: 0, bestScore: 0, streak: 0, bestStreak: 0, solutionWordsSolved: 0, dailyDates: [] };
         try {
             var raw = window.localStorage.getItem(STATS_KEY);
             var p = raw ? JSON.parse(raw) : null;
             if (!p || typeof p !== 'object') return fallback;
+            var dailyDates = Array.isArray(p.dailyDates)
+                ? p.dailyDates.filter(function (s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }).slice(-365)
+                : [];
             return {
                 wins: Number.isInteger(p.wins) && p.wins >= 0 ? Math.min(p.wins, 1000000) : 0,
                 bestScore: Number.isFinite(p.bestScore) && p.bestScore >= 0 ? Math.floor(p.bestScore) : 0,
                 streak: Number.isInteger(p.streak) && p.streak >= 0 ? Math.min(p.streak, 100000) : 0,
                 bestStreak: Number.isInteger(p.bestStreak) && p.bestStreak >= 0 ? Math.min(p.bestStreak, 100000) : 0,
-                solutionWordsSolved: Number.isInteger(p.solutionWordsSolved) && p.solutionWordsSolved >= 0 ? Math.min(p.solutionWordsSolved, 1000000) : 0
+                solutionWordsSolved: Number.isInteger(p.solutionWordsSolved) && p.solutionWordsSolved >= 0 ? Math.min(p.solutionWordsSolved, 1000000) : 0,
+                dailyDates: dailyDates
             };
         } catch (_e) { return fallback; }
     }
@@ -63,13 +81,14 @@
     var puzzle = null;
     var board = {};            // "r,c" -> eingegebenes Graphem
     var errors = {};           // "r,c" -> true (falsch markiert)
+    var verified = {};         // "r,c" -> true (per Prüfen als korrekt bestätigt)
     var hinted = {};           // "r,c" -> true (per Hinweis gesetzt)
     var selected = null;       // {r, c}
     var direction = 'across';
     var lastTypedCell = null;  // {r, c} direkt nach Auto-Vorschub, damit Backspace nie fremde Kreuzungsbuchstaben löscht
     var hintsLeft = 3, hintsUsed = 0, mistakes = 0;
     var status = 'playing';
-    var language = 'de';
+    var language = 'mix';      // Standard in v2.7: Deutsch & Bairisch verbunden
     var difficulty = 'mittel';
     var seed = '';
     var cellMap = {};
@@ -80,15 +99,25 @@
     var elapsed = 0, runningSince = null, timerId = null;
     var composingWord = false;
     var keyboardPref = null;   // null = automatisch (Touch an, Desktop aus), true/false = manuell
+    var lastScrolledClueKey = '';
 
     // DOM-Referenzen
     var boardEl, messageEl, wordInput, wordLabel, keyboardEl, acrossList, downList, kbdToggleBtn;
 
     function announce(text) { messageEl.textContent = text; }
 
+    function isDailyPuzzle() {
+        return !!(puzzle && puzzle.language === 'mix' && puzzle.seed === dailySeedFor(todayKey()));
+    }
+
+    function isTodayDailySolved() {
+        return stats.dailyDates.indexOf(todayKey()) !== -1;
+    }
+
     function solutionWordsFor(lang) {
-        if (DATA && DATA.solutionWords && Array.isArray(DATA.solutionWords[lang])) {
-            return DATA.solutionWords[lang];
+        if (DATA && DATA.solutionWords) {
+            if (Array.isArray(DATA.solutionWords[lang])) return DATA.solutionWords[lang];
+            if (Array.isArray(DATA.solutionWords.mix)) return DATA.solutionWords.mix;
         }
         return [];
     }
@@ -102,19 +131,45 @@
         return true;
     }
 
-    function solvedPlacementCount() {
-        if (!puzzle) return 0;
-        var n = 0;
-        for (var i = 0; i < puzzle.placements.length; i++) {
-            var cells = placementCells(puzzle.placements[i]);
-            var ok = true;
-            for (var j = 0; j < cells.length; j++) {
-                var key = cells[j].r + ',' + cells[j].c;
-                if (board[key] !== puzzle.cells[key].letter) { ok = false; break; }
-            }
-            if (ok) n++;
+    function isPlacementSolved(pl) {
+        if (!puzzle || !pl) return false;
+        var cells = placementCells(pl);
+        for (var j = 0; j < cells.length; j++) {
+            var key = cells[j].r + ',' + cells[j].c;
+            if (board[key] !== puzzle.cells[key].letter) return false;
         }
-        return n;
+        return true;
+    }
+
+    function solvedPlacementSet() {
+        var set = Object.create(null);
+        if (!puzzle) return set;
+        for (var i = 0; i < puzzle.placements.length; i++) {
+            if (isPlacementSolved(puzzle.placements[i])) set[i] = true;
+        }
+        return set;
+    }
+
+    function flashSolvedPlacements(beforeSet) {
+        if (!puzzle) return false;
+        var anyNew = false;
+        for (var i = 0; i < puzzle.placements.length; i++) {
+            if (!beforeSet[i] && isPlacementSolved(puzzle.placements[i])) {
+                anyNew = true;
+                var cells = placementCells(puzzle.placements[i]);
+                cells.forEach(function (pos) {
+                    var cm = cellMap[pos.r + ',' + pos.c];
+                    if (!cm) return;
+                    cm.btn.classList.remove('just-solved');
+                    void cm.btn.offsetWidth;
+                    cm.btn.classList.add('just-solved');
+                    setTimeout(function () {
+                        if (cm && cm.btn) cm.btn.classList.remove('just-solved');
+                    }, 460);
+                });
+            }
+        }
+        return anyNew;
     }
 
     function generateSeed() {
@@ -169,6 +224,14 @@
         return idx == null ? null : puzzle.placements[idx];
     }
 
+    function perpendicularPlacement() {
+        if (!selected) return null;
+        var info = cellMap[selected.r + ',' + selected.c];
+        if (!info || info.across == null || info.down == null) return null;
+        var idx = direction === 'across' ? info.down : info.across;
+        return idx == null ? null : puzzle.placements[idx];
+    }
+
     function normalizeDirection() {
         if (!selected) return;
         var info = cellMap[selected.r + ',' + selected.c];
@@ -177,6 +240,21 @@
         if (!ok) direction = direction === 'across' ? 'down' : 'across';
         ok = direction === 'across' ? info.across != null : info.down != null;
         if (!ok) direction = info.across != null ? 'across' : 'down';
+    }
+
+    function formatClueMeta(clue, solved) {
+        if (clue.language !== 'bar' && !clue.region && !clue.standardGerman) return '';
+        var parts = [];
+        if (clue.region) parts.push('Region: ' + clue.region);
+        var showStd = clue.standardGerman && (solved || L.shouldDisplayStandardGerman(clue));
+        if (showStd) {
+            var normDisp = L.normalizeGridAnswer(clue.displayAnswer || '');
+            var normStd = L.normalizeGridAnswer(clue.standardGerman);
+            if (!solved || normDisp !== normStd) {
+                parts.push('Hochdeutsch: ' + clue.standardGerman);
+            }
+        }
+        return parts.join(' · ');
     }
 
     // ============================================================
@@ -239,14 +317,25 @@
         var box = $('solution-word-box');
         var slotsEl = $('solution-slots');
         var clueEl = $('solution-clue');
+        var langEl = $('solution-lang');
         solutionSlots = [];
         slotsEl.replaceChildren();
         if (!puzzle || !puzzle.solutionWord || !puzzle.solutionWord.cells || !puzzle.solutionWord.cells.length) {
             box.hidden = true;
+            if (langEl) langEl.hidden = true;
             return;
         }
         box.hidden = false;
         clueEl.textContent = puzzle.solutionWord.clue || '';
+        if (langEl) {
+            if (puzzle.solutionWord.language === 'bar') {
+                langEl.textContent = 'Bairisch';
+                langEl.hidden = false;
+            } else {
+                langEl.textContent = '';
+                langEl.hidden = true;
+            }
+        }
         puzzle.solutionWord.cells.forEach(function (sc) {
             var slotBtn = document.createElement('button');
             slotBtn.type = 'button';
@@ -279,29 +368,39 @@
         acrossList.replaceChildren();
         downList.replaceChildren();
         clueButtons = { across: [], down: [] };
+        lastScrolledClueKey = '';
         function makeBtn(clue, dir) {
             var li = document.createElement('li');
             var btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'clue-btn';
+            btn.className = 'clue-btn' + (clue.language === 'bar' ? ' is-bar' : '');
             btn.dataset.dir = dir;
             btn.dataset.number = String(clue.number);
             var head = document.createElement('span');
-            head.textContent = clue.number + '. ' + clue.clue + ' (' + clue.length + ')';
+            head.className = 'clue-head';
+            var textSpan = document.createElement('span');
+            textSpan.className = 'clue-text';
+            textSpan.textContent = clue.number + '. ' + clue.clue + ' (' + clue.length + ')';
+            head.appendChild(textSpan);
+            if (clue.language === 'bar') {
+                var pill = document.createElement('span');
+                pill.className = 'lang-pill';
+                pill.textContent = 'Bairisch';
+                head.appendChild(pill);
+            }
             btn.appendChild(head);
             btn.dataset.label = clue.number + (dir === 'across' ? ' waagrecht' : ' senkrecht');
-            if (clue.region || clue.standardGerman) {
-                var meta = document.createElement('span');
-                meta.className = 'meta';
-                var parts = [];
-                if (clue.region) parts.push('Region: ' + clue.region);
-                if (clue.standardGerman) parts.push('Hochdeutsch: ' + clue.standardGerman);
-                meta.textContent = parts.join(' · ');
-                btn.appendChild(meta);
+            var metaEl = null;
+            var metaText = formatClueMeta(clue, false);
+            if (clue.language === 'bar' || metaText) {
+                metaEl = document.createElement('span');
+                metaEl.className = 'meta';
+                metaEl.textContent = metaText || 'Bairisch';
+                btn.appendChild(metaEl);
             }
             btn.addEventListener('click', function () { onClueClick(dir, clue.number); });
             li.appendChild(btn);
-            return { btn: btn, clue: clue };
+            return { btn: btn, clue: clue, metaEl: metaEl };
         }
         puzzle.clues.across.forEach(function (cl) {
             var item = makeBtn(cl, 'across');
@@ -447,7 +546,7 @@
         if (status !== 'playing' || !selected) return;
         var letters = L.graphemes(ch);
         if (!letters.length) return;
-        var solvedBefore = solvedPlacementCount();
+        var solvedBefore = solvedPlacementSet();
         var solBefore = isSolutionWordSolved();
         var typed = false;
         lastTypedCell = null;
@@ -455,9 +554,12 @@
             if (!L.isGridLetter(letters[i]) || !selected) continue;
             var cur = { r: selected.r, c: selected.c };
             var k = cur.r + ',' + cur.c;
+            if (board[k] !== letters[i]) {
+                delete hinted[k];
+                delete verified[k];
+            }
             board[k] = letters[i];
             delete errors[k];
-            delete hinted[k];
             typed = true;
             var moved = advance();
             lastTypedCell = moved ? cur : null;
@@ -465,7 +567,7 @@
         }
         syncWordInput();
         render();
-        var solvedAfter = solvedPlacementCount();
+        var newlySolvedWord = flashSolvedPlacements(solvedBefore);
         var solAfter = isSolutionWordSolved();
         if (typed) {
             if (solAfter && !solBefore && !solutionAnnounced) {
@@ -473,7 +575,7 @@
                 sfx('fanfare');
                 if (window.GameFX) window.GameFX.pulse($('solution-word-box'));
                 announce('🔑 Lösungswort gefunden: ' + puzzle.solutionWord.display + '!');
-            } else if (solvedAfter > solvedBefore) {
+            } else if (newlySolvedWord) {
                 sfx('success');
                 if (window.GameFX) window.GameFX.pulse($('active-clue'));
             } else {
@@ -532,7 +634,8 @@
                 syncWordInput();
                 render();
                 focusSelected();
-                announce(cand.number + ' ' + (cand.dir === 'across' ? 'waagrecht' : 'senkrecht') + ': ' + cand.clue);
+                announce(cand.number + ' ' + (cand.dir === 'across' ? 'waagrecht' : 'senkrecht') +
+                    (cand.language === 'bar' ? ' (Bairisch)' : '') + ': ' + cand.clue);
                 return true;
             }
         }
@@ -555,6 +658,7 @@
         if (board[k]) {
             delete board[k];
             delete errors[k];
+            delete verified[k];
             delete hinted[k];
             sfx('tap');
             syncWordInput();
@@ -573,6 +677,7 @@
                 selected = { r: lastTypedCell.r, c: lastTypedCell.c };
                 delete board[ltKey];
                 delete errors[ltKey];
+                delete verified[ltKey];
                 delete hinted[ltKey];
                 changed = true;
             }
@@ -580,6 +685,7 @@
         } else if (board[k]) {
             delete board[k];
             delete errors[k];
+            delete verified[k];
             delete hinted[k];
             changed = true;
         } else {
@@ -592,6 +698,7 @@
                         var prevK = selected.r + ',' + selected.c;
                         delete board[prevK];
                         delete errors[prevK];
+                        delete verified[prevK];
                         delete hinted[prevK];
                         changed = true;
                         break;
@@ -648,28 +755,37 @@
         if (status !== 'playing' || composingWord || (event && event.isComposing)) return;
         var pl = activePlacement();
         if (!pl) return;
+        var solvedBefore = solvedPlacementSet();
         var cells = placementCells(pl);
         var letters = parseWordDraft(wordInput.value, cells.length);
         var solBefore = isSolutionWordSolved();
         for (var i = 0; i < cells.length; i++) {
             var k = cells[i].r + ',' + cells[i].c;
             if (letters[i]) {
-                if (board[k] !== letters[i]) delete hinted[k];
+                if (board[k] !== letters[i]) {
+                    delete hinted[k];
+                    delete verified[k];
+                }
                 board[k] = letters[i];
             } else {
                 delete board[k];
                 delete hinted[k];
+                delete verified[k];
             }
             delete errors[k];
         }
         // Während der Nutzer tippt, darf der Eingabewert nicht mit Platzhaltern
         // zurückgeschrieben werden (Cursor + IME bleiben stabil).
         render();
+        var newlySolvedWord = flashSolvedPlacements(solvedBefore);
         if (!solBefore && isSolutionWordSolved() && !solutionAnnounced) {
             solutionAnnounced = true;
             sfx('fanfare');
             if (window.GameFX) window.GameFX.pulse($('solution-word-box'));
             announce('🔑 Lösungswort gefunden: ' + puzzle.solutionWord.display + '!');
+        } else if (newlySolvedWord) {
+            sfx('success');
+            if (window.GameFX) window.GameFX.pulse($('active-clue'));
         }
         checkWin();
         scheduleSave();
@@ -693,7 +809,8 @@
         wordInput.value = text;
         wordInput.maxLength = Math.max(pl.length * 2, pl.length + 4);
         var label = pl.number + ' ' + (pl.dir === 'across' ? 'waagrecht' : 'senkrecht') + ' (' + pl.length + ' Buchstaben)';
-        if (pl.region) label += ' · ' + pl.region;
+        if (pl.language === 'bar') label += ' · Bairisch';
+        if (pl.region) label += ' (' + pl.region + ')';
         wordLabel.textContent = label;
     }
 
@@ -704,10 +821,23 @@
         if (status !== 'playing') return;
         if (hintsLeft <= 0) { announce('Keine Hinweise mehr übrig.'); return; }
         var target = null;
+        // 1) Aktuell gewähltes Feld, falls noch leer oder falsch
         if (selected) {
             var k = selected.r + ',' + selected.c;
             if (board[k] !== puzzle.cells[k].letter) target = k;
         }
+        // 2) Sonst nächstes offenes/falsches Feld im gerade aktiven Wort
+        if (!target) {
+            var pl = activePlacement();
+            if (pl) {
+                var pcells = placementCells(pl);
+                for (var pi = 0; pi < pcells.length; pi++) {
+                    var pk = pcells[pi].r + ',' + pcells[pi].c;
+                    if (board[pk] !== puzzle.cells[pk].letter) { target = pk; break; }
+                }
+            }
+        }
+        // 3) Fallback: zufälliges offenes/falsches Feld irgendwo im Gitter
         if (!target) {
             var wrong = [];
             for (var ck in puzzle.cells) {
@@ -716,15 +846,18 @@
             if (!wrong.length) { announce('Alles ist korrekt – kein Hinweis nötig.'); return; }
             target = wrong[Math.floor(Math.random() * wrong.length)];
         }
+        var solvedBefore = solvedPlacementSet();
         var parts = target.split(',');
         board[target] = puzzle.cells[target].letter;
         hinted[target] = true;
         delete errors[target];
+        delete verified[target];
         hintsLeft--; hintsUsed++;
         selected = { r: +parts[0], c: +parts[1] };
         normalizeDirection();
         syncWordInput();
         render();
+        flashSolvedPlacements(solvedBefore);
         sfx('hint');
         if (window.GameFX && cellMap[target]) window.GameFX.pulse(cellMap[target].btn);
         focusSelected();
@@ -737,19 +870,78 @@
         if (status !== 'playing') return;
         var previousErrors = errors;
         errors = {};
+        verified = {};
         var wrongCount = 0;
+        var rightCount = 0;
         for (var ck in puzzle.cells) {
-            if (board[ck] && board[ck] !== puzzle.cells[ck].letter) {
+            if (!board[ck]) continue;
+            if (board[ck] !== puzzle.cells[ck].letter) {
                 errors[ck] = true;
                 wrongCount++;
                 if (!previousErrors[ck]) mistakes++;
+            } else {
+                verified[ck] = true;
+                rightCount++;
             }
         }
         saveGame();
         render();
-        if (wrongCount === 0) sfx('success');
-        else { sfx('error'); if (window.GameFX) window.GameFX.shake(boardEl); }
-        announce(wrongCount === 0 ? 'Alle bisherigen Buchstaben stimmen.' : (wrongCount + ' falsche Buchstaben markiert.'));
+        if (wrongCount === 0) {
+            sfx('success');
+            announce(rightCount > 0 ? ('Alle ' + rightCount + ' eingetragenen Buchstaben stimmen.') : 'Noch keine Buchstaben eingetragen.');
+        } else {
+            sfx('error');
+            if (window.GameFX) window.GameFX.shake(boardEl);
+            announce(wrongCount + (wrongCount === 1 ? ' falscher Buchstabe markiert.' : ' falsche Buchstaben markiert.'));
+        }
+    }
+
+    function clearErrorsAction() {
+        if (status !== 'playing') return;
+        var keys = Object.keys(errors);
+        if (!keys.length) return;
+        for (var i = 0; i < keys.length; i++) {
+            delete board[keys[i]];
+            delete errors[keys[i]];
+            delete verified[keys[i]];
+        }
+        sfx('undo');
+        syncWordInput(true);
+        render();
+        focusSelected();
+        saveGame();
+        announce(keys.length + (keys.length === 1 ? ' falsches Feld geleert.' : ' falsche Felder geleert.'));
+    }
+
+    function renderResultGlossary() {
+        var box = $('result-glossary');
+        var listEl = $('result-glossary-list');
+        if (!box || !listEl || !puzzle) return;
+        listEl.replaceChildren();
+        var seen = Object.create(null);
+        var items = [];
+        for (var i = 0; i < puzzle.placements.length; i++) {
+            var pl = puzzle.placements[i];
+            if (pl.language !== 'bar' || !pl.standardGerman) continue;
+            if (seen[pl.gridAnswer]) continue;
+            seen[pl.gridAnswer] = true;
+            items.push({ bar: pl.displayAnswer, de: pl.standardGerman });
+        }
+        if (!items.length) {
+            box.hidden = true;
+            return;
+        }
+        items.sort(function (a, b) { return a.bar.localeCompare(b.bar, 'de'); });
+        items.forEach(function (it) {
+            var li = document.createElement('li');
+            var strong = document.createElement('strong');
+            strong.textContent = it.bar;
+            var sep = document.createElement('span');
+            sep.textContent = ' = ' + it.de;
+            li.append(strong, sep);
+            listEl.appendChild(li);
+        });
+        box.hidden = false;
     }
 
     function checkWin() {
@@ -785,6 +977,10 @@
         stats.bestStreak = Math.max(stats.bestStreak, stats.streak);
         stats.bestScore = Math.max(stats.bestScore, score);
         if (solSolved) stats.solutionWordsSolved += 1;
+        if (isDailyPuzzle() && !isTodayDailySolved()) {
+            stats.dailyDates.push(todayKey());
+            if (stats.dailyDates.length > 365) stats.dailyDates = stats.dailyDates.slice(-365);
+        }
         saveStats();
 
         if (window.GameScores) {
@@ -801,9 +997,9 @@
         sfx('win');
         if (window.GameFX) window.GameFX.celebrate();
         var recordText = isRecord
-            ? ' 🏆 Neue Bestzeit für ' + (language === 'de' ? 'Deutsch' : 'Bairisch') + ' (' + (PROFILE_LABELS[difficulty] || difficulty) + ')!'
+            ? ' 🏆 Neue Bestzeit für ' + languageLabel(language) + ' (' + (PROFILE_LABELS[difficulty] || difficulty) + ')!'
             : (previousBest ? ' Bestzeit: ' + formatTime(previousBest.time) + '.' : '');
-        $('result-title').textContent = 'Pandakreuzwort gelöst! 🎉';
+        $('result-title').textContent = isDailyPuzzle() ? 'Tagesrätsel gelöst! 🎉' : 'Pandakreuzwort gelöst! 🎉';
         var solBox = $('result-solution');
         if (puzzle.solutionWord) {
             solBox.hidden = false;
@@ -815,6 +1011,7 @@
         $('result-score').textContent = score.toLocaleString('de-DE');
         $('result-best-score').textContent = stats.bestScore.toLocaleString('de-DE');
         $('result-wins').textContent = String(stats.wins);
+        renderResultGlossary();
         $('result').hidden = false;
         $('result-new-btn').focus();
     }
@@ -831,7 +1028,7 @@
             : DATA.legacyDatasets[activeDatasetVersion];
         $('lang-select').value = language;
         for (var profile of L.PROFILE_NAMES) $('diff-' + profile).setAttribute('aria-pressed', String(profile === difficulty));
-        board = {}; errors = {}; hinted = {};
+        board = {}; errors = {}; verified = {}; hinted = {};
         selected = null; direction = 'across'; solutionAnnounced = false;
         hintsLeft = L.PROFILES[difficulty].hints; hintsUsed = 0; mistakes = 0;
         status = 'playing'; elapsed = 0; runningSince = Date.now();
@@ -863,6 +1060,12 @@
         generate();
     }
 
+    function startDaily() {
+        language = 'mix';
+        $('lang-select').value = 'mix';
+        newGame(dailySeedFor(todayKey()));
+    }
+
     function generate() {
         var token = ++genToken;
         announce('Neues Rätsel wird erstellt …');
@@ -889,7 +1092,7 @@
                 }
             }
             puzzle = p;
-            board = {}; errors = {}; hinted = {};
+            board = {}; errors = {}; verified = {}; hinted = {};
             selected = null; direction = 'across'; solutionAnnounced = false;
             hintsLeft = L.PROFILES[difficulty].hints; hintsUsed = 0; mistakes = 0;
             status = 'playing'; elapsed = 0; runningSince = Date.now();
@@ -901,23 +1104,29 @@
             updateTimer();
             saveGame();
             render();
-            announce('Neues Rätsel: ' + (language === 'de' ? 'Deutsch' : 'Bairisch') + ', ' + (PROFILE_LABELS[difficulty] || difficulty) + ', ' + p.placements.length + ' Wörter' + (p.solutionWord ? ' + Lösungswort.' : '.'));
+            var mixNote = language === 'mix' && p.metrics
+                ? (' (' + p.metrics.deCount + ' Deutsch, ' + p.metrics.barCount + ' Bairisch)')
+                : '';
+            var prefix = isDailyPuzzle() ? 'Tagesrätsel: ' : 'Neues Rätsel: ';
+            announce(prefix + languageLabel(language) + ', ' + (PROFILE_LABELS[difficulty] || difficulty) + ', ' +
+                p.placements.length + ' Wörter' + mixNote + (p.solutionWord ? ' + Lösungswort.' : '.'));
         }, 20);
     }
 
     function setLanguage(lang) {
-        if (lang !== 'de' && lang !== 'bar') return;
+        if (!L.isSupportedLanguage(lang)) return;
         language = lang;
         $('lang-select').value = lang;
         newGame();
     }
     function setDifficulty(diff) {
         if (!L.PROFILES[diff]) return;
+        var keepDaily = isDailyPuzzle();
         difficulty = diff;
         for (var d of L.PROFILE_NAMES) {
             $('diff-' + d).setAttribute('aria-pressed', String(d === diff));
         }
-        newGame();
+        newGame(keepDaily ? dailySeedFor(todayKey()) : undefined);
     }
 
     // ============================================================
@@ -930,7 +1139,7 @@
                 saveVersion: 3,
                 seed: seed, language: language, difficulty: difficulty,
                 datasetVersion: activeDatasetVersion, generatorVersion: L.GENERATOR_VERSION,
-                board: board, errors: errors, hinted: hinted,
+                board: board, errors: errors, verified: verified, hinted: hinted,
                 selected: selected ? { r: selected.r, c: selected.c } : null,
                 direction: direction,
                 hintsLeft: hintsLeft, hintsUsed: hintsUsed, mistakes: mistakes,
@@ -967,7 +1176,7 @@
                 return false;
             }
             if (typeof data.seed !== 'string' || !data.seed || data.seed.length > 128) return false;
-            language = data.language === 'bar' ? 'bar' : data.language === 'de' ? 'de' : '';
+            language = L.isSupportedLanguage(data.language) ? data.language : '';
             difficulty = L.PROFILES[data.difficulty] ? data.difficulty : '';
             if (!language || !difficulty) return false;
             seed = data.seed;
@@ -979,13 +1188,15 @@
             var validation = L.validatePuzzle(puzzle, activeEntries);
             if (!validation.ok || !puzzle.qualityPassed) return false;
 
-            board = {}; errors = {}; hinted = {};
+            board = {}; errors = {}; verified = {}; hinted = {};
             var savedBoard = data.board && typeof data.board === 'object' ? data.board : {};
             var savedErrors = data.errors && typeof data.errors === 'object' ? data.errors : {};
+            var savedVerified = data.verified && typeof data.verified === 'object' ? data.verified : {};
             var savedHinted = data.hinted && typeof data.hinted === 'object' ? data.hinted : {};
             for (var key in puzzle.cells) {
                 if (L.isGridLetter(savedBoard[key])) board[key] = savedBoard[key];
                 if (savedErrors[key] === true && board[key]) errors[key] = true;
+                if (savedVerified[key] === true && board[key] === puzzle.cells[key].letter) verified[key] = true;
                 if (savedHinted[key] === true && board[key] === puzzle.cells[key].letter) hinted[key] = true;
             }
             var profileHints = L.PROFILES[difficulty].hints;
@@ -1027,6 +1238,7 @@
             var cls = 'cell';
             if (c.solutionIndex) cls += ' has-sol';
             if (activeKeys[k]) cls += ' word';
+            if (verified[k]) cls += ' ok';
             if (selected && selected.r === +k.split(',')[0] && selected.c === +k.split(',')[1]) cls += ' sel';
             if (errors[k]) cls += ' err';
             if (hinted[k]) cls += ' hint';
@@ -1039,7 +1251,7 @@
             var dirTxt = active && activeKeys[k] ? (active.dir === 'across' ? 'waagrecht' : 'senkrecht') : '';
             var solTxt = c.solutionIndex ? (', Lösungswort-Buchstabe ' + c.solutionIndex) : '';
             c.btn.setAttribute('aria-label', 'Zeile ' + (r + 1) + ', Spalte ' + (col + 1) + ': ' + (v || 'leer') +
-                (dirTxt ? ', aktiv ' + dirTxt : '') + solTxt + (errors[k] ? ', falsch' : ''));
+                (dirTxt ? ', aktiv ' + dirTxt : '') + solTxt + (errors[k] ? ', falsch' : verified[k] ? ', bestätigt' : ''));
         }
         if (!anyFocused) {
             var firstK = null;
@@ -1066,29 +1278,83 @@
             $('solution-badge').textContent = solSolved ? ('✓ ' + puzzle.solutionWord.display) : (solFilled + ' / ' + solutionSlots.length);
         }
 
+        var activeClueBtn = null;
+        var activeClueKey = active ? (active.dir + ':' + active.number) : '';
         function markClues(list, dir) {
+            var solvedCount = 0;
             list.forEach(function (item) {
-                var cells = placementCells(item.clue);
-                var solved = true;
-                for (var i = 0; i < cells.length; i++) {
-                    if (board[cells[i].r + ',' + cells[i].c] !== puzzle.cells[cells[i].r + ',' + cells[i].c].letter) { solved = false; break; }
-                }
+                var solved = isPlacementSolved(item.clue);
+                if (solved) solvedCount++;
                 item.btn.classList.toggle('solved', solved);
+                if (item.metaEl) {
+                    item.metaEl.textContent = formatClueMeta(item.clue, solved) || 'Bairisch';
+                }
                 var isActive = active && active.dir === dir && active.number === item.clue.number;
                 item.btn.classList.toggle('active', !!isActive);
+                if (isActive) activeClueBtn = item.btn;
             });
+            return solvedCount;
         }
-        markClues(clueButtons.across, 'across');
-        markClues(clueButtons.down, 'down');
+        var solvedAcross = markClues(clueButtons.across, 'across');
+        var solvedDown = markClues(clueButtons.down, 'down');
+        if ($('across-count')) $('across-count').textContent = solvedAcross + ' / ' + clueButtons.across.length;
+        if ($('down-count')) $('down-count').textContent = solvedDown + ' / ' + clueButtons.down.length;
 
+        // Auf breiten Desktop-Spalten den aktiven Hinweis sanft im sichtbaren Bereich halten
+        if (activeClueBtn && activeClueKey !== lastScrolledClueKey) {
+            lastScrolledClueKey = activeClueKey;
+            var colEl = activeClueBtn.closest('.clue-col');
+            if (colEl && colEl.scrollHeight > colEl.clientHeight + 4) {
+                activeClueBtn.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        var langPill = $('active-clue-lang');
+        var crossBtn = $('cross-switch-btn');
         if (active) {
             $('active-clue-label').textContent = active.number + ' ' + (active.dir === 'across' ? 'waagrecht' : 'senkrecht') + ' · ' + active.length + ' Buchstaben';
+            if (langPill) {
+                if (active.language === 'bar') {
+                    langPill.textContent = active.region ? ('Bairisch · ' + active.region) : 'Bairisch';
+                    langPill.hidden = false;
+                } else {
+                    langPill.textContent = '';
+                    langPill.hidden = true;
+                }
+            }
             var activeText = active.clue;
-            if (active.standardGerman) activeText += ' · Hochdeutsch: ' + active.standardGerman;
+            if (active.standardGerman && (isPlacementSolved(active) || L.shouldDisplayStandardGerman(active))) {
+                var normD = L.normalizeGridAnswer(active.displayAnswer || '');
+                var normS = L.normalizeGridAnswer(active.standardGerman);
+                if (normD !== normS) activeText += ' · Hochdeutsch: ' + active.standardGerman;
+            }
             $('active-clue-text').textContent = activeText;
+            var perp = perpendicularPlacement();
+            if (crossBtn) {
+                if (perp) {
+                    crossBtn.hidden = false;
+                    crossBtn.textContent = '↔ ' + perp.number + (perp.dir === 'across' ? ' →' : ' ↓');
+                    crossBtn.setAttribute('aria-label', 'Zu ' + perp.number + ' ' + (perp.dir === 'across' ? 'waagrecht' : 'senkrecht') + ' wechseln');
+                } else {
+                    crossBtn.hidden = true;
+                }
+            }
         } else {
             $('active-clue-label').textContent = 'Aktueller Hinweis';
+            if (langPill) langPill.hidden = true;
+            if (crossBtn) crossBtn.hidden = true;
             $('active-clue-text').textContent = status === 'won' ? 'Rätsel vollständig gelöst.' : 'Wähle ein weißes Feld oder einen Hinweis.';
+        }
+
+        var errCount = Object.keys(errors).length;
+        var errBar = $('error-bar');
+        if (errBar) {
+            if (errCount > 0 && status === 'playing') {
+                errBar.hidden = false;
+                $('error-bar-text').textContent = errCount + (errCount === 1 ? ' Fehler markiert' : ' Fehler markiert');
+            } else {
+                errBar.hidden = true;
+            }
         }
 
         var filledCount = 0, totalCount = 0;
@@ -1097,7 +1363,7 @@
         $('hints-left').textContent = String(hintsLeft);
         var bestEntry = bestTimeFor(language, difficulty);
         $('best-time').textContent = bestEntry ? formatTime(bestEntry.time) : '–';
-        $('best-time').title = bestEntry ? ('Bestzeit ' + (language === 'de' ? 'Deutsch' : 'Bairisch') + ' (' + (PROFILE_LABELS[difficulty] || difficulty) + ') vom ' + bestEntry.date) : 'Noch keine Bestzeit für diese Stufe';
+        $('best-time').title = bestEntry ? ('Bestzeit ' + languageLabel(language) + ' (' + (PROFILE_LABELS[difficulty] || difficulty) + ') vom ' + bestEntry.date) : 'Noch keine Bestzeit für diese Stufe';
         $('best-score').textContent = stats.bestScore > 0 ? stats.bestScore.toLocaleString('de-DE') : '–';
         $('progress').textContent = (totalCount ? Math.round(filledCount / totalCount * 100) : 0) + ' %';
         $('status').textContent = status === 'playing' ? 'Läuft' : status === 'won' ? 'Gelöst' : '';
@@ -1108,6 +1374,14 @@
             $('diff-' + d).setAttribute('aria-pressed', String(d === difficulty));
         }
         $('lang-select').value = language;
+        var dailyBtn = $('daily-btn');
+        if (dailyBtn) {
+            var dailyNow = isDailyPuzzle();
+            var dailyDone = isTodayDailySolved();
+            dailyBtn.setAttribute('aria-pressed', String(dailyNow));
+            dailyBtn.classList.toggle('is-done', dailyDone);
+            dailyBtn.textContent = dailyDone ? '✓ Tagesrätsel' : '📅 Tagesrätsel';
+        }
     }
 
     // ============================================================
@@ -1134,6 +1408,9 @@
         $('diff-schwer').addEventListener('click', function () { setDifficulty('schwer'); });
         $('diff-experte').addEventListener('click', function () { setDifficulty('experte'); });
         $('lang-select').addEventListener('change', function (e) { setLanguage(e.target.value); });
+        $('daily-btn').addEventListener('click', function () { startDaily(); });
+        $('cross-switch-btn').addEventListener('click', function () { sfx('tap'); toggleDirection(); });
+        $('clear-errors-btn').addEventListener('click', clearErrorsAction);
         $('prev-word-btn').addEventListener('click', function () { sfx('tap'); jumpWord(-1); });
         $('next-word-btn').addEventListener('click', function () { sfx('tap'); jumpWord(1); });
         $('dir-btn').addEventListener('click', function () { sfx('tap'); toggleDirection(); });
@@ -1265,6 +1542,7 @@
                 $('result-text').textContent = 'Zeit: ' + formatTime(getElapsed()) + ' · Fehler: ' + mistakes + ' · Hinweise: ' + hintsUsed + '.';
                 $('result-best-score').textContent = stats.bestScore.toLocaleString('de-DE');
                 $('result-wins').textContent = String(stats.wins);
+                renderResultGlossary();
                 $('result').hidden = false;
             }
             announce('Gespeichertes Rätsel fortgesetzt.');
@@ -1282,16 +1560,18 @@
     // ============================================================
     window.Pandakreuzwort = {
         newGame: newGame,
+        startDaily: startDaily,
         restart: restart,
         hint: hintAction,
         check: checkAction,
+        clearErrors: clearErrorsAction,
         setLanguage: setLanguage,
         setDifficulty: setDifficulty,
         toggleDirection: toggleDirection,
         backspace: backspace,
         generatePuzzle: function (opts) {
             var o = Object.assign({}, opts);
-            if (!o.solutionWords) o.solutionWords = solutionWordsFor(o.language || 'de');
+            if (!o.solutionWords) o.solutionWords = solutionWordsFor(o.language || 'mix');
             return L.generatePuzzle(o);
         },
         validatePuzzle: function (p) { return L.validatePuzzle(p, DATA.entries); },
@@ -1304,12 +1584,17 @@
                 language: language,
                 difficulty: difficulty,
                 seed: seed,
+                isDaily: isDailyPuzzle(),
                 selected: selected ? { r: selected.r, c: selected.c } : null,
                 direction: direction,
                 hintsLeft: hintsLeft,
                 hintsUsed: hintsUsed,
                 mistakes: mistakes,
+                errorCount: Object.keys(errors).length,
+                verifiedCount: Object.keys(verified).length,
                 wordCount: puzzle ? puzzle.placements.length : 0,
+                deCount: puzzle && puzzle.metrics ? puzzle.metrics.deCount : 0,
+                barCount: puzzle && puzzle.metrics ? puzzle.metrics.barCount : 0,
                 rows: puzzle ? puzzle.rows : 0,
                 cols: puzzle ? puzzle.cols : 0,
                 metrics: puzzle ? Object.assign({}, puzzle.metrics) : null,

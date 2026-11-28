@@ -3,7 +3,30 @@
 Offline spielbares, nummeriertes Kreuzworträtsel ohne Frameworks oder externe
 Abhängigkeiten. Die kompakten Raster verwenden sichtbare dunkle Sperrfelder,
 weiße Buchstabenfelder sowie getrennte Hinweise für **waagrecht** und
-**senkrecht**. Wählbar sind Deutsch und Bairisch sowie vier Schwierigkeitsgrade.
+**senkrecht**. Standardmäßig verbindet das Spiel **Deutsch & Bairisch** in einem
+gemeinsamen Gitter; *Nur Deutsch* und *Nur Bairisch* stehen ebenso in vier
+Schwierigkeitsgraden bereit.
+
+## Neu in v2.7
+
+- **Deutsch & Bairisch verbunden:** Neuer Standardmodus **Deutsch & Bairisch**, der in jedem Rätsel
+  hochdeutsche und bairische Begriffe ausgewogen miteinander verkreuzt (ohne doppelte Antworten über
+  Sprachgrenzen hinweg). *Nur Deutsch* und *Nur Bairisch* bleiben frei wählbar.
+- **Über 5.100 Begriffe:** Wortbank massiv auf **5.179 Einträge** ausgebaut (4.209 Deutsch,
+  970 Bairisch; Datensatzversion `2026-11-v2.7`) sowie **242 Lösungswörter** (164 Deutsch,
+  80 Bairisch). Frühere Wortbänke (v1.5, v1.6, v1.9 und v2.6) bleiben für laufende Speicherstände
+  eingefroren.
+- **Dichterer Kreuzwort-Generator:** Bevorzugt Mehrfachkreuzungen, ausgewogene Waagrecht-/Senkrecht-
+  Verteilung und kompakte Gitter (~28–30 % Kreuzungsrate, ~50 % Dichte) bei O(1)-Bounding-Box-Undo.
+- **Tagesrätsel & Komfort-Updates:**
+  - **📅 Tagesrätsel** mit täglichem gemeinsamem Deutsch-&-Bairisch-Seed.
+  - Kontraststarke **Bairisch**-Badges an Dialekt-Hinweisen, automatischer Spoiler-Schutz für
+    `Hochdeutsch`-Zusätze und ein **🏔️ Bairisch-Glossar** im Siegesdialog.
+  - **💡 Hinweis** hilft bevorzugt im aktiven Wort; **✓ Prüfen** markiert richtige Buchstaben grün
+    und falsche rot mit Ein-Klick-**✕ Fehler leeren**.
+  - Live-Zähler über *Waagrecht*/*Senkrecht*, direkter Kreuzungs-Umschalter im aktiven Hinweis,
+    automatisches Mitscrollen der Hinweisspalten auf dem Desktop und visuelles Feedback beim Lösen
+    eines Wortes.
 
 ## Neu in v2.6
 

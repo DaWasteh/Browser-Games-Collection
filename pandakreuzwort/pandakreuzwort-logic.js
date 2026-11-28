@@ -120,6 +120,60 @@
     });
 
     var PROFILE_NAMES = Object.freeze(['leicht', 'mittel', 'schwer', 'experte']);
+    var LANGUAGE_MODES = Object.freeze(['mix', 'de', 'bar']);
+
+    function isSupportedLanguage(lang) {
+        return lang === 'mix' || lang === 'de' || lang === 'bar';
+    }
+
+    function isEnhancedV27(datasetVersion, language) {
+        return language === 'mix' || (typeof datasetVersion === 'string' && datasetVersion >= '2026-11-v2.7');
+    }
+
+    function mixTargets(profile) {
+        var name = profile && profile.name ? profile.name : 'mittel';
+        if (name === 'leicht') return { minBar: 3, minDe: 5, idealBarRatio: 0.36 };
+        if (name === 'mittel') return { minBar: 4, minDe: 7, idealBarRatio: 0.35 };
+        if (name === 'schwer') return { minBar: 5, minDe: 9, idealBarRatio: 0.34 };
+        return { minBar: 6, minDe: 10, idealBarRatio: 0.34 };
+    }
+
+    // Prüft, ob die hochdeutsche Bedeutung (standardGerman) bei bairischen
+    // Hinweisen hilfreich angezeigt werden darf, ohne die Antwort zu verraten
+    // oder den Hinweistext doppelt zu wiederholen.
+    function shouldDisplayStandardGerman(clueObj) {
+        if (!clueObj || typeof clueObj.standardGerman !== 'string') return false;
+        var stdRaw = clueObj.standardGerman.trim();
+        if (!stdRaw) return false;
+        var clueText = typeof clueObj.clue === 'string' ? clueObj.clue.toLowerCase() : '';
+        if (clueText && clueText.indexOf(stdRaw.toLowerCase()) !== -1) return false;
+        var ans = clueObj.gridAnswer || normalizeGridAnswer(clueObj.displayAnswer || '');
+        if (!ans) return false;
+        var tokens = stdRaw.split(/[,;/()]+/);
+        for (var i = 0; i < tokens.length; i++) {
+            var tok = normalizeGridAnswer(tokens[i]);
+            if (!tok) continue;
+            if (tok === ans) return false;
+            if (ans.length >= 3 && tok.indexOf(ans) !== -1) return false;
+            if (tok.length >= 3 && ans.indexOf(tok) !== -1) return false;
+            // Sehr enge Stammverwandtschaft (z. B. FREILI vs. FREILICH, SCHNEIBALL vs. SCHNEEBALL)
+            var minLen = Math.min(tok.length, ans.length);
+            if (minLen >= 4) {
+                var pref = 0;
+                while (pref < minLen && tok[pref] === ans[pref]) pref++;
+                if (pref >= 4 && pref / Math.max(tok.length, ans.length) >= 0.65) return false;
+                // Auch bei kleinem Dialekt-Vokalwechsel (z. B. KUA/KUH, OAMA/EIMER, SCHNEIBALL/SCHNEEBALL)
+                if (Math.abs(tok.length - ans.length) <= 2) {
+                    var matches = 0;
+                    for (var j = 0; j < minLen; j++) {
+                        if (tok[j] === ans[j]) matches++;
+                    }
+                    if (matches >= 4 && matches / Math.max(tok.length, ans.length) >= 0.72) return false;
+                }
+            }
+        }
+        return true;
+    }
 
     // ============================================================
     // Deterministischer PRNG: cyrb128 (Hash) + sfc32.
@@ -303,6 +357,11 @@
             letterIndex: Object.create(null), // Graphem -> [[r,c],...]
             placements: [],                   // {entry, row, col, dir}
             usedIds: Object.create(null),
+            usedAnswers: Object.create(null),
+            acrossCount: 0,
+            downCount: 0,
+            deCount: 0,
+            barCount: 0,
             cellCount: 0,
             sumR: 0,
             sumC: 0,
@@ -339,6 +398,7 @@
         var g = prep(entry).graphemes;
         var dr = dir === 'across' ? 0 : 1;
         var dc = dir === 'across' ? 1 : 0;
+        var prevBox = [state.boxR0, state.boxR1, state.boxC0, state.boxC1];
         var created = [];
         var touched = [];
         for (var i = 0; i < g.length; i++) {
@@ -360,7 +420,11 @@
         }
         state.placements.push({ entry: entry, row: row, col: col, dir: dir });
         state.usedIds[entry.id] = true;
-        return { created: created, touched: touched };
+        var ans = entry.gridAnswer || normalizeGridAnswer(entry.displayAnswer);
+        state.usedAnswers[ans] = true;
+        if (dir === 'across') state.acrossCount++; else state.downCount++;
+        if (entry.language === 'bar') state.barCount++; else state.deCount++;
+        return { created: created, touched: touched, prevBox: prevBox, ans: ans };
     }
 
     // Wendet eine geprüfte Platzierung an. Richtungsbesitz wird auch für
@@ -370,6 +434,8 @@
         var changes = placeWordDirect(state, placement.entry, placement.row, placement.col, placement.dir);
         placement._created = changes.created;
         placement._touched = changes.touched;
+        placement._prevBox = changes.prevBox;
+        placement._ans = changes.ans;
     }
 
     function undoPlacement(state, placement) {
@@ -401,7 +467,17 @@
         }
         state.placements.pop();
         delete state.usedIds[placement.entry.id];
-        recomputeBox(state);
+        if (placement._ans) delete state.usedAnswers[placement._ans];
+        if (placement.dir === 'across') state.acrossCount--; else state.downCount--;
+        if (placement.entry && placement.entry.language === 'bar') state.barCount--; else state.deCount--;
+        if (placement._prevBox) {
+            state.boxR0 = placement._prevBox[0];
+            state.boxR1 = placement._prevBox[1];
+            state.boxC0 = placement._prevBox[2];
+            state.boxC1 = placement._prevBox[3];
+        } else {
+            recomputeBox(state);
+        }
     }
 
     // ============================================================
@@ -496,67 +572,171 @@
     }
 
     // Bewertung einer Platzierung: Kreuzungen, Kompaktheit, Länge.
-    function scorePlacement(state, placement, profile) {
+    // Im erweiterten v2.7-Modus werden Mehrfachkreuzungen, quadratische
+    // Kompaktheit, Richtungsbalance und (im Verbundmodus) die Deutsch-/Bairisch-
+    // Balance gezielt belohnt.
+    function scorePlacement(state, placement, profile, opts) {
         var g = prep(placement.entry).graphemes;
         var across = placement.dir === 'across';
         var dr = across ? 0 : 1, dc = across ? 1 : 0;
         var crossings = 0;
         var boxPenalty = 0;
+        var nr0 = state.boxR0, nr1 = state.boxR1, nc0 = state.boxC0, nc1 = state.boxC1;
         for (var i = 0; i < g.length; i++) {
             var r = placement.row + dr * i, c = placement.col + dc * i;
             if (state.grid[key(r, c)] != null) crossings++;
             if (state.boxR0 != null && (r < state.boxR0 || r > state.boxR1 || c < state.boxC0 || c > state.boxC1)) boxPenalty += 5;
+            if (nr0 == null || r < nr0) nr0 = r;
+            if (nr1 == null || r > nr1) nr1 = r;
+            if (nc0 == null || c < nc0) nc0 = c;
+            if (nc1 == null || c > nc1) nc1 = c;
         }
+        placement._crossings = crossings;
         var cr = state.cellCount ? state.sumR / state.cellCount : 0;
         var cc = state.cellCount ? state.sumC / state.cellCount : 0;
         var mid = (g.length - 1) / 2;
         var wr = placement.row + dr * mid, wc = placement.col + dc * mid;
         var dist = Math.abs(wr - cr) + Math.abs(wc - cc);
         var lengthWeight = profile && profile.preferLong ? 3 : 1.5;
-        return crossings * 120 - boxPenalty - dist * 2 + g.length * lengthWeight;
+        if (!opts || !opts.enhanced) {
+            return crossings * 120 - boxPenalty - dist * 2 + g.length * lengthWeight;
+        }
+        // Erweiterter v2.7-Score: starke Belohnung für echte Verzahnung (2+ Kreuzungen)
+        var multiBonus = crossings >= 2 ? (crossings - 1) * 160 : 0;
+        var aspectPenalty = Math.abs((nr1 - nr0) - (nc1 - nc0)) * 3.5;
+        var dirBonus = 0;
+        if (across && state.acrossCount < state.downCount) dirBonus = 40;
+        else if (!across && state.downCount < state.acrossCount) dirBonus = 40;
+        var langBonus = 0;
+        if (opts.language === 'mix') {
+            var total = state.deCount + state.barCount;
+            var ratio = total ? state.barCount / total : 0;
+            var ideal = (opts.mixTarget && opts.mixTarget.idealBarRatio) || 0.35;
+            var isBar = placement.entry.language === 'bar';
+            if (isBar && ratio < ideal) langBonus = 55;
+            else if (!isBar && ratio > ideal + 0.08) langBonus = 55;
+            else if (isBar && ratio > ideal + 0.14) langBonus = -45;
+        }
+        return crossings * 165 + multiBonus - boxPenalty * 1.4 - aspectPenalty - dist * 2.2 + g.length * lengthWeight + dirBonus + langBonus;
     }
 
     // Sammle einsetzbare Kandidaten (nur Einträge mit mind. einer legalen Stelle).
-    function collectCandidates(state, order, profile, prng) {
+    function collectCandidates(state, order, profile, prng, opts) {
+        var enhanced = !!(opts && opts.enhanced);
         var candidates = [];
         for (var i = 0; i < order.length; i++) {
             var entry = order[i];
             if (state.usedIds[entry.id]) continue;
+            var ans = entry.gridAnswer || normalizeGridAnswer(entry.displayAnswer);
+            if (state.usedAnswers[ans]) continue;
             if (!sharesAnyLetter(state, entry)) continue;
             var placements = enumerateLegalPlacements(state, entry);
             if (placements.length === 0) continue;
-            // Nach Bewertung sortieren, Gleichstände PRNG-gemischt.
-            for (var k = 0; k < placements.length; k++) placements[k]._tb = prng();
+            // Bewertung einmalig vorberechnen (spart O(k log k) Neuberechnungen).
+            for (var k = 0; k < placements.length; k++) {
+                placements[k]._tb = prng();
+                placements[k]._score = scorePlacement(state, placements[k], profile, opts);
+            }
             placements.sort(function (a, b) {
-                var sa = scorePlacement(state, a, profile), sb = scorePlacement(state, b, profile);
-                if (sb !== sa) return sb - sa;
+                if (b._score !== a._score) return b._score - a._score;
                 return a._tb - b._tb;
             });
             candidates.push({
                 entry: entry,
                 placements: placements,
                 count: placements.length,
+                bestCrossings: placements[0]._crossings || 1,
+                bestScore: placements[0]._score,
                 tiebreak: prng()
             });
         }
-        // MRV / Fail-first: wenigste Stellen zuerst, dann härtere Einträge.
-        candidates.sort(function (a, b) {
-            if (a.count !== b.count) return a.count - b.count;
-            var da = a.entry.difficulty || 1, db = b.entry.difficulty || 1;
-            if (db !== da) return db - da;
-            return a.tiebreak - b.tiebreak;
-        });
+        if (!enhanced) {
+            // Legacy-MRV / Fail-first (exakt identische Reihenfolge für v1.5–v2.6-Speicherstände).
+            candidates.sort(function (a, b) {
+                if (a.count !== b.count) return a.count - b.count;
+                var da = a.entry.difficulty || 1, db = b.entry.difficulty || 1;
+                if (db !== da) return db - da;
+                return a.tiebreak - b.tiebreak;
+            });
+        } else {
+            // v2.7-Verzahnung: Mehrfachkreuzungen und hohe Kompaktheit zuerst,
+            // mit leichtem PRNG-Anteil für hohe Seed-Varianz.
+            candidates.sort(function (a, b) {
+                if (b.bestCrossings !== a.bestCrossings) return b.bestCrossings - a.bestCrossings;
+                var sa = a.bestScore + a.tiebreak * 22;
+                var sb = b.bestScore + b.tiebreak * 22;
+                if (sb !== sa) return sb - sa;
+                return a.tiebreak - b.tiebreak;
+            });
+        }
         return candidates;
+    }
+
+    var COMMON_LETTERS = { E: 3, N: 3, R: 2.5, A: 2.5, S: 2.5, I: 2.2, T: 2.2, L: 1.8, O: 1.8, U: 1.6, D: 1.5, G: 1.4, H: 1.4, M: 1.4 };
+
+    function anchorScore(entry) {
+        var gs = prep(entry).graphemes;
+        var len = gs.length;
+        var sc = (len >= 6 && len <= 9) ? 18 : (len >= 5 && len <= 10) ? 10 : 0;
+        var seen = Object.create(null);
+        for (var i = 0; i < len; i++) {
+            var ch = gs[i];
+            if (!seen[ch]) {
+                seen[ch] = true;
+                sc += COMMON_LETTERS[ch] || 0.4;
+            }
+        }
+        return sc;
+    }
+
+    function buildStratifiedOrder(prng, pool, limit) {
+        var de = [], bar = [];
+        for (var i = 0; i < pool.length; i++) {
+            if (pool[i].language === 'bar') bar.push(pool[i]); else de.push(pool[i]);
+        }
+        de = shuffle(de, prng);
+        bar = shuffle(bar, prng);
+        if (!de.length || !bar.length) return shuffle(pool, prng).slice(0, limit);
+        var barQuota = Math.min(bar.length, Math.max(24, Math.round(limit * 0.4)));
+        var deQuota = Math.min(de.length, Math.max(24, limit - barQuota));
+        var chosenBar = bar.slice(0, barQuota);
+        var chosenDe = de.slice(0, deQuota);
+        // Verschränkt mischen, damit beide Sprachen gleichberechtigt kreuzen.
+        var out = [];
+        var di = 0, bi = 0;
+        while (di < chosenDe.length || bi < chosenBar.length) {
+            if (di < chosenDe.length) out.push(chosenDe[di++]);
+            if (di < chosenDe.length) out.push(chosenDe[di++]);
+            if (bi < chosenBar.length) out.push(chosenBar[bi++]);
+        }
+        return out;
     }
 
     // ============================================================
     // Generierung eines Versuchs
     // ============================================================
-    function generateOneAttempt(prng, pool, profile) {
-        var order = shuffle(pool, prng);
-        if (profile.poolLimit && order.length > profile.poolLimit) order = order.slice(0, profile.poolLimit);
+    function generateOneAttempt(prng, pool, profile, opts) {
+        var enhanced = !!(opts && opts.enhanced);
+        var order;
+        if (!enhanced) {
+            order = shuffle(pool, prng);
+            if (profile.poolLimit && order.length > profile.poolLimit) order = order.slice(0, profile.poolLimit);
+        } else {
+            var v27Limit = Math.min(pool.length, Math.max(96, Math.round((profile.poolLimit || 110) * 0.85)));
+            if (opts.language === 'mix') order = buildStratifiedOrder(prng, pool, v27Limit);
+            else order = shuffle(pool, prng).slice(0, v27Limit);
+        }
         var state = newState();
-        var anchor = order[0];
+        var anchorIdx = 0;
+        if (enhanced && order.length > 1) {
+            var probe = Math.min(order.length, 10);
+            var bestAnchorScore = -Infinity;
+            for (var ai = 0; ai < probe; ai++) {
+                var asc = anchorScore(order[ai]);
+                if (asc > bestAnchorScore) { bestAnchorScore = asc; anchorIdx = ai; }
+            }
+        }
+        var anchor = order[anchorIdx];
         placeWordDirect(state, anchor, 0, 0, 'across');
 
         var best = state.placements.slice();
@@ -568,7 +748,7 @@
             budget.count++;
             if (budget.count > profile.maxNodes) return;
 
-            var candidates = collectCandidates(state, order, profile, prng);
+            var candidates = collectCandidates(state, order, profile, prng, opts);
             if (candidates.length === 0) return;
 
             var limit = Math.min(candidates.length, profile.candidateLimit);
@@ -597,21 +777,31 @@
     function generatePuzzle(opts) {
         opts = opts || {};
         var seed = opts.seed != null ? opts.seed : 'panda';
-        var language = opts.language === 'bar' ? 'bar' : 'de';
+        var language = opts.language === 'mix' ? 'mix' : opts.language === 'bar' ? 'bar' : 'de';
         var difficulty = PROFILES[opts.difficulty] ? opts.difficulty : 'mittel';
         var profile = PROFILES[difficulty];
         var allEntries = opts.entries || [];
         ensurePrepared(allEntries);
         var datasetVersion = opts.datasetVersion || '0';
+        var enhanced = isEnhancedV27(datasetVersion, language);
+        var mixTarget = language === 'mix' ? mixTargets(profile) : null;
         var pool = [];
+        var poolDeCount = 0, poolBarCount = 0;
         for (var i = 0; i < allEntries.length; i++) {
             var e = allEntries[i];
-            if (e.language !== language) continue;
+            if (language === 'mix') {
+                if (e.language !== 'de' && e.language !== 'bar') continue;
+            } else if (e.language !== language) {
+                continue;
+            }
             var dataProfile = difficulty === 'experte' ? 'schwer' : difficulty;
             if (!(e.allowedProfiles && e.allowedProfiles.indexOf(dataProfile) !== -1)) continue;
             if ((e.difficulty || 1) > profile.entryDifficultyMax) continue;
             pool.push(e);
+            if (e.language === 'bar') poolBarCount++; else poolDeCount++;
         }
+        var enforceMix = language === 'mix' && poolDeCount >= mixTarget.minDe && poolBarCount >= mixTarget.minBar;
+        var attemptOpts = { enhanced: enhanced, language: language, mixTarget: mixTarget };
         var meta = {
             seed: seed, language: language, difficulty: difficulty,
             datasetVersion: datasetVersion, generatorVersion: GENERATOR_VERSION
@@ -635,30 +825,32 @@
         for (var attempt = 0; attempt < profile.maxAttempts; attempt++) {
             var attemptSeed = deriveAttemptSeed(seed, attempt, datasetVersion, GENERATOR_VERSION);
             var prng = createPrng(attemptSeed);
-            var placements = generateOneAttempt(prng, pool, profile);
+            var placements = generateOneAttempt(prng, pool, profile, attemptOpts);
             var candidate = buildPuzzle(placements, meta);
             candidate.metrics = computeMetrics(candidate);
+            var mixOk = !enforceMix || (candidate.metrics.barCount >= mixTarget.minBar && candidate.metrics.deCount >= mixTarget.minDe);
             var candidatePassed = candidate.metrics.wordCount >= profile.minWords &&
                 candidate.metrics.crossingRate >= profile.minCrossingRate &&
-                candidate.metrics.density >= profile.minDensity && candidate.metrics.directionBalance >= 0.28;
-            var score = qualityScore(candidate.metrics, profile);
+                candidate.metrics.density >= profile.minDensity && candidate.metrics.directionBalance >= 0.28 && mixOk;
+            var score = qualityScore(candidate.metrics, profile, enforceMix ? mixTarget : null);
             if (score > bestScore) {
                 bestScore = score;
                 bestPlacements = placements;
                 bestQualityPassed = candidatePassed;
             }
             attemptsUsed = attempt + 1;
-            if (placements.length >= profile.targetWords) targetHits++;
+            if (placements.length >= profile.targetWords && mixOk) targetHits++;
             if (targetHits >= profile.qualityAttempts && bestQualityPassed) break;
         }
 
         var puzzle = buildPuzzle(bestPlacements, meta);
         puzzle.profile = profile.name;
         puzzle.metrics = computeMetrics(puzzle);
+        var finalMixOk = !enforceMix || (puzzle.metrics.barCount >= mixTarget.minBar && puzzle.metrics.deCount >= mixTarget.minDe);
         puzzle.qualityPassed = puzzle.metrics.wordCount >= profile.minWords &&
             puzzle.metrics.crossingRate >= profile.minCrossingRate &&
             puzzle.metrics.density >= profile.minDensity &&
-            puzzle.metrics.directionBalance >= 0.28;
+            puzzle.metrics.directionBalance >= 0.28 && finalMixOk;
         puzzle.attemptsUsed = attemptsUsed;
         if (Array.isArray(opts.solutionWords) && opts.solutionWords.length > 0) {
             assignSolutionWord(puzzle, opts.solutionWords);
@@ -712,14 +904,15 @@
             var word = typeof item === 'string' ? normalizeGridAnswer(item) : (item.word || normalizeGridAnswer(item.display));
             var display = typeof item === 'string' ? item : (item.display || word);
             var clue = typeof item === 'string' ? '' : (item.clue || '');
+            var lang = typeof item === 'string' ? null : (item.language || null);
             if (!word || existingWords[word]) continue;
             if (!canForm(word)) continue;
             var len = graphemes(word).length;
             if (len >= preferredMin && len <= preferredMax) {
-                chosen = { word: word, display: display, clue: clue };
+                chosen = { word: word, display: display, clue: clue, language: lang };
                 break;
             }
-            if (!fallback) fallback = { word: word, display: display, clue: clue };
+            if (!fallback) fallback = { word: word, display: display, clue: clue, language: lang };
         }
         if (!chosen) chosen = fallback;
         if (!chosen) {
@@ -770,6 +963,7 @@
             display: chosen.display,
             word: chosen.word,
             clue: chosen.clue,
+            language: chosen.language || (puzzle.language === 'bar' ? 'bar' : 'de'),
             cells: picked
         };
         return puzzle.solutionWord;
@@ -811,6 +1005,7 @@
         return {
             number: p.number,
             entryId: p.entryId,
+            language: p.language || 'de',
             row: p.row,
             col: p.col,
             dir: p.dir,
@@ -827,6 +1022,7 @@
         return {
             entry: entry, row: row, col: col, dir: dir,
             entryId: entry.id,
+            language: entry.language || 'de',
             gridAnswer: entry.gridAnswer || normalizeGridAnswer(entry.displayAnswer),
             length: prep(entry).graphemes.length,
             clue: entry.clue,
@@ -918,6 +1114,8 @@
         var cols = (minC === Infinity) ? 0 : maxC - minC + 1;
         var acrossCount = puzzle.placements.filter(function (p) { return p.dir === 'across'; }).length;
         var downCount = wordCount - acrossCount;
+        var barCount = puzzle.placements.filter(function (p) { return p.language === 'bar'; }).length;
+        var deCount = wordCount - barCount;
         return {
             wordCount: wordCount,
             cellCount: cellCount,
@@ -927,22 +1125,31 @@
             directionBalance: Math.max(acrossCount, downCount) ? Math.min(acrossCount, downCount) / Math.max(acrossCount, downCount) : 0,
             acrossCount: acrossCount,
             downCount: downCount,
+            deCount: deCount,
+            barCount: barCount,
             rows: rows,
             cols: cols,
             avgLen: wordCount ? Math.round((total / wordCount) * 10) / 10 : 0
         };
     }
 
-    function qualityScore(metrics, profile) {
+    function qualityScore(metrics, profile, mixTarget) {
         if (!metrics) return -Infinity;
         var minimumPenalty = metrics.wordCount < profile.minWords ? (profile.minWords - metrics.wordCount) * 1000000 : 0;
         if (metrics.crossingRate < profile.minCrossingRate) minimumPenalty += (profile.minCrossingRate - metrics.crossingRate) * 500000;
         if (metrics.density < profile.minDensity) minimumPenalty += (profile.minDensity - metrics.density) * 350000;
         if (metrics.directionBalance < 0.28) minimumPenalty += (0.28 - metrics.directionBalance) * 250000;
-        return metrics.wordCount * 100000 - minimumPenalty +
-            metrics.crossingRate * 12000 + metrics.density * 7000 +
-            metrics.directionBalance * 2500 + metrics.avgLen * (profile.preferLong ? 80 : 25) -
-            Math.abs(metrics.rows - metrics.cols) * 20;
+        var mixBonus = 0;
+        if (mixTarget) {
+            if (metrics.barCount < mixTarget.minBar) minimumPenalty += (mixTarget.minBar - metrics.barCount) * 450000;
+            if (metrics.deCount < mixTarget.minDe) minimumPenalty += (mixTarget.minDe - metrics.deCount) * 450000;
+            var actualRatio = metrics.wordCount ? metrics.barCount / metrics.wordCount : 0;
+            mixBonus = Math.max(0, 1200 - Math.abs(actualRatio - mixTarget.idealBarRatio) * 3500);
+        }
+        return metrics.wordCount * 100000 - minimumPenalty + mixBonus +
+            metrics.crossingRate * 16000 + metrics.density * 8500 +
+            metrics.directionBalance * 2800 + metrics.avgLen * (profile.preferLong ? 80 : 25) -
+            Math.abs(metrics.rows - metrics.cols) * 24;
     }
 
     // ============================================================
@@ -956,12 +1163,13 @@
         var placements = puzzle.placements;
         if (!Array.isArray(placements) || placements.length === 0) return { ok: false, errors: ['Keine Platzierungen.'] };
         if (placements.length > 64) errors.push('Zu viele Platzierungen.');
-        if (puzzle.language !== 'de' && puzzle.language !== 'bar') errors.push('Ungültige Sprache.');
+        if (!isSupportedLanguage(puzzle.language)) errors.push('Ungültige Sprache.');
         if (!PROFILES[puzzle.difficulty]) errors.push('Ungültige Schwierigkeit.');
 
         var grid = Object.create(null);
         var coverage = Object.create(null); // {across:index|null,down:index|null}
         var usedIds = Object.create(null);
+        var usedAnswers = Object.create(null);
         var idToEntry = Object.create(null);
         var sourceEntries = [];
         if (entries) for (var ei = 0; ei < entries.length; ei++) idToEntry[entries[ei].id] = entries[ei];
@@ -979,6 +1187,8 @@
                 errors.push(ctx + ': row/col außerhalb des Gitters.');
             }
             if (typeof p.gridAnswer !== 'string' || !p.gridAnswer) errors.push(ctx + ': gridAnswer fehlt.');
+            else if (usedAnswers[p.gridAnswer]) errors.push(ctx + ': doppelte Antwort ' + p.gridAnswer);
+            else usedAnswers[p.gridAnswer] = true;
             var g = graphemes(p.gridAnswer);
             if (g.length < 2 || g.length > 14) errors.push(ctx + ': ungültige Antwortlänge.');
             for (var gi = 0; gi < g.length; gi++) if (!ALLOWED_LETTER.test(g[gi])) { errors.push(ctx + ': unerlaubtes Graphem.'); break; }
@@ -989,7 +1199,10 @@
                 if (!sourceEntry) errors.push(ctx + ': entryId nicht in Datenbank.');
                 else {
                     var expectedAnswer = sourceEntry.gridAnswer || normalizeGridAnswer(sourceEntry.displayAnswer);
-                    if (sourceEntry.language !== puzzle.language) errors.push(ctx + ': Sprache passt nicht zum Rätsel.');
+                    var langOk = puzzle.language === 'mix'
+                        ? (sourceEntry.language === 'de' || sourceEntry.language === 'bar')
+                        : (sourceEntry.language === puzzle.language);
+                    if (!langOk) errors.push(ctx + ': Sprache passt nicht zum Rätsel.');
                     if (p.gridAnswer !== expectedAnswer) errors.push(ctx + ': gridAnswer passt nicht zur entryId.');
                     if (p.clue !== sourceEntry.clue) errors.push(ctx + ': clue passt nicht zur entryId.');
                     if (p.displayAnswer !== sourceEntry.displayAnswer) errors.push(ctx + ': displayAnswer passt nicht zur entryId.');
@@ -1142,6 +1355,10 @@
         GENERATOR_VERSION: GENERATOR_VERSION,
         PROFILES: PROFILES,
         PROFILE_NAMES: PROFILE_NAMES,
+        LANGUAGE_MODES: LANGUAGE_MODES,
+        isSupportedLanguage: isSupportedLanguage,
+        mixTargets: mixTargets,
+        shouldDisplayStandardGerman: shouldDisplayStandardGerman,
         ALLOWED_LETTER: ALLOWED_LETTER,
         normalizeGridAnswer: normalizeGridAnswer,
         graphemes: graphemes,

@@ -11,7 +11,7 @@ ohne Server, Frameworks oder Build-Prozess. Einfach öffnen und spielen.
 
 | Spiel | Ordner | Beschreibung |
 |---|---|---|
-| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Klassisches Kreuzworträtsel auf Deutsch und Bairisch mit über 1.500 Begriffen, Lösungswort und vier Stufen |
+| ✏️ **Pandakreuzwort** | [`pandakreuzwort/`](pandakreuzwort/) | Verbindet Deutsch und Bairisch in einem Kreuzworträtsel – über 5.100 Begriffe, Tagesrätsel, Lösungswort und vier Stufen |
 | ♠️ **Panndike Solitär** | [`panndike/`](panndike/) | Klondike-Solitär mit Zieh-1/3, Tagesdeal, Hinweisen, sicheren Fundamentzügen und Bestwerten |
 | 🃏 **Pandataire** | [`pandataire/`](pandataire/) | Drei Solitär-Varianten in einem Spiel: TriPeaks, Golf und Pyramid mit lösbaren Deals |
 | 🕷️ **Panda Spider** | [`panda-spider/`](panda-spider/) | Spider-Solitär mit einer, zwei oder vier Farben und acht Zielsequenzen |
@@ -79,6 +79,33 @@ Gloamdeep bringt zusätzlich eigene Browser-Tests mit: `node gloamdeep/tests/smo
 (21 Schritte mit echten Tastatur-/Mausereignissen durch Dorf, Händler, Truhe, Kampf, zehn
 Etagen und Wächter) und `node gloamdeep/tests/soak.mjs` (Bot kämpft beschleunigt durch
 20 Etagen inklusive aller vier Wächter).
+
+## ✨ Neu in v2.7
+
+### Pandakreuzwort: Deutsch & Bairisch verbunden, über 5.100 Begriffe & dichtere Rätsel
+
+- **Deutsch & Bairisch in einem gemeinsamen Gitter:** Der neue Standardmodus **Deutsch & Bairisch**
+  verbindet hochdeutsche und bairische Begriffe in jedem Rätsel zu einem ausgewogenen, eng
+  verzahnten Kreuzwortgitter (je nach Stufe mindestens 3–6 bairische Begriffe direkt mit deutschen
+  Wörtern verkreuzt). *Nur Deutsch* und *Nur Bairisch* bleiben jederzeit im Wortschatz-Menü wählbar.
+- **Wortschatz massiv auf 5.179 redaktionelle Einträge ausgebaut** (**4.209 Deutsch**, **970 Bairisch**;
+  zuvor 1.510 Einträge) – dazu **242 klassische Lösungswörter** (164 Deutsch, 80 Bairisch).
+  Alle bisherigen Wortbänke (v1.5, v1.6, v1.9 und v2.6) bleiben für bestehende Speicherstände eingefroren.
+- **Dichterer, schnellerer Kreuzwort-Generator:** Der überarbeitete v2.7-Generator bevorzugt
+  Mehrfachkreuzungen, quadratische Kompaktheit und eine ausgewogene Waagrecht-/Senkrecht-Balance.
+  Kreuzungsrate (~28–30 %) und Gitterdichte (~50 %) steigen spürbar, während doppelte Antworten über
+  Sprachgrenzen hinweg ausgeschlossen sind.
+- **Tagesrätsel, Bairisch-Glossar & komfortableres Lösen:**
+  - Neues **📅 Tagesrätsel** mit festem täglichem Seed im Deutsch-&-Bairisch-Verbund samt
+    Gelöst-Haken.
+  - Bairische Hinweise tragen eine kontrastreiche **Bairisch**-Markierung samt Region, unterdrücken
+    Antwort-Spoiler bei gleichlautenden Hochdeutsch-Entsprechungen automatisch und erscheinen nach
+    dem Sieg als kompaktes **🏔️ Bairisch-Glossar** mit hochdeutscher Übersetzung.
+  - **💡 Hinweis** hilft nun bevorzugt im gerade gewählten Wort; **✓ Prüfen** bestätigt richtige
+    Buchstaben grün, markiert Fehler rot und bietet eine **✕ Fehler leeren**-Schaltfläche.
+  - Live-Fortschrittszähler an den Hinweislisten (`Waagrecht` / `Senkrecht`), ein direkter
+    **Kreuzungs-Umschalter** im aktiven Hinweisbalken, sanftes Mitscrollen auf dem Desktop und
+    kurzes Aufleuchten frisch gelöster Wörter runden das Rätselerlebnis ab.
 
 ## ✨ Neu in v2.6
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pandakreuzwort – Kreuzworträtsel</title>
-  <meta name="description" content="Kreuzworträtsel auf Deutsch und Bairisch mit klassischem Lösungswort, vier Stufen, Bestzeiten und bequemer Tastatur- und Touch-Eingabe.">
+  <meta name="description" content="Kreuzworträtsel, das Deutsch und Bairisch verbindet – über 5.100 Begriffe, Tagesrätsel, klassisches Lösungswort, vier Stufen und komfortable Tastatur- und Touch-Eingabe.">
   <script src="../shared/game-shell.js"></script>
   <script src="../shared/game-scores.js"></script>
   <script src="../shared/game-audio.js"></script>
@@ -19,7 +19,7 @@
   <header class="site-header">
     <a href="../index.html" class="back-link" aria-label="Zur Spieleübersicht">← Spieleübersicht</a>
     <h1>🐼 Pandakreuzwort</h1>
-    <p>Klassisches Kreuzworträtsel auf Deutsch oder Bairisch – finde alle Begriffe und das verborgene Lösungswort.</p>
+    <p>Klassisches Kreuzworträtsel, das Deutsch und Bairisch verbindet – finde alle Begriffe und das verborgene Lösungswort.</p>
   </header>
 
   <main>
@@ -37,10 +37,11 @@
 
     <div class="controls-top">
       <label class="lang-control" for="lang-select">
-        <span>Sprache</span>
-        <select id="lang-select" aria-label="Sprache wählen">
-          <option value="de">Deutsch</option>
-          <option value="bar">Bairisch</option>
+        <span>Wortschatz</span>
+        <select id="lang-select" aria-label="Wortschatz wählen">
+          <option value="mix" selected>Deutsch &amp; Bairisch</option>
+          <option value="de">Nur Deutsch</option>
+          <option value="bar">Nur Bairisch</option>
         </select>
       </label>
       <div class="diff" role="group" aria-label="Schwierigkeit">
@@ -49,11 +50,12 @@
         <button id="diff-schwer" type="button" aria-pressed="false">Schwer</button>
         <button id="diff-experte" type="button" aria-pressed="false">Experte</button>
       </div>
+      <button id="daily-btn" type="button" class="daily-btn" aria-pressed="false" title="Heutiges gemeinsames Tagesrätsel (Deutsch &amp; Bairisch)">📅 Tagesrätsel</button>
     </div>
 
     <div class="workspace">
       <section class="clue-col clue-col-across" aria-label="Waagrechte Hinweise">
-        <h2>Waagrecht</h2>
+        <h2><span>Waagrecht</span><span id="across-count" class="clue-count" aria-live="polite"></span></h2>
         <ul id="across-list" class="clue-list" role="list"></ul>
       </section>
 
@@ -61,13 +63,21 @@
         <section class="board-wrap" aria-label="Kreuzwortgitter">
           <div id="active-clue" class="active-clue" aria-live="polite">
             <div class="active-clue-top">
-              <span id="active-clue-label">Aktueller Hinweis</span>
+              <div class="active-clue-meta">
+                <span id="active-clue-label">Aktueller Hinweis</span>
+                <span id="active-clue-lang" class="lang-pill" hidden></span>
+              </div>
               <div class="active-clue-nav">
+                <button id="cross-switch-btn" type="button" class="mini-btn cross-chip" hidden title="An Kreuzung zur anderen Richtung wechseln"></button>
                 <button id="prev-word-btn" type="button" class="mini-btn" aria-label="Vorheriges Wort" title="Vorheriges Wort (Shift+Tab)">◀</button>
                 <button id="next-word-btn" type="button" class="mini-btn" aria-label="Nächstes Wort" title="Nächstes Wort (Tab)">▶</button>
               </div>
             </div>
             <strong id="active-clue-text">Rätsel wird vorbereitet …</strong>
+            <div id="error-bar" class="error-bar" hidden>
+              <span id="error-bar-text"></span>
+              <button id="clear-errors-btn" type="button" class="mini-btn error-clear-btn">✕ Fehler leeren</button>
+            </div>
           </div>
 
           <div id="board-scroll" class="board-scroll" tabindex="0" aria-label="Kreuzworträtsel. Auf kleinen Bildschirmen verschiebbar.">
@@ -78,6 +88,7 @@
           <section id="solution-word-box" class="solution-box" aria-label="Lösungswort" hidden>
             <div class="solution-head">
               <span class="solution-title">🔑 Lösungswort</span>
+              <span id="solution-lang" class="lang-pill" hidden></span>
               <span id="solution-clue" class="solution-clue"></span>
               <span id="solution-badge" class="solution-badge">0 / 0</span>
             </div>
@@ -109,7 +120,7 @@
       </div>
 
       <section class="clue-col clue-col-down" aria-label="Senkrechte Hinweise">
-        <h2>Senkrecht</h2>
+        <h2><span>Senkrecht</span><span id="down-count" class="clue-count" aria-live="polite"></span></h2>
         <ul id="down-list" class="clue-list" role="list"></ul>
       </section>
     </div>
@@ -118,10 +129,12 @@
       <summary>Regeln &amp; Bedienung</summary>
       <p>Fülle alle weißen Felder mit den passenden Buchstaben; dunkle Felder trennen die Wörter. Wie bei klassischen Kreuzworträtseln gilt: <em>Ä = AE, Ö = OE, Ü = UE, ß = SS</em>.</p>
       <ul>
+        <li><strong>Deutsch &amp; Bairisch verbunden:</strong> Standardmäßig kreuzen sich hochdeutsche und bairische Begriffe in einem gemeinsamen Gitter. Bairische Hinweise tragen eine gut sichtbare <strong>Bairisch</strong>-Markierung samt Region; auf Wunsch kannst du oben auch <em>Nur Deutsch</em> oder <em>Nur Bairisch</em> wählen.</li>
+        <li><strong>📅 Tagesrätsel:</strong> Jeden Tag wartet ein gemeinsames Deutsch-&amp;-Bairisch-Rätsel mit festem Tages-Seed in deiner gewählten Schwierigkeitsstufe.</li>
         <li><strong>Lösungswort:</strong> Die farbig markierten Felder mit kleiner Kreisnummer ergeben der Reihe nach das gesuchte Sonderwort. Ein Tipp auf ein Feld im Lösungswort-Balken springt direkt zur passenden Stelle im Gitter.</li>
-        <li><strong>Tastatur &amp; Tablet-Tastatur:</strong> Tippe Buchstaben direkt ins ausgewählte Feld. <kbd>Backspace</kbd> löscht das aktuelle Feld oder geht einen Schritt zurück, <kbd>Entf</kbd> leert das Feld an Ort und Stelle. <kbd>Tab</kbd> springt zum nächsten Wort, <kbd>Enter</kbd> oder <kbd>Leertaste</kbd> wechselt an Kreuzungen die Richtung.</li>
+        <li><strong>Tastatur &amp; Tablet-Tastatur:</strong> Tippe Buchstaben direkt ins ausgewählte Feld. <kbd>Backspace</kbd> löscht im aktuellen Wort rückwärts, <kbd>Entf</kbd> leert das Feld an Ort und Stelle. <kbd>Tab</kbd> springt zum nächsten offenen Wort, <kbd>Enter</kbd> oder <kbd>Leertaste</kbd> wechselt an Kreuzungen die Richtung.</li>
         <li><strong>Touch &amp; Bildschirmtastatur:</strong> Auf Touch-Geräten erscheint automatisch die kompakte Bildschirmtastatur unter dem Gitter, ohne Felder zu verdecken. Über „Wort direkt eintippen“ kannst du alternativ auch die Systemtastatur nutzen.</li>
-        <li><strong>Hilfen &amp; Wertung:</strong> <strong>💡 Hinweis</strong> trägt einen richtigen Buchstaben ein, <strong>✓ Prüfen</strong> markiert falsche Buchstaben. Deine Bestzeiten, Punkte und gelösten Rätsel werden lokal gespeichert.</li>
+        <li><strong>Hilfen &amp; Wertung:</strong> <strong>💡 Hinweis</strong> trägt bevorzugt im aktuellen Wort einen richtigen Buchstaben ein, <strong>✓ Prüfen</strong> bestätigt richtige Buchstaben grün und markiert Fehler rot (mit Ein-Klick-Löschen). Bestzeiten, Punkte und gelöste Rätsel bleiben lokal im Browser.</li>
       </ul>
     </details>
 
@@ -131,10 +144,10 @@
         <ol>
           <li>Wähle ein weißes Feld oder einen Hinweis aus den Listen für <strong>Waagrecht</strong> und <strong>Senkrecht</strong>.</li>
           <li>Tippe Buchstaben per Tastatur, Bildschirmtastatur oder im Wortfeld. Umlaute (Ä, Ö, Ü, ß) werden automatisch umgeschrieben.</li>
-          <li>Mit <kbd>Backspace</kbd> (oder ⌫) korrigierst du rückwärts; ein erneuter Tipp auf eine Kreuzung wechselt die Richtung.</li>
+          <li>Mit <kbd>Backspace</kbd> (oder ⌫) korrigierst du rückwärts; an Kreuzungen wechselst du per erneutem Tipp, <kbd>Enter</kbd> oder über den Kreuzungs-Knopf im Hinweisbalken die Richtung.</li>
           <li>Die nummerierten Gold-Felder bilden zusammen das <strong>Lösungswort</strong> unter dem Gitter.</li>
         </ol>
-        <p>Bei <strong>Bairisch</strong> zeigen die Hinweise zusätzlich Region und hochdeutsche Bedeutung. Alle Punkte und Bestzeiten bleiben lokal in deinem Browser.</p>
+        <p>Im Standardmodus <strong>Deutsch &amp; Bairisch</strong> verbinden sich über 5.100 Begriffe beider Sprachwelten; bairische Hinweise sind klar mit <strong>Bairisch</strong> und Region gekennzeichnet und erscheinen nach dem Lösen im Glossar.</p>
         <div class="overlay-actions">
           <button id="help-close" type="button" class="primary">Verstanden</button>
         </div>
@@ -151,6 +164,10 @@
           <div><dt>Bestwert</dt><dd id="result-best-score">0</dd></div>
           <div><dt>Gelöst</dt><dd id="result-wins">0</dd></div>
         </dl>
+        <section id="result-glossary" class="result-glossary" hidden aria-label="Bairische Begriffe in diesem Rätsel">
+          <h3 class="glossary-title">🏔️ Bairisch in diesem Rätsel</h3>
+          <ul id="result-glossary-list" class="glossary-list"></ul>
+        </section>
         <div class="overlay-actions">
           <button id="result-new-btn" type="button" class="primary">Neues Rätsel</button>
           <button id="result-close-btn" type="button">Schließen</button>
@@ -159,6 +176,6 @@
     </div>
   </main>
 
-  <footer><small>Pandakreuzwort · Bestzeiten und Punktestände werden lokal im Browser gespeichert.</small></footer>
+  <footer><small>Pandakreuzwort · Bestzeiten, Tagesrätsel und Punktestände werden lokal im Browser gespeichert.</small></footer>
 </body>
 </html>
